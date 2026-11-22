@@ -17,7 +17,11 @@ export const SHOPMONKEY_BASE_URL = 'https://api.shopmonkey.cloud'
  * POST endpoints that only read. PROVISIONAL(M0:S2): from the docs; extend only with paths whose
  * documentation says they search.
  */
-export const SEARCH_ALLOWLIST: readonly RegExp[] = [/^\/v3\/[a-z_]+\/search$/]
+export const SEARCH_ALLOWLIST: readonly RegExp[] = [
+  // /v3/customer/search, /v3/customer/email/search, /v3/integration/payment/search. Letters and
+  // underscores only between the slashes, so an id (which has digits) can never sit in the path.
+  /^\/v3(?:\/[a-z_]+){1,3}\/search$/,
+]
 
 export class ReadOnlyViolation extends Error {
   constructor(method: string, pathName: string) {

@@ -41,6 +41,8 @@ describe('assertReadOnly', () => {
   it('allows GET and allowlisted search POSTs only', () => {
     expect(() => assertReadOnly('GET', '/v3/order')).not.toThrow()
     expect(() => assertReadOnly('POST', '/v3/order/search')).not.toThrow()
+    expect(() => assertReadOnly('POST', '/v3/customer/email/search')).not.toThrow()
+    expect(() => assertReadOnly('POST', '/v3/integration/payment/search')).not.toThrow()
     for (const [method, p] of [
       ['POST', '/v3/order'],
       ['PUT', '/v3/order/abc'],
@@ -48,6 +50,8 @@ describe('assertReadOnly', () => {
       ['DELETE', '/v3/vehicle/abc'],
       ['POST', '/v3/order/abc/service'],
       ['POST', '/v3/order/search/../abc'],
+      ['POST', '/v3/order/64b0c1d2e3f4a5b6c7d8e9f0/search'],
+      ['POST', '/v3/customer/email'],
     ]) {
       expect(() => assertReadOnly(method, p), `${method} ${p}`).toThrow(ReadOnlyViolation)
     }
