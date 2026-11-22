@@ -1,6 +1,5 @@
-import fs from 'node:fs'
-import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { readImportSourceWithFork } from '@/__tests__/stubs/fork-import-source'
 import { readPrismaSchema } from '@/__tests__/stubs/prisma-schema'
 
 /**
@@ -16,7 +15,8 @@ import { readPrismaSchema } from '@/__tests__/stubs/prisma-schema'
  */
 
 const ROOT = process.cwd()
-const importSource = fs.readFileSync(path.join(ROOT, 'src/lib/backup/import.ts'), 'utf-8')
+// fork: import.ts with the fork's restore (src/lib/backup/fork-restore.ts) folded in
+const importSource = readImportSourceWithFork(ROOT)
 const schema = readPrismaSchema(ROOT)
 
 /** Scalar (persisted, non-relation) columns of a model, from the schema. */

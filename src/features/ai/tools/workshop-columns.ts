@@ -27,6 +27,9 @@ export const HIDDEN_COLUMNS: readonly string[] = [
   // fact about the vehicle: the reading itself is `mileage`.
   'readingJobId',
   'readingBeforeJob',
+  // fork: an imported line's source fields with no column of their own (raw Shopmonkey data,
+  // reachable through the public API); the line's facts are in the columns below.
+  'sourceExtra',
 ]
 
 /**
@@ -175,6 +178,11 @@ export const TABLE_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     'inventoryPartId',
     'taxable',
     'serviceRecordId',
+    // fork: the job it is grouped under and the line's kind, discount and note in its source
+    'jobId',
+    'lineKind',
+    'discountAmount',
+    'note',
   ],
   service_labor: [
     'id',
@@ -185,6 +193,14 @@ export const TABLE_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     'pricingType',
     'taxable',
     'serviceRecordId',
+    // fork: the job, kind, technician, completion, technician cost and discount in its source
+    'jobId',
+    'lineKind',
+    'technicianId',
+    'completed',
+    'costHours',
+    'costRate',
+    'discountAmount',
   ],
   service_attachments: [
     'id',
@@ -307,6 +323,11 @@ export const TABLE_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     'inventoryPartId',
     'sortOrder',
     'quoteId',
+    // fork: the job it is grouped under and the line's kind, discount and note in its source
+    'jobId',
+    'lineKind',
+    'discountAmount',
+    'note',
   ],
   quote_labor: [
     'id',
@@ -319,6 +340,14 @@ export const TABLE_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     'taxable',
     'sortOrder',
     'quoteId',
+    // fork: the job, kind, technician, completion, technician cost and discount in its source
+    'jobId',
+    'lineKind',
+    'technicianId',
+    'completed',
+    'costHours',
+    'costRate',
+    'discountAmount',
   ],
   quote_attachments: [
     'id',
