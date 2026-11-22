@@ -232,7 +232,9 @@
     "equipment_delete": "Изтрито оборудване",
     "platform_deleteUser": "Изтрит потребител",
     "platform_grantSuperAdmin": "Даден супер администратор",
-    "platform_revokeSuperAdmin": "Премахнат супер администратор"
+    "platform_revokeSuperAdmin": "Премахнат супер администратор",
+    "api_key_create": "Създаден API ключ",
+    "api_key_revoke": "Отменен API ключ"
   },
   "summary": {
     "auth_twoFactorEnabled": "Двуфакторното удостоверяване е включено",
@@ -424,6 +426,8 @@
     "equipment_meter": "Добавен е броячът {meter} към {name} на {vehicle}",
     "platform_deleteUser": "Изтрит потребител {name} ({email})",
     "platform_grantSuperAdmin": "{name} ({email}) стана супер администратор",
-    "platform_revokeSuperAdmin": "Премахнати правата на супер администратор на {name} ({email})"
+    "platform_revokeSuperAdmin": "Премахнати правата на супер администратор на {name} ({email})",
+    "api_key_create": "Създаден API ключ {name} ({ref})",
+    "api_key_revoke": "Отменен API ключ {name} ({ref})"
   }
 }

@@ -158,6 +158,10 @@
       "workOrderStatuses": {
         "title": "Статусы заказ-нарядов",
         "description": "Ваши этапы и кого уведомлять"
+      },
+      "apiKeys": {
+        "title": "API-ключи",
+        "description": "Ключи для интеграций"
       }
     },
     "pro": "PRO",

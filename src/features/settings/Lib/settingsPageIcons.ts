@@ -15,6 +15,7 @@ import {
   Info,
   Key,
   Keyboard,
+  KeyRound, // fork: Settings → API keys
   Layout,
   LifeBuoy,
   ListChecks,
@@ -60,6 +61,7 @@ export const SETTINGS_PAGE_ICONS: Record<SettingsPageKey, LucideIcon> = {
   reportSchedule: CalendarClock,
   integrations: Plug,
   webhooks: Webhook,
+  apiKeys: KeyRound, // fork: Settings → API keys
   data: Database,
   install: Download,
   license: Key,

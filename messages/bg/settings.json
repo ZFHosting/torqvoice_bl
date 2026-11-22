@@ -158,6 +158,10 @@
       "workOrderStatuses": {
         "title": "Статуси на работните поръчки",
         "description": "Вашите етапи и кой да бъде уведомяван"
+      },
+      "apiKeys": {
+        "title": "API ключове",
+        "description": "Ключове за интеграции"
       }
     },
     "pro": "PRO",

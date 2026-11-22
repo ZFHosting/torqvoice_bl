@@ -158,6 +158,10 @@
       "workOrderStatuses": {
         "title": "Work order statuses",
         "description": "Your own steps, and who gets told"
+      },
+      "apiKeys": {
+        "title": "API keys",
+        "description": "Keys for integrations"
       }
     },
     "pro": "PRO",

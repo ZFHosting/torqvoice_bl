@@ -158,6 +158,10 @@
       "workOrderStatuses": {
         "title": "Statusy zleceń",
         "description": "Własne etapy i kto dostaje wiadomość"
+      },
+      "apiKeys": {
+        "title": "Klucze API",
+        "description": "Klucze do integracji"
       }
     },
     "pro": "PRO",

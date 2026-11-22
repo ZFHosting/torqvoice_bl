@@ -158,6 +158,10 @@
       "workOrderStatuses": {
         "title": "Statuser for arbeidsordre",
         "description": "Dine egne steg, og hvem som får beskjed"
+      },
+      "apiKeys": {
+        "title": "API-nøkler",
+        "description": "Nøkler for integrasjoner"
       }
     },
     "pro": "PRO",

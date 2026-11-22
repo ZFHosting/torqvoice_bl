@@ -232,7 +232,9 @@
     "equipment_delete": "Deleted Equipment",
     "platform_deleteUser": "Deleted User",
     "platform_grantSuperAdmin": "Granted Super Admin",
-    "platform_revokeSuperAdmin": "Removed Super Admin"
+    "platform_revokeSuperAdmin": "Removed Super Admin",
+    "api_key_create": "Created API Key",
+    "api_key_revoke": "Revoked API Key"
   },
   "summary": {
     "auth_twoFactorEnabled": "Turned on two-factor sign-in",
@@ -424,6 +426,8 @@
     "equipment_meter": "Added meter {meter} to {name} on {vehicle}",
     "platform_deleteUser": "Deleted the user {name} ({email})",
     "platform_grantSuperAdmin": "Made {name} ({email}) a super admin",
-    "platform_revokeSuperAdmin": "Removed super admin from {name} ({email})"
+    "platform_revokeSuperAdmin": "Removed super admin from {name} ({email})",
+    "api_key_create": "Created API key {name} ({ref})",
+    "api_key_revoke": "Revoked API key {name} ({ref})"
   }
 }

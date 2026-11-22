@@ -158,6 +158,10 @@
       "workOrderStatuses": {
         "title": "Užsakymų būsenos",
         "description": "Jūsų žingsniai ir kam pranešama"
+      },
+      "apiKeys": {
+        "title": "API raktai",
+        "description": "Raktai integracijoms"
       }
     },
     "pro": "PRO",

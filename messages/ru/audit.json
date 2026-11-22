@@ -232,7 +232,9 @@
     "equipment_delete": "Удалено оборудование",
     "platform_deleteUser": "Удалён пользователь",
     "platform_grantSuperAdmin": "Назначен суперадмин",
-    "platform_revokeSuperAdmin": "Сняты права суперадмина"
+    "platform_revokeSuperAdmin": "Сняты права суперадмина",
+    "api_key_create": "Создан API-ключ",
+    "api_key_revoke": "Отозван API-ключ"
   },
   "summary": {
     "auth_twoFactorEnabled": "Включён двухфакторный вход",
@@ -424,6 +426,8 @@
     "equipment_meter": "Счётчик {meter} добавлен к {name} на {vehicle}",
     "platform_deleteUser": "Удалён пользователь {name} ({email})",
     "platform_grantSuperAdmin": "{name} ({email}) назначен суперадмином",
-    "platform_revokeSuperAdmin": "С {name} ({email}) сняты права суперадмина"
+    "platform_revokeSuperAdmin": "С {name} ({email}) сняты права суперадмина",
+    "api_key_create": "Создан API-ключ {name} ({ref})",
+    "api_key_revoke": "Отозван API-ключ {name} ({ref})"
   }
 }

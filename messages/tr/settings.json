@@ -158,6 +158,10 @@
       "workOrderStatuses": {
         "title": "İş emri durumları",
         "description": "Kendi adımlarınız ve kime haber verileceği"
+      },
+      "apiKeys": {
+        "title": "API anahtarları",
+        "description": "Entegrasyonlar için anahtarlar"
       }
     },
     "pro": "PRO",

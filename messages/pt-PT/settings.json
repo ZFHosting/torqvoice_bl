@@ -158,6 +158,10 @@
       "workOrderStatuses": {
         "title": "Estados das ordens",
         "description": "Os seus próprios passos, e quem é avisado"
+      },
+      "apiKeys": {
+        "title": "Chaves de API",
+        "description": "Chaves para integrações"
       }
     },
     "pro": "PRO",

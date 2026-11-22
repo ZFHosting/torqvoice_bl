@@ -158,6 +158,10 @@
       "workOrderStatuses": {
         "title": "Werkorderstatussen",
         "description": "Uw eigen stappen, en wie bericht krijgt"
+      },
+      "apiKeys": {
+        "title": "API-sleutels",
+        "description": "Sleutels voor integraties"
       }
     },
     "pro": "PRO",
