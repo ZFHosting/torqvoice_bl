@@ -3,16 +3,19 @@
  * shop data"). Pure: no I/O, so it is unit tested in src/__tests__/scripts/shopmonkey/anonymize.test.ts.
  * The CLI around it is anonymize-fixtures.ts.
  *
- * Rules:
- * - The same input (with the same salt) always gives the same fake, so a customer's email in the
- *   customer table and on an order stay equal, and references survive.
- * - Ids (`id`, `*Id`, `*Ids`) are kept: they are Shopmonkey's opaque ids, and the fixtures are useless
- *   without them.
- * - Names, emails, phones, VINs, plates, street addresses, postal codes, cities, URLs, card digits and
- *   free-text notes are replaced. Any string anywhere that looks like an email, a phone number or a VIN
- *   is replaced too, so a phone typed into a note or a custom field doesn't slip through.
- * - Every original value that was replaced is collected, so the caller can prove none of them is left
- *   anywhere in the output before writing it (`findLeaks`).
+ * **Replace by default.** Every string is replaced unless its key says it can't hold personal data:
+ * - an id (`id`, `*Id`, `*Ids`): Shopmonkey's opaque ids, which the fixtures need to stay linked;
+ * - a documented enum (ENUM_KEYS, from docs/fork/spikes/SHOPMONKEY-SCHEMAS.md): `status`, `paymentType`...;
+ * - a short list of catalog and vehicle facts (SAFE_KEYS): part numbers, sizes, make and model...;
+ * - `name` on things rather than people (a service, a part, a workflow status: THING_TABLES).
+ * ISO dates, numbers and booleans are kept, except coordinates, which are zeroed. A field Shopmonkey
+ * adds later is therefore replaced until someone decides it's safe, rather than leaking until someone
+ * notices. Kept strings are still scrubbed: anything in them that looks like an email, a phone number
+ * or a VIN is replaced.
+ *
+ * The same input (with the same salt) always gives the same fake, so a customer's email on the
+ * customer and on an order stay equal. Every replaced identifier is collected, so the caller can prove
+ * none is left anywhere in the output before writing it (`findLeaks`).
  *
  * The salt must be secret (ANONYMIZE_SALT, never committed): with a known salt, someone holding a guess
  * of a real phone number could check it against the fake.
@@ -21,9 +24,10 @@ import { createHmac } from 'node:crypto'
 
 /** Every fixture VIN starts with this, so a reviewer can tell a fake from a real one at a glance. */
 export const FAKE_VIN_PREFIX = 'TVFX'
-/** Fake phones are in the 555-0100–0199 range reserved for fiction. */
-export const FAKE_PHONE_PATTERN = /^\+1202555 ?01\d\d$/
+/** Fake phones are in the 555-0100–0199 range reserved for fiction, across a few area codes. */
+export const FAKE_PHONE_PATTERN = /^\+1(202|303|404|505|606|707|808|909)555 ?01\d\d$/
 export const FAKE_EMAIL_DOMAIN = 'example.test'
+const AREA_CODES = ['202', '303', '404', '505', '606', '707', '808', '909']
 
 const FIRST_NAMES = [
   'Avery',
@@ -94,21 +98,238 @@ const NOTES = [
   'Recommend replacing within 3 months.',
   'Leave keys at the front desk.',
 ]
-/** Kinds whose originals the leak check looks for in the output. */
-const LEAK_CHECKED: ReadonlySet<Kind> = new Set<Kind>([
-  'firstName',
-  'lastName',
-  'fullName',
-  'companyName',
-  'email',
-  'phone',
-  'vin',
-  'plate',
-  'street',
-  'secret',
-])
 /** VIN characters (no I, O or Q). */
 const VIN_CHARS = 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789'
+
+/**
+ * Keys documented as enums in Shopmonkey's schemas (docs/fork/spikes/SHOPMONKEY-SCHEMAS.md): their
+ * values are drawn from a fixed list, so they can't hold personal data and the importer needs them.
+ */
+export const ENUM_KEYS: ReadonlySet<string> = new Set([
+  'activity',
+  'appliedDiscountValueType',
+  'appointmentEvent',
+  'attributionSource',
+  'authorType',
+  'authorizationStatus',
+  'checklistStage',
+  'clockInPlatform',
+  'clockOutPlatform',
+  'color',
+  'configurationStatus',
+  'confirmationStatus',
+  'consumptionType',
+  'contentType',
+  'country',
+  'creditMethod',
+  'customerType',
+  'defaultTemplateIdentifier',
+  'deferredReason',
+  'discountValueType',
+  'disputedStatus',
+  'disputedType',
+  'drivetrain',
+  'drivingCondition',
+  'emailStatus',
+  'entity',
+  'epaValueType',
+  'feePricingModel',
+  'feeType',
+  'fixedPriceLimitType',
+  'gstValueType',
+  'hstValueType',
+  'inspectionReviewStatus',
+  'inspectionStatus',
+  'inventoryStatus',
+  'invoiceLockState',
+  'language',
+  'lengthUnit',
+  'licensePlateCountry',
+  'lineItemEntity',
+  'lineItemInventoryStatus',
+  'lineItemOrder',
+  'marketingOptInMethod',
+  'marketingOptInStatus',
+  'method',
+  'mileageUnit',
+  'multiplierType',
+  'optInStatus',
+  'orderShareType',
+  'origin',
+  'outerDiameterUnit',
+  'partReturnPartType',
+  'paymentMode',
+  'paymentType',
+  'preferredContactMethod',
+  'preferredLaborGuide',
+  'preferredLanguage',
+  'pricing',
+  'provider',
+  'pstValueType',
+  'purchaseStatus',
+  'refundReason',
+  'region',
+  'returnType',
+  'reviewStatus',
+  'seasonality',
+  'sectionWidthUnit',
+  'sendReviewTrigger',
+  'shopSuppliesConfig',
+  'shopSuppliesServiceType',
+  'shopSuppliesValueType',
+  'size',
+  'sizeFormat',
+  'skillRequired',
+  'smsStatus',
+  'sourceType',
+  'starterTemplateIdentifier',
+  'status',
+  'suggestedReplyState',
+  'taxSystem',
+  'taxValueType',
+  'transactionType',
+  'transmission',
+  'treadDepthUnit',
+  'type',
+  'wheelDiameterUnit',
+])
+
+/** String keys that hold catalog, vehicle or document facts, never a person. Kept, then scrubbed. */
+export const SAFE_KEYS: ReadonlySet<string> = new Set([
+  'binLocation',
+  'bodyStyle',
+  'bedLength',
+  'calculatedName',
+  'cardType',
+  'categoryType',
+  'computedSortableName',
+  'computed_ymm',
+  'construction',
+  'creditInvoiceNumber',
+  'drivetype',
+  'engine',
+  'externalNumber',
+  'fileType',
+  'frontTireSize',
+  'generatedBrandName',
+  'generatedModelName',
+  'hash',
+  'idempotencyKey',
+  'inventoryNumber',
+  'invoiceNumber',
+  'label',
+  'loadRange',
+  'make',
+  'mobileCountryCode',
+  'mobileNetworkCode',
+  'model',
+  'normalizedPartNumber',
+  'normalizedSKU',
+  'number',
+  'parentName',
+  'partNumber',
+  'productionDate',
+  'purchaseOrderNumber',
+  'quickbooksRef',
+  'readMethod',
+  'readOnlyReason',
+  'rearTireSize',
+  'serviceType',
+  'size',
+  'sku',
+  'speedRating',
+  'state',
+  'submodel',
+  'temperature_UTQG',
+  'timezone',
+  'traction_UTQG',
+  'transmissionMfrCode',
+  'transmissionSpeed',
+  'unit',
+  'userDefinedType',
+  'vendorInvoiceNumber',
+  'extension',
+  'licensePlateState',
+  'confirmationTemplateIdentifier',
+  'reminderTemplateIdentifier',
+])
+
+/** Tables whose `name` names a thing (a service, a part, a status), not a person or a business. */
+const THING_TABLES = new Set([
+  'service',
+  'order_service',
+  'labor',
+  'part',
+  'tire',
+  'fee',
+  'subcontract',
+  'canned_service',
+  'canned_service_labor',
+  'canned_service_part',
+  'canned_service_tire',
+  'canned_service_fee',
+  'canned_service_subcontract',
+  'inventory_part',
+  'inventory_tire',
+  'inventory_labor',
+  'inventory_fee',
+  'inventory_category',
+  'inspection',
+  'inspection_item',
+  'inspection_item_status_detail',
+  'inspection_template',
+  'inspection_template_item',
+  'workflow_status',
+  'labor_rate',
+  'label',
+  'referral_source',
+  'tax_config',
+  'payment_term',
+  'tire_model',
+  'brand',
+  'payment_type_config',
+  'labor_matrix',
+  'pricing_matrix',
+  'core_charge',
+])
+/** Tables whose `name` is a person. Any other non-thing table's `name` is free text. */
+const PERSON_TABLES = new Set(['customer', 'user', 'contact'])
+/** Tables whose `name` is a business. */
+const BUSINESS_TABLES = new Set(['vendor', 'location', 'company', 'fleet'])
+
+/** The table a nested object belongs to, by the key it sits under. */
+const CHILD_TABLE: Record<string, string> = {
+  customer: 'customer',
+  customers: 'customer',
+  vehicle: 'vehicle',
+  vehicles: 'vehicle',
+  user: 'user',
+  users: 'user',
+  technician: 'user',
+  technicians: 'user',
+  serviceWriter: 'user',
+  vendor: 'vendor',
+  location: 'location',
+  locations: 'location',
+  companyLocations: 'location',
+  company: 'company',
+  services: 'service',
+  labors: 'labor',
+  parts: 'part',
+  tires: 'tire',
+  fees: 'fee',
+  subcontracts: 'subcontract',
+  emails: 'email',
+  phoneNumbers: 'phone_number',
+  files: 'file',
+  statusDetails: 'inspection_item_status_detail',
+  owners: 'vehicle_owner',
+  workflowStatus: 'workflow_status',
+  paymentTerm: 'payment_term',
+  appointments: 'appointment',
+  inspections: 'inspection',
+  authorizations: 'authorization',
+}
 
 export type Kind =
   | 'firstName'
@@ -124,28 +345,42 @@ export type Kind =
   | 'postalCode'
   | 'note'
   | 'url'
-  | 'cardDigits'
+  | 'fileName'
+  | 'digits'
+  | 'token'
   | 'secret'
 
-/** Key name (lowercased) → what it holds. Context-free keys only; `name` is decided per table. */
+/** Key name (lowercased) → what it holds, where a specific fake reads better than generic text. */
 const KEY_KINDS: Record<string, Kind> = {
   firstname: 'firstName',
   middlename: 'firstName',
+  contactfirstname: 'firstName',
+  normalizedfirstname: 'firstName',
   lastname: 'lastName',
+  contactlastname: 'lastName',
+  normalizedlastname: 'lastName',
   fullname: 'fullName',
   displayname: 'fullName',
   contactname: 'fullName',
   ownername: 'fullName',
   customername: 'fullName',
+  generatedcustomername: 'fullName',
+  normalizedname: 'fullName',
+  coalescedfirstnameorcompanyname: 'fullName',
+  cardname: 'fullName',
+  reviewername: 'fullName',
   technicianname: 'fullName',
   servicewritername: 'fullName',
   signername: 'fullName',
   signedby: 'fullName',
+  scannedby: 'fullName',
   companyname: 'companyName',
   email: 'email',
   emailaddress: 'email',
+  contactemail: 'email',
   phone: 'phone',
   phonenumber: 'phone',
+  contactphone: 'phone',
   mobile: 'phone',
   mobilephone: 'phone',
   homephone: 'phone',
@@ -170,53 +405,61 @@ const KEY_KINDS: Record<string, Kind> = {
   postalcode: 'postalCode',
   zip: 'postalCode',
   zipcode: 'postalCode',
-  note: 'note',
-  notes: 'note',
-  internalnote: 'note',
-  customernote: 'note',
-  comment: 'note',
-  comments: 'note',
-  complaint: 'note',
-  recommendation: 'note',
-  deferredreason: 'note',
-  declinedreason: 'note',
-  message: 'note',
-  body: 'note',
-  text: 'note',
+  website: 'url',
+  url: 'url',
+  pdfurl: 'url',
+  thumbnailurl: 'url',
+  customphotourl: 'url',
+  googlephotourl: 'url',
+  reviewerphotourl: 'url',
   signature: 'url',
-  cardlast4: 'cardDigits',
-  carddigits: 'cardDigits',
-  last4: 'cardDigits',
-  checknumber: 'cardDigits',
+  filename: 'fileName',
+  carddigits: 'digits',
+  cardlast4: 'digits',
+  last4: 'digits',
+  checknumber: 'digits',
+  accountnumber: 'digits',
+  cardconfirmation: 'digits',
+  dotnumber: 'digits',
+  serial: 'token',
+  taxid: 'token',
+  externalid: 'token',
   token: 'secret',
+  bstoken: 'secret',
   accesstoken: 'secret',
   password: 'secret',
   secret: 'secret',
   apikey: 'secret',
 }
 
-/** Tables whose `name` (and `coalescedName` / `generatedName`) is a person's or a business's name. */
-const NAMED_TABLES = new Set([
-  'customer',
-  'user',
-  'vendor',
-  'location',
-  'company',
-  'fleet',
-  'contact',
+/** Kinds whose originals the leak check looks for in the output. */
+const LEAK_CHECKED: ReadonlySet<Kind> = new Set<Kind>([
+  'firstName',
+  'lastName',
+  'fullName',
+  'companyName',
+  'email',
+  'phone',
+  'vin',
+  'plate',
+  'street',
+  'token',
+  'secret',
 ])
-/** Order-like tables whose generated names are built from the customer and vehicle. */
-const GENERATED_NAME_TABLES = new Set(['order'])
+
+/** Id keys that hold a person's identifier rather than Shopmonkey's: replaced like any value. */
+const PII_ID_KEYS = new Set(['taxId', 'externalId'])
 
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g
 // North American and international phone shapes with at least 10 digits.
 const PHONE_RE = /(?<![\w-])\+?\d{0,3}[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?![\w-])/g
 const VIN_RE = /\b[A-HJ-NPR-Z0-9]{17}\b/g
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/
 
 export interface Anonymizer {
   /** Anonymizes one record of `table`. Returns a new object; the input is untouched. */
   record(table: string, value: unknown): unknown
-  /** Every original string that was replaced, for the leak check. */
+  /** Every original identifier that was replaced, for the leak check. */
   originals(): ReadonlySet<string>
 }
 
@@ -229,7 +472,6 @@ export function createAnonymizer(salt: string): Anonymizer {
     createHmac('sha256', salt).update(`${kind}\u0000${value.trim().toLowerCase()}`).digest()
   const pick = <T>(list: readonly T[], bytes: Buffer, offset = 0) =>
     list[bytes.readUInt16BE(offset) % list.length]
-  /** Only identifiers are collected: a replaced note like "Oil change" is no leak when a service has that name. */
   const remember = (kind: Kind, original: string) => {
     if (LEAK_CHECKED.has(kind) && original.trim().length >= 4) replaced.add(original.trim())
   }
@@ -248,7 +490,7 @@ export function createAnonymizer(salt: string): Anonymizer {
       case 'email':
         return `user-${h.toString('hex').slice(0, 10)}@${FAKE_EMAIL_DOMAIN}`
       case 'phone':
-        return `+1202555${String(100 + (h.readUInt16BE(0) % 100)).padStart(4, '0')}`
+        return `+1${pick(AREA_CODES, h, 2)}555${String(100 + (h.readUInt16BE(0) % 100)).padStart(4, '0')}`
       case 'vin': {
         let vin = FAKE_VIN_PREFIX
         for (let i = 0; vin.length < 17; i++) vin += VIN_CHARS[h[i % h.length] % VIN_CHARS.length]
@@ -266,26 +508,24 @@ export function createAnonymizer(salt: string): Anonymizer {
         return pick(NOTES, h)
       case 'url':
         return `https://files.${FAKE_EMAIL_DOMAIN}/${h.toString('hex').slice(0, 16)}${extensionOf(original)}`
-      case 'cardDigits':
+      case 'fileName':
+        return `file-${h.toString('hex').slice(0, 10)}${extensionOf(original)}`
+      case 'digits':
         return String(h.readUInt16BE(0) % 10000).padStart(4, '0')
+      case 'token':
+        return `x${h.toString('hex').slice(0, 12)}`
       case 'secret':
         return 'REDACTED'
     }
   }
 
-  function replace(kind: Kind, value: unknown): unknown {
-    if (
-      typeof value === 'number' &&
-      (kind === 'phone' || kind === 'cardDigits' || kind === 'postalCode')
-    ) {
-      return replace(kind, String(value))
-    }
-    if (typeof value !== 'string' || value.trim() === '') return value
+  function replace(kind: Kind, value: string): string {
+    if (value.trim() === '') return value
     remember(kind, value)
     return fake(kind, value)
   }
 
-  /** Free text that wasn't classified by key: scrub anything that looks like contact data or a VIN. */
+  /** Text kept as is (an id, an enum, a catalog fact): replace anything in it that looks like contact data. */
   function scrub(value: string): string {
     return value
       .replace(EMAIL_RE, (m) => (remember('email', m), fake('email', m)))
@@ -300,39 +540,49 @@ export function createAnonymizer(salt: string): Anonymizer {
       })
   }
 
-  function kindFor(table: string, key: string, parentKey: string | null): Kind | null {
-    const k = key.toLowerCase()
-    if (k === 'name' || k === 'coalescedname' || k === 'generatedname') {
-      if (NAMED_TABLES.has(table) && parentKey === null)
-        return table === 'customer' || table === 'user' ? 'fullName' : 'companyName'
-      if (GENERATED_NAME_TABLES.has(table) && parentKey === null && k !== 'name') return 'note'
-      return null
+  /** What to do with a string under `key` in `table`: keep (then scrub) or replace as a kind. */
+  function decide(table: string, key: string): 'keep' | Kind {
+    const lower = key.toLowerCase()
+    if (key === 'number' && (table === 'phone_number' || table === 'phone')) return 'phone'
+    if (KEY_KINDS[lower]) return KEY_KINDS[lower]
+    if (key === 'name') {
+      if (THING_TABLES.has(table)) return 'keep'
+      if (PERSON_TABLES.has(table)) return 'fullName'
+      if (BUSINESS_TABLES.has(table)) return 'companyName'
+      return 'note'
     }
-    // A `number` inside a phone list, an `address` inside an emails list.
-    if (k === 'number' && parentKey && /phone/i.test(parentKey)) return 'phone'
-    if (/url$/i.test(key) && !/^(base|api)url$/i.test(key)) return 'url'
-    return KEY_KINDS[k] ?? null
+    if (isIdKey(key) || ENUM_KEYS.has(key) || SAFE_KEYS.has(key)) return 'keep'
+    if (/url$/i.test(key)) return 'url'
+    if (/name$/i.test(key)) return 'fullName'
+    return 'note'
   }
 
-  function walk(table: string, value: unknown, parentKey: string | null): unknown {
-    if (Array.isArray(value)) return value.map((v) => walk(table, v, parentKey))
+  function walkString(table: string, key: string | null, value: string): string {
+    if (ISO_DATE.test(value)) return value
+    const decision = key === null ? 'note' : decide(table, key)
+    if (decision === 'keep') return scrub(value)
+    // A single word that isn't a name becomes a token rather than a sentence.
+    if (decision === 'note' && !/\s/.test(value.trim())) return replace('token', value)
+    return replace(decision, value)
+  }
+
+  function walk(table: string, value: unknown, key: string | null): unknown {
+    if (Array.isArray(value)) return value.map((v) => walk(table, v, key))
     if (value && typeof value === 'object') {
       const out: Record<string, unknown> = {}
-      for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-        if (isIdKey(key)) {
-          out[key] = child
-          continue
-        }
-        const kind = kindFor(table, key, parentKey)
-        if (kind && (typeof child === 'string' || typeof child === 'number'))
-          out[key] = replace(kind, child)
-        else if (kind && Array.isArray(child) && child.every((c) => typeof c === 'string')) {
-          out[key] = child.map((c) => replace(kind, c))
-        } else out[key] = walk(table, child, key)
+      for (const [childKey, child] of Object.entries(value as Record<string, unknown>)) {
+        if (child !== null && typeof child === 'object') {
+          out[childKey] = walk(CHILD_TABLE[childKey] ?? table, child, childKey)
+        } else out[childKey] = walk(table, child, childKey)
       }
       return out
     }
-    if (typeof value === 'string') return scrub(value)
+    if (typeof value === 'string') return walkString(table, key, value)
+    if (typeof value === 'number' && key !== null) {
+      if (/(latitude|longitude)$/i.test(key)) return 0
+      const kind = decide(table, key)
+      if (kind === 'phone' || kind === 'digits') return replace(kind, String(value))
+    }
     return value
   }
 
@@ -343,18 +593,34 @@ export function createAnonymizer(salt: string): Anonymizer {
 }
 
 function isIdKey(key: string): boolean {
-  return key === 'id' || /Ids?$/.test(key) || key === '_id'
+  if (PII_ID_KEYS.has(key)) return false
+  return key === 'id' || key === '_id' || /Ids?$/.test(key)
 }
 
 function extensionOf(url: string): string {
-  const m = url.split('?')[0].match(/\.(jpe?g|png|gif|webp|heic|pdf)$/i)
+  const m = url.split('?')[0].match(/\.(jpe?g|png|gif|webp|heic|pdf|docx?|xlsx?|csv|txt)$/i)
   return m ? `.${m[1].toLowerCase()}` : ''
 }
 
+/** Lowercase words, with apostrophes dropped inside them, so "O'Rourke" and "orourke" compare equal. */
+function words(value: string): string {
+  return (
+    value
+      .toLowerCase()
+      .replace(/['’`]/g, '')
+      .replace(/[^a-z0-9@.+]+/g, ' ')
+      // A dot only joins words (an email, a domain); at the end of a sentence it's punctuation.
+      .replace(/(^|\s)\.+|\.+(?=\s|$)/g, ' ')
+      .trim()
+  )
+}
+
 /**
- * Original values still present in the serialized output (whole words, case-insensitive), plus any
- * deny-listed string (the shop's name, a surname you know is in the data). Empty means safe to write.
- * `allowList` names originals that are known false positives (a customer whose surname is "Brake").
+ * Original values still present in the serialized output, plus any deny-listed string (the shop's
+ * name, a surname you know is in the data). Empty means safe to write. A value counts as present when
+ * its words appear as whole words, ignoring case and apostrophes; a deny-listed value also counts when
+ * it appears squashed into one word (`Joes Garage` in `joesgarage.example`). `allowList` names
+ * originals that are known false positives (a customer whose surname is "Brake").
  */
 export function findLeaks(
   serialized: string,
@@ -362,14 +628,19 @@ export function findLeaks(
   denyList: Iterable<string> = [],
   allowList: Iterable<string> = []
 ): string[] {
-  const allowed = new Set([...allowList].map((v) => v.trim().toLowerCase()))
+  const allowed = new Set([...allowList].map((v) => words(v)))
+  const haystack = ` ${words(serialized)} `
+  const squashed = haystack.replace(/[^a-z0-9]/g, '')
+  const deny = new Set([...denyList].map((v) => v.trim()).filter(Boolean))
   const leaks: string[] = []
-  for (const value of new Set([...originals, ...denyList])) {
-    const needle = value.trim()
-    if (needle.length < 4 || allowed.has(needle.toLowerCase())) continue
-    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    if (new RegExp(`(^|[^A-Za-z0-9])${escaped}($|[^A-Za-z0-9])`, 'i').test(serialized))
-      leaks.push(value)
+  for (const value of new Set([...originals, ...deny])) {
+    const needle = words(value)
+    if (needle.length < 4 || allowed.has(needle)) continue
+    const compact = needle.replace(/[^a-z0-9]/g, '')
+    const found =
+      haystack.includes(` ${needle} `) ||
+      (deny.has(value.trim()) && compact.length >= 6 && squashed.includes(compact))
+    if (found) leaks.push(value)
   }
   return leaks
 }
