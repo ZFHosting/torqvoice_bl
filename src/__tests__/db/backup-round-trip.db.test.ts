@@ -528,6 +528,9 @@ const LEFT_EMPTY: Readonly<Record<string, string>> = {
   'StoredImage.inventoryPartId': ONE_PARENT,
   'StoredImage.tireMeasurementId': ONE_PARENT,
   'VehicleMeter.vehicleId': ONE_PARENT,
+  // fork: a job groups the lines of a work order or of a quote
+  'WorkJob.quoteId': ONE_PARENT,
+  'WorkJob.serviceRecordId': ONE_PARENT,
 }
 
 const describeDb = url ? describe : describe.skip

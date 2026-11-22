@@ -20,13 +20,17 @@ const serviceRecordTree: Record<string, LayoutNode> = {
   statusReports: { model: 'StatusReport' },
   timeEntries: { model: 'TimeEntry' },
   helpers: { model: 'ServiceRecordHelper' },
+  // fork: jobs and order facts (prisma/schema/fork.prisma)
+  workJobs: { model: 'WorkJob' },
+  meta: { model: 'ServiceRecordMeta' },
 }
 
 export const BACKUP_LAYOUT: Record<string, LayoutNode> = {
   settings: { model: 'AppSetting' },
   documentDesigns: { model: 'DocumentDesign' },
   emailTemplates: { model: 'EmailTemplate' },
-  customers: { model: 'Customer' },
+  // fork: a customer's extra emails and phones (prisma/schema/fork.prisma)
+  customers: { model: 'Customer', children: { contacts: { model: 'CustomerContact' } } },
   documentDesignSnapshots: { model: 'DocumentDesignSnapshot' },
   documentAssetSnapshots: { model: 'DocumentAssetSnapshot' },
   customFieldDefinitions: {
@@ -87,9 +91,15 @@ export const BACKUP_LAYOUT: Record<string, LayoutNode> = {
       partItems: { model: 'QuotePart' },
       laborItems: { model: 'QuoteLabor' },
       attachments: { model: 'QuoteAttachment' },
+      // fork: jobs (prisma/schema/fork.prisma)
+      workJobs: { model: 'WorkJob' },
     },
   },
-  technicians: { model: 'Technician', children: { absences: { model: 'TechnicianAbsence' } } },
+  technicians: {
+    model: 'Technician',
+    // fork: shifts (prisma/schema/fork.prisma)
+    children: { absences: { model: 'TechnicianAbsence' }, shifts: { model: 'TechnicianShift' } },
+  },
   workBays: { model: 'WorkBay' },
   inspectionTemplates: {
     model: 'InspectionTemplate',
@@ -139,6 +149,9 @@ export const BACKUP_LAYOUT: Record<string, LayoutNode> = {
   inspectionReminderCampaigns: { model: 'InspectionReminderCampaign' },
   inspectionReminderSends: { model: 'InspectionReminderSend' },
   notifications: { model: 'Notification' },
+  // fork: archived source payloads and delete tombstones (prisma/schema/fork.prisma)
+  sourceRecords: { model: 'SourceRecord' },
+  deletedRecords: { model: 'DeletedRecord' },
 }
 
 export type Row = Record<string, unknown>
