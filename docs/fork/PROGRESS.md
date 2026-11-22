@@ -13,8 +13,8 @@ counts as done for the hook).
 
 | Id | Status | Branch | Notes |
 | --- | --- | --- | --- |
-| M0 | in_progress | fork/M0-setup-and-spikes | |
-| M1 | todo | | |
+| M0 | provisional | fork/M0-setup-and-spikes | Merged 249e3dd3. S1–S12 from docs only and synthetic fixtures: re-verify with a key (B1). Reviewer: ready for PR after 3 passes. |
+| M1 | in_progress | fork/M1-schema-extensions | |
 | A1 | todo | | |
 | A2 | todo | | |
 | M2 | todo | | |
@@ -32,8 +32,6 @@ counts as done for the hook).
 
 ## Current step
 
-**M0, branch `fork/M0-setup-and-spikes` (from `fork/integration`, which was cut from `main` at 03619f67).**
-
 Environment (local, Windows):
 - Postgres 16 runs in Docker as container `torqvoice-bl-db` on `127.0.0.1:5442` (5432 is taken by another
   project; 54860–55698 are Windows-reserved). Dev DB `torqvoice`, test DB `torqvoice_test`, both migrated.
@@ -43,37 +41,12 @@ Environment (local, Windows):
   runs against an LF worktree in the session scratchpad (`git -c core.autocrlf=false worktree add --detach`),
   using the main checkout's `node_modules/.bin/biome`. Tests and `tsc` run in the main checkout.
 - Baseline on untouched upstream (see Decisions log): `npm run check` has 14 pre-existing errors; `npm test`
-  has 11–13 failing files, all Windows-specific (restic spawn, path separators).
+  has 11–13 failing files, all Windows-specific (restic spawn, path separators). PDF-rendering tests
+  (`*-template-preset`) time out at 5 s when another suite runs at the same time; rerun them alone.
+- Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-Plan:
-1. Part 1 hygiene: `NOTICE-FORK.md` + README link, `CLAUDE.md` import, `docs/fork/UPSTREAM.md` (upstream
-   remote added: `https://github.com/Torqvoice/torqvoice.git`), `.env.example` entries, `.gitignore`.
-2. Part 3 Torqvoice spikes T1–T7, answered from code plus throwaway scripts under `scripts/spikes/`.
-3. Part 2 Shopmonkey spikes: no `SHOPMONKEY_API_KEY`, so write `scripts/shopmonkey/spike.ts` and
-   `anonymize-fixtures.ts` (tested), answer S1–S12 from shopmonkey.dev as far as the docs go, and build
-   **synthetic** fixtures in `src/__tests__/features/integrations/fixtures/shopmonkey/synthetic/`. M0 → `provisional`.
-4. `RESULTS.md`, update `MAPPING.md` markers, answer/assign PLAN §6 questions (blockers).
-
-Done so far:
-- [x] Part 1 hygiene committed (0c7ec939): NOTICE-FORK.md, README link, CLAUDE.md import, UPSTREAM.md,
-  .env.example, .gitignore, versioned .claude kit.
-- [x] T1–T7 answered in `docs/fork/spikes/RESULTS.md` (dc3e7a34), MAPPING updated, blockers B2–B10 raised.
-  Evidence: `scripts/spikes/torqvoice.spike.ts` (5 passing checks against `torqvoice_test`).
-- [x] `scripts/shopmonkey/anonymize.ts` + CLI `anonymize-fixtures.ts`, tests
-  `src/__tests__/scripts/shopmonkey/anonymize.test.ts` (8 passing).
-- [x] `scripts/shopmonkey/spike-client.ts` (read-only guard, pacing, raw recording), tests
-  `spike-client.test.ts` (4 passing).
-- [x] `scripts/shopmonkey/spike.ts` (S1–S12 call plan), S1–S12 from the docs in RESULTS.md, synthetic
-  fixtures (`scripts/shopmonkey/build-synthetic-fixtures.ts` → `fixtures/shopmonkey/synthetic/`, guard test
-  `src/__tests__/features/integrations/shopmonkey/fixtures.test.ts`, 4 passing), MAPPING markers resolved.
-- [x] DoD: Biome on the LF worktree 14 errors = baseline, none in fork files; `npm test` 10 failing
-  files, all in the baseline set, 0 new (138 files, 1643 tests pass); `tsc --noEmit` exit 0. `test:db` not
-  required (no loaders or migrations).
-- [~] migration-reviewer: first pass **needs changes** (4 must-fix, see Decisions log); all fixed in
-  23b9346d and 1e686d2e; re-review of 1e686d2e running. Then merge into `fork/integration`, push.
-
-**Next, M1 (started early, branch `fork/M1-schema-extensions`, cut from the M0 tip; merge
-`fork/integration` into it before M1 merges).** WIP commit e9826c26:
+**M1, in progress (started early on branch `fork/M1-schema-extensions`, cut from the M0 tip; merge
+`fork/integration` into it first, since M0 gained review fixes after the cut).** WIP commit e9826c26:
 - [x] `prisma/schema/fork.prisma` (X1–X6 + ApiKey, ApiIdempotencyKey, DeletedRecord), upstream `/// fork:`
   columns and back-relations, migration `20261122064950_fork_import_foundation` (additive only: checked),
   applied to `torqvoice` and `torqvoice_test`; tenancy schema regenerated (97e90c67).
