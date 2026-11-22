@@ -69,7 +69,31 @@ Done so far:
 - [x] DoD: Biome on the LF worktree 14 errors = baseline, none in fork files; `npm test` 10 failing
   files, all in the baseline set, 0 new (138 files, 1643 tests pass); `tsc --noEmit` exit 0. `test:db` not
   required (no loaders or migrations).
-- [ ] migration-reviewer, then merge.
+- [~] migration-reviewer: first pass **needs changes** (4 must-fix, see Decisions log); all fixed in
+  23b9346d and 1e686d2e; re-review of 1e686d2e running. Then merge into `fork/integration`, push.
+
+**Next, M1 (started early, branch `fork/M1-schema-extensions`, cut from the M0 tip; merge
+`fork/integration` into it before M1 merges).** WIP commit e9826c26:
+- [x] `prisma/schema/fork.prisma` (X1–X6 + ApiKey, ApiIdempotencyKey, DeletedRecord), upstream `/// fork:`
+  columns and back-relations, migration `20261122064950_fork_import_foundation` (additive only: checked),
+  applied to `torqvoice` and `torqvoice_test`; tenancy schema regenerated (97e90c67).
+- [x] Backups: manifest/layout/build-data register the tables (SourceRecord + DeletedRecord under the
+  `auditLogs` option; WorkJob nested under ServiceRecord and Quote; contacts under Customer; shifts under
+  Technician; meta under ServiceRecord); ApiKey + ApiIdempotencyKey excluded (reason in manifest).
+  Restore lives in `src/lib/backup/fork-restore.ts`, called from `import.ts` by `// fork:` one-liners.
+  Upstream tests updated for the new datasets and the part's second owner path (job).
+- [x] `src/integrations/shopmonkey/schema/sourceExtra.ts` + test; `src/__tests__/lib/backup/fork-backup.test.ts`.
+- [ ] `npm run test:db` round trip: failed only because the Prisma client was stale. **Prisma 7's
+  `migrate dev` doesn't run `generate`: run `npx prisma generate` after every migrate/branch switch.**
+  Also **convert `prisma/schema/*.prisma` to LF before `test:db`** (`sed -i 's/\r$//' prisma/schema/*.prisma`):
+  the round-trip test splits the schema on `\n` and a CRLF checkout leaves every field unparsed.
+- [ ] Windows: `scripts/generate-tenancy-schema.ts` writes the file then fails to spawn `npx`; run
+  `npx biome format --write src/lib/backup/tenancy-schema.ts` after it.
+- [ ] DoD, reviewer, merge.
+
+**A1 drafts** (keys.server, withPublicApi, pagination, etag, idempotency, rateLimit, clientIp, errors,
+openapi, settings resource, apiKeyActions, ApiKeysSettings component, apiKeys.en.json) are in the session
+scratchpad `a1/` folder; if it's gone, write them from the A1 brief.
 
 M0 acceptance:
 - [x] NOTICE-FORK.md, README link, CLAUDE.md import, docs/fork/UPSTREAM.md (commit 0c7ec939).
