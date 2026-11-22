@@ -116,7 +116,7 @@ children → calendar → inspections → time.
 | Shopmonkey | Torqvoice | Rule |
 | --- | --- | --- |
 | `firstName`, `lastName`, `companyName` | `name`, `company` | `name` is the full name, or `companyName` when there's no person. `company` is `companyName` when both exist. |
-| `publicId` | `customerNumber` | Only if it's numeric and unique in the org. Otherwise auto-assign the way `createCustomer` does **[M0]**. |
+| `publicId` | `customerNumber` | Only if it's numeric and unique in the org. Otherwise auto-assign the way `createCustomer` does (highest numeric `customerNumber` + 1, starting at 1001; `customerActions.ts:150-160`), after every numeric `publicId` has been placed, so an assigned number can't take one that's still to come. Unique per org (`@@unique([organizationId, customerNumber])`). Whether `publicId` is numeric: **[provisional: S11]** |
 | primary email / phone | `email`, `phone` | Phones are normalized with the import pipeline's helpers (`src/features/import/Lib/normalize.ts`) and the workshop country code. |
 | `address1`, `address2`, `city`, `state`, `postalCode`, `country` | `address` | Composed as multiple lines, in the order the invoice prints. The components stay in `SourceRecord`. |
 | `note` | `notes` | |
@@ -132,7 +132,7 @@ children → calendar → inspections → time.
 
 | Shopmonkey | Torqvoice | Rule |
 | --- | --- | --- |
-| `year`, `make`, `model` | `year`, `make`, `model` | Required in Torqvoice. When missing, use `make: "Unknown"`, `model: "Unknown"`, `year: 0`, and list the vehicle in the reconciliation warnings. Check how the UI shows year 0 **[M0]**. |
+| `year`, `make`, `model` | `year`, `make`, `model` | Required in Torqvoice. When missing, use `make: "Unknown"`, `model: "Unknown"`, `year: 0`, and warn `vehicle_missing_ymm` so the reconciliation report lists it. Year 0 is hidden by the shared name helper everywhere ("Unknown Unknown"), and the vehicle form asks for a real year on the next save (RESULTS T4). |
 | `submodel`, `drivetrain`, `licensePlateState` | custom fields "Submodel", "Drivetrain", "Plate state" | |
 | `coalescedVINorHIN` (fallback `vin`) | `vin` | |
 | `licensePlate` | `licensePlate` | Through `normalizePlate` from `src/lib/license-plate.ts`. |
@@ -162,27 +162,28 @@ children → calendar → inspections → time.
 | `status` + workflow stage | `status`: Invoice → `completed`; RepairOrder → the stage of its mapped `WorkOrderStatus`, or `completed` if `completedDate` is set | `status` (Torqvoice values: `draft`, `sent`, `accepted`, `rejected`, `expired`, `converted`, `changes_requested`): `accepted` if `authorized`; `rejected` if every service was declined; `expired` if `dueDate` has passed; `sent` if `messagedDate` is set; otherwise `draft` |
 | `workflowStatusId` | `customStatusId` (+ `customStatusSince` = `workflowStatusDate`) | — |
 | `orderCreatedDate` / `createdDate` | `serviceDate` = `repairOrderDate` ?? `orderCreatedDate`; `createdAt` = `createdDate` | `createdAt` |
-| `invoicedDate` | `invoiceDate` and `sentAt`. After the record and its lines are written, call `issueInvoice(id, orgId, 'backfill')` from `src/features/invoices/Lib/issueInvoice.ts`. That's the app's own "freeze older invoices" path: it dates `issuedAt` to `sentAt` and captures the snapshot, so imported invoices are locked like issued ones **[M0: run it on a fixture and check the PDF]** | — |
+| `invoicedDate` | `invoiceDate` and `sentAt`. After the record and its lines are written, call `issueInvoice(id, orgId, 'backfill')` from `src/features/invoices/Lib/issueInvoice.ts`. That's the app's own "freeze older invoices" path: it dates `issuedAt` to `sentAt` and freezes what the sheet prints (RESULTS T5: confirmed, PDF checked). The edit lock follows the workshop's lock settings and `sentAt`, exactly as for the app's own invoices. **Before issuing, the loader refuses to run while any connection subscribed to `service.update` is active** (accounting: Xero, QuickBooks, Fiken, Zoho Books; calendars: Google, Microsoft 365, Zoom), because `issueInvoice` notifies them and would push the whole history to them (RESULTS T5) | — |
 | `dueDate` / `paymentDueDate` | `invoiceDueDate` | `validUntil` = `dueDate` |
 | `mileageIn` / `mileageOut` | `mileage` / `ServiceRecordMeta.mileageOut` | — |
-| `customerId`, `vehicleId` | `vehicleId`. Also `customerId` when the order's customer differs from the vehicle's current owner **[M0: confirm the app copes with both set]** | `customerId`, `vehicleId` |
+| `customerId`, `vehicleId` | `vehicleId`. Also `customerId` when the order's customer differs from the vehicle's current owner. The app copes; the job's customer wins on the invoice, screens and reports, but the job is also listed in the current owner's portal (RESULTS T3, blocker B10) | `customerId`, `vehicleId` |
 | `assignedTechnicianIds` | `technicianId` = first; the rest become `ServiceRecordHelper` | — |
 | `serviceWriterId` | `ServiceRecordMeta.serviceWriterUserId` / `serviceWriterName` | — |
 | `purchaseOrderNumber` | `customerReference` | `customerReference` |
 | `labels` | `ServiceRecordMeta.labels` | archive |
 | `discountCents`, `discountPercent`, `appliedDiscount*` | `discountType` (`percent` / `fixed`), `discountValue`, `discountAmount` | same |
 | `taxCents`, `gstCents`, `pstCents`, `hstCents` | `taxAmount`; `taxComponents` when more than one is non-zero; `taxRate` = the Tax Config rate | same |
-| `totalCostCents` | `totalAmount` (and `cost`, which the spreadsheet importer also sets to the total **[M0]**) | `totalAmount` |
+| `totalCostCents` | `totalAmount` and `cost` (the spreadsheet importer sets both to the total, `importActions.ts:624-626`; `cost` is the fallback total for records without itemised totals) | `totalAmount` |
 | `partsCents + laborCents + tiresCents + subcontractsCents + feesCents (+ epa + shopSupplies)` | `subtotal` = the sum of the stored line totals, checked against these in M6 | same |
 | `paid`, `paidCostCents`, `remainingCostCents` | derived from payments (§6.5). Never set `manuallyPaid` | — |
 | `deleted = true` | not imported (archive) | not imported |
 | `customFields` | custom fields (`service_record`) | custom fields (`quote`) |
 | — | `importBatchId` | — |
 
-Bill-to on historical invoices: `issueInvoice(..., 'backfill')` snapshots the customer and vehicle as
-they are at import time, which is Shopmonkey's current state. If the order's customer differs from the
-vehicle's current owner, overwrite the customer block of `issuedData` with the order's customer after the
-capture. The shape is in `src/features/invoices/Lib/issuedInvoice.ts` **[M0]**.
+Bill-to on historical invoices: `issueInvoice(..., 'backfill')` snapshots `record.customer ?? vehicle.customer`
+(`issueInvoice.ts:21`), so with `customerId` set as above, the frozen copy and the PDF already show the
+order's customer (RESULTS T5). No patching of `issuedData` is needed. Customer and vehicle details are
+frozen as they are at import time, which is Shopmonkey's current state, not the state on the invoice
+date; the original Shopmonkey PDF (optional, `downloadInvoicePdfs`) keeps the exact historical document.
 
 ### 6.2 Lines
 
@@ -218,7 +219,7 @@ set `resolvedServiceRecordId` to that later order.
 | Shopmonkey | Torqvoice `Payment` |
 | --- | --- |
 | `id` | `externalId`, with `provider: "shopmonkey"` (the existing unique `(serviceRecordId, provider, externalId)` makes reruns safe) |
-| `amountCents` | `amount`. `transactionType: Refund` → negative amount **[M0: confirm negative payments total correctly; if not, net refunds into the charge and record them in `note`]** |
+| `amountCents` | `amount`. `transactionType: Refund` → negative amount, `note` starting `Refund`. Totals and balances are right (signed sums everywhere). When a refund brings the order's net paid to zero or below, warn `refund_net_nonpositive`: upstream then shows it unpaid with the full total due (RESULTS T2) |
 | `recordedDate` ?? `createdDate` | `date` |
 | `paymentType` | `method`: Cash → `cash`; Card → `card`; ACH/Zelle/Interac/Venmo/PayPal → `transfer`; anything else → `other`. The exact type goes in `note` as `"Shopmonkey: <paymentType>"`, plus `checkNumber` and `cardDigits` |
 | `note` | appended to `note` |
@@ -254,8 +255,11 @@ condition values from `src/features/inspections/Lib/conditions.ts`. The exact en
 
 Imported numbers are kept exactly as they are. After the final import, set
 `workshop.invoicePrefix` / `workshop.invoiceStartNumber` (`src/lib/job-number.ts`) so the next job continues
-after the highest Shopmonkey number. If Shopmonkey numbers are plain integers, the format is empty (no
-`{year}-`) **[M0: check the settings screen and `jobNumberPattern` accept an empty format]**.
+after the highest Shopmonkey number. If Shopmonkey numbers are plain integers, the format is set to `''` (no
+`{year}-`) and `workshop.invoiceStartNumber` to the highest imported number + 1. Both are required: an empty
+format makes the next number continue after the highest plain number, but **left at `{year}-`, numbering
+restarts from the newest job's digits** (spike: imported 1041, 1077, 1050 → next `2026-1051`). Confirmed
+in RESULTS T1.
 
 ## 10. Known non-1:1 points (tell the client)
 
@@ -265,3 +269,11 @@ after the highest Shopmonkey number. If Shopmonkey numbers are plain integers, t
 - Vendors, purchase orders, statements, pricing matrices and message history are archive only in this
   phase. They're readable through `/api/v1/source-records` but not shown in the app.
 - Login accounts aren't migrated. Staff get invited.
+- Refunds arrive as negative payments. Totals and balances are right, but upstream Torqvoice shows a refund
+  as a positive "received" row on the work order screen, and an invoice refunded in full as unpaid with its
+  whole total due (the share page even offers to take payment again). The reconciliation report lists
+  those orders (`refund_net_nonpositive`).
+- Jobs a vehicle's previous owner paid for are billed to that owner, but they're also listed in the
+  vehicle's current owner's portal (RESULTS T3, blocker B10).
+- Customer and vehicle details on imported invoices are frozen as they are in Shopmonkey at import time,
+  not as they were on the invoice date.

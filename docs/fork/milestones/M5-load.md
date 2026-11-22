@@ -30,8 +30,11 @@ numbering and invoice locking done the way the app does them, and make the whole
 5. Payments: written with `provider: 'shopmonkey'` and `externalId`. A rerun is safe through the existing
    unique index.
 6. Invoices: for orders with `invoicedDate`, after the transaction commits, call
-   `issueInvoice(id, orgId, 'backfill')`. Then patch the `issuedData` customer block when MAPPING §6.1
-   says to.
+   `issueInvoice(id, orgId, 'backfill')`. With `ServiceRecord.customerId` set per MAPPING §6.1 the frozen
+   copy already bills the order's customer, so `issuedData` needs no patching (spike T5). **Before the
+   first issue, refuse to run while any connection subscribed to `service.update` is active** (Xero,
+   QuickBooks, Fiken, Zoho Books, Google Calendar, Microsoft 365, Zoom): `issueInvoice` notifies them and
+   would push the whole imported history into the workshop's accounting system. Test it.
 7. Files: move staged files into `uploadsRoot()/<orgId>/services/` with generated names, the same way the
    upload route does (the file manager's `isGeneratedName` must accept them). Then create
    `ServiceAttachment` rows (inspection photos go into `imageUrls`). Original invoice PDFs get category
