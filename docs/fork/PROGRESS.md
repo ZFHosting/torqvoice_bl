@@ -21,8 +21,8 @@ resolved.
 | Id | Status | Branch | Notes |
 | --- | --- | --- | --- |
 | M0 | provisional | fork/M0-setup-and-spikes | Merged 249e3dd3. S1–S12 from docs only and synthetic fixtures: re-verify with a key (B1). Reviewer: ready for PR after 3 passes. |
-| M1 | in_progress | fork/M1-schema-extensions | DoD passes (see Current step); migration-reviewer next, then merge. |
-| A1 | todo | | |
+| M1 | done | fork/M1-schema-extensions | Merged 5605175e. Reviewer: ready for PR after 2 passes. DoD evidence in the Decisions log (2026-11-22, M1). |
+| A1 | in_progress | fork/A1-api-foundation | |
 | A2 | todo | | |
 | M2 | todo | | |
 | M3 | todo | | |
@@ -65,51 +65,23 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**M1, in progress (started early on branch `fork/M1-schema-extensions`, cut from the M0 tip; merge
-`fork/integration` into it first, since M0 gained review fixes after the cut).** WIP commit e9826c26:
-- [x] `prisma/schema/fork.prisma` (X1–X6 + ApiKey, ApiIdempotencyKey, DeletedRecord), upstream `/// fork:`
-  columns and back-relations, migration `20261122064950_fork_import_foundation` (additive only: checked),
-  applied to `torqvoice` and `torqvoice_test`; tenancy schema regenerated (97e90c67).
-- [x] Backups: manifest/layout/build-data register the tables (SourceRecord + DeletedRecord under the
-  `auditLogs` option; WorkJob nested under ServiceRecord and Quote; contacts under Customer; shifts under
-  Technician; meta under ServiceRecord); ApiKey + ApiIdempotencyKey excluded (reason in manifest).
-  Restore lives in `src/lib/backup/fork-restore.ts`, called from `import.ts` by `// fork:` one-liners.
-  Upstream tests updated for the new datasets and the part's second owner path (job).
-- [x] `src/integrations/shopmonkey/schema/sourceExtra.ts` + test; `src/__tests__/lib/backup/fork-backup.test.ts`.
-- [x] `npm run test:db`: 13 files, 81 tests pass, incl. the backup round trip over the new tables and the
-  restore tenancy tests (after merging `fork/integration` in, 8884c6ab). It had failed only because the client was stale. **Prisma 7's
-  `migrate dev` doesn't run `generate`: run `npx prisma generate` after every migrate/branch switch.**
-  Also **convert `prisma/schema/*.prisma` to LF before `test:db`** (`sed -i 's/\r$//' prisma/schema/*.prisma`):
-  the round-trip test splits the schema on `\n` and a CRLF checkout leaves every field unparsed.
-- Note (Windows): `scripts/generate-tenancy-schema.ts` writes the file then fails to spawn `npx`; run
-  `npx biome format --write src/lib/backup/tenancy-schema.ts` after it.
-- [x] DoD (2026-11-22, B12 resolved by the `/autopilot` rerun):
-  - `npx tsc --noEmit` exit 0 (at 9c325829).
-  - `npm run check` (LF worktree at 9c325829): 14 errors = upstream baseline.
-  - `npm test` on Node 22.23.4, all 775 files in 7 chunks (lib 144, api/app/components/… 100, features
-    96 + 106 + 119 + 119 + 91): failing files = the same 14 that fail on untouched `main` (rerun there with the
-    same Node), plus `lib/files/delete-paths` timing out on a cold first run (passes at 5 s warm: 3.05 s on
-    M1, 3.0–3.1 s on `main`). Four upstream schema-coverage tests failed on M1's columns and were fixed
-    (ca0ed928): `lib/files/references`, `features/backup/part-restore-fields`,
-    `features/backup/restore-map-fields`, `features/ai/workshop-columns` (Decisions log).
-  - `npm run test:db`: 13 files, 81 tests pass (after the fixes).
-- [x] migration-reviewer pass 1 (2026-11-22): **needs changes**, two must-fix items, both fixed (Decisions log):
-  `SourceRecord` re-keyed to `(organizationId, source, table, remoteId)` in the unmerged migration (verified on
-  an empty database: every migration applied, `prisma migrate diff` against the schema reports no
-  difference); technician pay hidden from the AI chat. Should-fix done in the same pass: indexes for
-  contact lookup, tombstone paging and idempotency rows; the `WorkJob` one-parent CHECK; shifts attach to
-  their parent technician on restore; API.md drift; a database test that no backup carries a key hash
-  or a stored API response (`src/__tests__/db/fork-backup-secrets.db.test.ts`); this ledger's stale
-  summary. Logged for later briefs: archive size in backups and its own export option (M3), UI saves
-  dropping fork line columns (M5 task 12, MAPPING §10), re-linking after restore or reconnect (M5 task 13),
-  restores invisible to sync (A5 task 6). After the fixes: `test:db` 14 files / 82 tests pass on
-  `torqvoice_fork_test`; the backup, AI, references, Shopmonkey and tenancy unit folders pass (44 files;
-  only `lib/backup/engine` and `restic` fail, both baseline).
-- [ ] migration-reviewer pass 2 until "ready for PR", then merge into `fork/integration` (`--no-ff`) and push.
-
-**A1 drafts** (keys.server, withPublicApi, pagination, etag, idempotency, rateLimit, clientIp, errors,
-openapi, settings resource, apiKeyActions, ApiKeysSettings component, apiKeys.en.json) are in the session
-scratchpad `a1/` folder; if it's gone, write them from the A1 brief.
+**A1 (API foundation), in progress** on `fork/A1-api-foundation` (from `fork/integration` at 5605175e).
+Staged code: the session scratchpad `a1-final/` mirrors the repo paths (Lib, Schema, Serializers, Actions,
+Components, routes, cron, tests, `i18n_api_keys.py`). Plan, in order:
+1. [ ] Copy in `src/features/public-api/Lib/*` (keys.server, withPublicApi, rateLimit, pagination, etag,
+   idempotency, errors, openapi), `Schema/settings.ts`, `Schema/apiKeys.ts`, `Serializers/settings.ts`,
+   `GET /api/v1/settings`, `GET /api/v1/openapi.json`. Upstream edits, each `// fork:`: export
+   `clientAddress` from `src/lib/rate-limit.ts` (one source for the caller's address).
+2. [ ] Tests first run: `conventions`, `with-public-api`, `openapi` (devDependency
+   `@apidevtools/swagger-parser`), db tests `public-api-keys` and `public-api-idempotency`.
+3. [ ] Cron `src/lib/cron/purge-api-idempotency.ts`, registered in `src/cronTasks.ts` and
+   `src/instrumentation.ts` (`// fork:`).
+4. [ ] Settings → API keys: `Actions/apiKeyActions.ts` (owner/admin, `withAuth` + audit `api_key.create` /
+   `api_key.revoke`), `Components/ApiKeysSettings.tsx`, page `settings/api-keys`, nav entry in
+   `settingsPages.ts` (`gate: 'api'`), namespace `apiKeys` (14 locales, imported in `src/i18n/request.ts`),
+   nav label and audit labels in every locale; component test `api-keys-settings`.
+5. [ ] DoD, reviewer, merge.
+Acceptance evidence goes here as each item passes.
 
 M0 acceptance:
 - [x] NOTICE-FORK.md, README link, CLAUDE.md import, docs/fork/UPSTREAM.md (commit 0c7ec939).
@@ -197,4 +169,5 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-22 | M1: the AI workshop chat lists the lines' new columns (`jobId`, `lineKind`, `discountAmount`, `note` on parts; job, kind, technician, completion, discount on labor) and hides `sourceExtra`, `costHours` and `costRate` (`HIDDEN_COLUMNS`). **Revised after review:** the first version listed `costHours`/`costRate`. | Upstream's `workshop-columns` test requires every column to be listed or hidden. The line tables are open to anyone who may read work orders; `costRate` is a technician's pay, which upstream holds nowhere, so it stays out until a payroll or reports permission exists to gate it (revisit with A5's technician report). `sourceExtra` is raw Shopmonkey data, reachable through the API. |
 | 2026-11-22 | M1 review: `SourceRecord` is unique on `(organizationId, source, table, remoteId)`, not `(connectionId, table, remoteId)`; `connectionId` means "last fetched by". The unmerged migration was edited in place rather than followed by a second one. | Disconnecting deletes a connection and a reconnect or a restore makes a new id, so the old key would have duplicated the whole archive on the next pull. The migration exists only on this branch and the local databases; editing it keeps M1 one additive migration. |
 | 2026-11-22 | M1 review: the generated tenancy schema counts a labor line's technician as one of its owner paths (`tenancy-schema.ts`, generated from the new `technicianId` relation). Left as generated. | It loosens `assertNoForeignRows`'s ownership proof slightly, but the restore's own sanitising drops cross-workshop technician ids (`kept()`), so it isn't exploitable. The generator is upstream's; special-casing it would be a larger upstream edit. |
+| 2026-11-22 | **M1 done.** DoD at 12628351: `tsc` exit 0; Biome 14 (baseline); `npm test` all 775 files on Node 22.23.4, failures = the 14 Windows-only baseline files (+ the cold-start `delete-paths` timeout); `test:db` 14 files / 82 tests on `torqvoice_fork_test`. Reviewer pass 2: ready for PR. Merged into `fork/integration` at 5605175e. | Evidence for the definition of done and acceptance (brief items 1–4). |
 | 2026-11-22 | M1 review: `readLaborSourceExtra`/`readPartSourceExtra` drop the whole object when one key is malformed. Left for M4, where the transform writes `sourceExtra` and the reader first matters. | Nothing writes or reads `sourceExtra` before M4; M4's fixture tests will show which keys need per-key leniency. |
