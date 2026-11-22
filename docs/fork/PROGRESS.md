@@ -65,8 +65,8 @@ Done so far:
   `spike-client.test.ts` (4 passing).
 - [ ] Next: `scripts/shopmonkey/spike.ts` (the S1–S12 call plan), S1–S12 from the docs in RESULTS.md,
   synthetic fixtures + README under `fixtures/shopmonkey/synthetic/`, remaining MAPPING markers → `[docs]`
-  or `[provisional: Sx]`, then DoD, reviewer, merge. Shopmonkey API notes from a docs survey are in the
-  session scratchpad (`shopmonkey-api-reference.md`); if it's gone, re-survey shopmonkey.dev.
+  or `[provisional: Sx]`, then DoD, reviewer, merge. Shopmonkey field lists are in `docs/fork/spikes/SHOPMONKEY-SCHEMAS.md`; a fuller
+  docs survey was in the session scratchpad (`shopmonkey-api-reference.md`); if it's gone, re-read shopmonkey.dev.
 
 ## Blockers (need a human)
 
@@ -95,7 +95,7 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | S2 | Search allowlist `^/v3(/[a-z_]+){1,3}/search$` covers every read-only POST | `scripts/shopmonkey/spike-client.ts:17` (and M2 `client.ts`) |
 | S2 | GET lists ignore `where` and are unstable without `orderby` on `id`; max useful `limit` is 100; incremental pulls fall back to re-list + `payloadHash` | MAPPING §1; RESULTS S2 (M3 extractor) |
 | S4 | Vehicle's current owner = the most recently created `vehicle_owner` row | `build-synthetic-fixtures.ts:797`; MAPPING §3 VehicleOwner |
-| S4 | Order files list/download path (not in the reference); until confirmed only PDFs and inspection photos download | MAPPING §1, §3 Order files |
+| S4 | Order files (`files[]` on Find Order, documented) download from their `url` without extra auth | `build-synthetic-fixtures.ts` (order `files`); MAPPING §3 Order files |
 | S4 | Order services come nested with lines from `GET /v3/order/:id/service` (and `include` on `GET /v3/order`) | MAPPING §1; RESULTS S4 |
 | S4 | Order `labels` object read as label names; customer fleet entity archive only; signed-document images | MAPPING §3, §6.1 |
 | S4 | `reminderOptOut` only from the primary email's `subscribed: false` | MAPPING §4 |
@@ -106,7 +106,7 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | S5 | Refunds have negative `amountCents` (importer uses `-abs`); `refundedAmountCents` on charges is not subtracted again | `build-synthetic-fixtures.ts:414`; MAPPING §6.5 |
 | S5 | EPA / shop supplies are never also `fee` rows; tire FET and waste fee are outside the line total | MAPPING §6.2 |
 | S6 | Fees are never taxed; EPA/shop supplies taxability from the tax config | MAPPING §6.2 |
-| S7 | Inspection item photos hang off the item (`files[]`) | `build-synthetic-fixtures.ts:1494`; MAPPING §3, §8 |
+| S7 | Inspection item photos (`items[].files[]`, documented) download from their `url` | `build-synthetic-fixtures.ts:1494`; MAPPING §3, §8 |
 | S8 | Timesheet `duration` is milliseconds (unused: minutes come from clock times) | `build-synthetic-fixtures.ts:1529`; MAPPING §3 |
 | S11 | `publicId` and order `number` are digits in practice (both are strings in the schema) | MAPPING §4, §9 |
 | S12 | Volumes (sizing assumes 50,000 orders) | RESULTS S12, blocker B3 |

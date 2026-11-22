@@ -154,8 +154,7 @@ async function main() {
       [`/v3/order/${id}/service`, 'order_service'],
       [`/v3/order/${id}/authorization`, 'order_authorization'],
       [`/v3/order/${id}/payment`, 'payment'],
-      [`/v3/order/${id}/file`, 'order_file'],
-      [`/v3/order/${id}/pdf`, null],
+      [`/v3/order/${id}/pdf?document_type=invoice`, null],
     ]
     for (const [p, table] of tries) {
       const res = await get(p, table)

@@ -194,6 +194,12 @@ shop the vehicle's continuous history.
 
 ## Part 2: Shopmonkey spikes (documentation only, provisional)
 
+A condensed copy of every table's fields, types and enums is in `docs/fork/spikes/SHOPMONKEY-SCHEMAS.md`.
+Webhooks (for M7): payload `{ apiVersion, operation: INSERT|UPDATE|DELETE, table, data, diff[] }`, signed
+per Standard Webhooks (`webhook-id`, `webhook-timestamp`, `webhook-signature: v1,<base64 HMAC-SHA256 of
+"id.timestamp.body">`); whether the secret carries a `whsec_` prefix is unstated **[docs]**. EDS: CDC of
+the shop's database with a bulk export, Enterprise only, PII tokenized **[docs]**.
+
 Sources: Shopmonkey's published table schemas (`https://shopmonkey.dev/schema/<Table>`, e.g.
 `/schema/Order`) and API reference (`https://shopmonkey.dev`). Every answer below is **docs only** until
 `scripts/shopmonkey/spike.ts` records it against a real account (blocker B1). The spike already asks
@@ -255,8 +261,8 @@ Read endpoints the importer needs (from the API reference; `:id` is a Shopmonkey
 | Order services with lines | `GET /v3/order/:orderId/service` | Services carry nested `labors`, `parts`, `tires`, `fees`, `subcontracts` **(assumed from MAPPING [docs]; re-verify)**. Parts and tires also have `GET /v3/order/:orderId/part` and `/tire`. |
 | Order payments | `POST /v3/integration/payment/search` with `where: { orderId }` | **No** `GET /v3/order/:id/payment` in the reference. The spike tries both. |
 | Order authorizations | `GET /v3/order/:id/authorization` | `Authorization` rows (method, date, note, `authorizedCostCents`) with `AuthorizationService` per service. |
-| Invoice PDF | `GET /v3/order/:id/pdf` | Binary. |
-| Order files | **not in the reference.** The spike tries `GET /v3/order/:id/file`. | **Open (S4).** Until confirmed, `includeFiles` downloads nothing but inspection photos and the PDF. |
+| Invoice PDF | `GET /v3/order/:id/pdf?document_type=invoice` | Binary. `document_type` is required: `invoice`, `estimate`, `quote`, `repairOrder`, `worksheet` or `inspection`. |
+| Order files | Embedded in Find Order (`GET /v3/order/:id`) as `files[]`: `{ id, fileName, fileSize, fileType, thumbnailUrl, url }` | Listing **[docs]**. Whether `url` downloads without the key, and for how long, is **open (S4)**. |
 | Customers | **`POST /v3/customer/search`** (there is no `GET /v3/customer` list), `GET /v3/customer/:id` | |
 | Customer emails / phones | **Embedded** in every customer read as `emails[]` and `phoneNumbers[]` | Separate `email` / `phone_number` tables underneath. `POST /v3/customer/email/search` and `/phone_number/search` look customers up **by address** (`{ emails: [...] }`, max 5), not by customer, so the extractor doesn't use them. |
 | Customer vehicles | `GET /v3/customer/:id/vehicle` | **There is no `GET /v3/vehicle` list**: vehicles are reached through customers (or by id from orders). Vehicles with no owner are only reachable by id from an order. |
@@ -320,8 +326,9 @@ flags is true). A Canadian order with more than one non-zero of GST/PST/HST beco
 `inspectionId`, `name`, `message`, `ordinal`, `status` **`Green` / `Yellow` / `Red` / `NotApplicable`**
 (nullable), `inspectorUserId`, `recommendedCannedServiceIds`, plus `inspection_item_status_detail` rows
 (checkbox labels per status). Templates: `inspection_template` + `inspection_template_item` (same
-`status` enum as a default). Photos: the schema has no file field; the API has
-`/v3/inspection/:id/item/:itemId/file`, so files hang off the item **(shape open: S7)**. Rating map
+`status` enum as a default). Photos: `GET /v3/inspection` and `/v3/inspection/:id` embed `items[]`, each
+with `files[]` (`{ id, fileName, fileSize, fileType, thumbnailUrl, url }`) and `statusDetails[]`
+**[docs]**; downloading `url` is **open (S7)**. Rating map
 (MAPPING §8): `Green → pass`, `Yellow → attention`, `Red → fail`, `NotApplicable → not_applicable`,
 `null → not_inspected`.
 

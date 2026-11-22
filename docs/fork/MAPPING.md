@@ -32,7 +32,7 @@ All three adapters write the same thing: one `SourceRecord` row per Shopmonkey o
 
 | Adapter | What it gets | When to use |
 | --- | --- | --- |
-| **REST API v3** (primary) | Everything the API exposes, including order services with nested labors, parts, tires, fees and subcontracts **[docs]**, payments, timesheets **[docs]**, the invoice PDF (`GET /v3/order/:id/pdf`) **[docs]**, order files **[provisional: S4]** (no files endpoint in the reference) | Default. Works on every Shopmonkey plan that has API keys. |
+| **REST API v3** (primary) | Everything the API exposes, including order services with nested labors, parts, tires, fees and subcontracts **[docs]**, payments, timesheets **[docs]**, the invoice PDF (`GET /v3/order/:id/pdf?document_type=invoice`) **[docs]**, order files (`files[]` on `GET /v3/order/:id`) **[docs]** | Default. Works on every Shopmonkey plan that has API keys. |
 | **EDS** (optional) | Change-data-capture of the shop's database into Postgres, with a one-time `eds import` snapshot backfill **[docs]** | Only if the shop has Shopmonkey Enterprise. Fastest and most complete for history, but PII is tokenized in EDS, so emails and phone numbers still come from the API **[docs]**. |
 | **CSV exports** (fallback) | Customers, vehicles, fleets, vendors, inventory and reports **[docs]** | Only to fill gaps or cross-check counts. No line items, so it can't produce 1:1 work orders on its own. |
 
@@ -106,11 +106,11 @@ children → calendar → inspections → time.
 | labors / parts / tires / subcontracts / fees | `ServiceLabor` / `ServicePart` with `lineKind` (X3) | See §6.2. |
 | Payment | `Payment` | See §6.5. |
 | Authorization | `ServiceRecordMeta.authorizedAt` + archive | `GET /v3/order/:id/authorization`: method, date, note, `authorizedCostCents`, per-service status **[docs]**. Signed documents (`order_signed_invoice`, `order_signed_inspection`) are archive only; fetching their images is **[provisional: S4]**. |
-| Order files | `ServiceAttachment` | Downloaded into `uploadsRoot()/<org>/services/`, the same place the upload route writes. The list and download paths aren't in the API reference **[provisional: S4]**; until confirmed only the invoice PDF and inspection photos are downloaded. |
+| Order files | `ServiceAttachment` | Downloaded into `uploadsRoot()/<org>/services/`, the same place the upload route writes. Listed as `files[]` (`id`, `fileName`, `fileSize`, `fileType`, `thumbnailUrl`, `url`) on Find Order **[docs]**; downloading `url` (with or without the key) is **[provisional: S4]**. |
 | Invoice PDF | `ServiceAttachment` (category `document`, `includeInInvoice: false`, description "Original Shopmonkey invoice") | Keeps the exact historical document. Optional (setting `downloadInvoicePdfs`). |
 | Appointment | `Appointment` | Linked to the customer and vehicle. Set `ServiceRecord.startDateTime` when the order references it. |
 | Inspection Template | `InspectionTemplate` / `Section` / `Item` | `standard: "custom"`, `country: null`. |
-| Inspection | `Inspection` + `InspectionItem` + photos in `imageUrls` | Every Shopmonkey inspection belongs to an order (`orderId` required). Condition values per §8 **[docs]**; photo shape **[provisional: S7]**. |
+| Inspection | `Inspection` + `InspectionItem` + photos in `imageUrls` | Every Shopmonkey inspection belongs to an order (`orderId` required). Condition values per §8 **[docs]**. Photos are `items[].files[]` on the inspection **[docs]**; downloading them is **[provisional: S7]**. |
 | Timesheet, activity `Order` / `Service` / `Labor` | `TimeEntry` (`source: "shopmonkey"`) | `durationMinutes` from `clockIn` and `clockOut`. The source `duration` has no stated unit **[provisional: S8]**, so it's only kept in `SourceRecord`. An entry without `orderId` becomes a shift. |
 | Timesheet, activity `General` | `TechnicianShift` (X6) | |
 | Message | `SmsMessage` / `EmailMessage` | Phase 2. Archive only until then. |
@@ -271,8 +271,8 @@ template. Item ratings map to Torqvoice condition values from
 
 Templates import on the `basic` scale (no `dangerous` step: Shopmonkey has three grades). The item's
 `message` maps to its notes, and the selected `inspection_item_status_detail` labels are appended to them.
-Photos are downloaded and stored the way `InspectionItem.imageUrls` expects; where they hang in the API
-response is **[provisional: S7]**.
+Photos (`items[].files[]`, **[docs]**) are downloaded and stored the way `InspectionItem.imageUrls`
+expects; how `url` downloads is **[provisional: S7]**.
 
 ## 9. Numbering after import
 

@@ -41,8 +41,10 @@
             {
               "id": "syn_ifl_1",
               "fileName": "brakes.jpg",
-              "url": "https://files.example.test/synthetic/brakes.jpg",
-              "contentType": "image/jpeg"
+              "fileSize": 48213,
+              "fileType": "image/jpeg",
+              "thumbnailUrl": "https://files.example.test/synthetic/brakes-thumb.jpg",
+              "url": "https://files.example.test/synthetic/brakes.jpg"
             }
           ],
           "createdDate": "2025-03-10T17:00:00.000Z"

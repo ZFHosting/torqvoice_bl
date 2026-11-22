@@ -187,6 +187,16 @@
       "publicId": "syn-1003",
       "customerId": "syn_cus_1",
       "vehicleId": "syn_veh_1",
+      "files": [
+        {
+          "id": "syn_ofl_1",
+          "fileName": "alignment-printout.pdf",
+          "fileSize": 120455,
+          "fileType": "application/pdf",
+          "thumbnailUrl": null,
+          "url": "https://files.example.test/synthetic/alignment-printout.pdf"
+        }
+      ],
       "laborCents": 34000,
       "partsCents": 8999,
       "tiresCents": 54000,

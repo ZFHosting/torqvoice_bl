@@ -1191,6 +1191,17 @@ addOrder(
     assignedTechnicianIds: ['syn_usr_1', 'syn_usr_2'],
     serviceWriterId: 'syn_usr_3',
     customFields: { syn_cf_2: 'Loaner car given' },
+    // Find Order embeds the order's files. PROVISIONAL(M0:S4): how `url` is downloaded.
+    files: [
+      {
+        id: 'syn_ofl_1',
+        fileName: 'alignment-printout.pdf',
+        fileSize: 120455,
+        fileType: 'application/pdf',
+        thumbnailUrl: null,
+        url: 'https://files.example.test/synthetic/alignment-printout.pdf',
+      },
+    ],
   }),
   [
     {
@@ -1491,8 +1502,8 @@ const inspectionItem = (
   inspectionDate: '2025-03-10T17:00:00.000Z',
   recommendedCannedServiceIds: status === 'Red' ? ['syn_can_1'] : [],
   reviewStatus: null,
-  // PROVISIONAL(M0:S7): photo references on an item. The schema lists no files field; the API has
-  // /v3/inspection/:id/item/:itemId/file, and we assume GET returns them here.
+  // Photos are embedded as files[] ({ fileName, fileSize, fileType, id, thumbnailUrl, url }) per the
+  // docs. PROVISIONAL(M0:S7): whether `url` downloads without the API key, and how long it lives.
   files,
   createdDate: '2025-03-10T17:00:00.000Z',
 })
@@ -1514,8 +1525,10 @@ const inspection = [
         {
           id: 'syn_ifl_1',
           fileName: 'brakes.jpg',
+          fileSize: 48213,
+          fileType: 'image/jpeg',
+          thumbnailUrl: 'https://files.example.test/synthetic/brakes-thumb.jpg',
           url: 'https://files.example.test/synthetic/brakes.jpg',
-          contentType: 'image/jpeg',
         },
       ]),
       inspectionItem(2, 'Tires', 'Yellow', 'Tread at 3/32".'),
