@@ -458,9 +458,19 @@ export const BACKUP_ENTITIES: readonly BackupEntity[] = [
   // quote, so each parent carries its own, like the stored images above.
   { model: 'WorkJob', option: 'vehicles', nestedUnder: 'ServiceRecord', restore: 'replace' },
   { model: 'WorkJob', option: 'quotes', nestedUnder: 'Quote', restore: 'replace' },
-  { model: 'ServiceRecordMeta', option: 'vehicles', nestedUnder: 'ServiceRecord', restore: 'replace' },
+  {
+    model: 'ServiceRecordMeta',
+    option: 'vehicles',
+    nestedUnder: 'ServiceRecord',
+    restore: 'replace',
+  },
   { model: 'CustomerContact', option: 'customers', nestedUnder: 'Customer', restore: 'replace' },
-  { model: 'TechnicianShift', option: 'technicians', nestedUnder: 'Technician', restore: 'replace' },
+  {
+    model: 'TechnicianShift',
+    option: 'technicians',
+    nestedUnder: 'Technician',
+    restore: 'replace',
+  },
   // fork: what an import archived unchanged, and the deletes an API client
   // syncs from. History, so they travel with the audit log.
   {

@@ -11,16 +11,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { findMany, apiKeyFindMany } = vi.hoisted(() => ({
   findMany: vi.fn().mockResolvedValue([]),
-  apiKeyFindMany: vi
-    .fn()
-    .mockResolvedValue([
-      {
-        id: 'key1',
-        organizationId: 'org1',
-        keyHash: 'hash-that-must-never-leave',
-        prefix: 'abcd1234',
-      },
-    ]),
+  apiKeyFindMany: vi.fn().mockResolvedValue([
+    {
+      id: 'key1',
+      organizationId: 'org1',
+      keyHash: 'hash-that-must-never-leave',
+      prefix: 'abcd1234',
+    },
+  ]),
 }))
 
 vi.mock('@/lib/db', () => ({

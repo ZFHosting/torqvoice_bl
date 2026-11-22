@@ -408,7 +408,8 @@ const DATASETS: readonly Dataset[] = [
     key: 'sourceRecords',
     option: 'auditLogs',
     pageSize: 200,
-    read: (organizationId, page) => db.sourceRecord.findMany({ ...page, where: { organizationId } }),
+    read: (organizationId, page) =>
+      db.sourceRecord.findMany({ ...page, where: { organizationId } }),
   },
   {
     key: 'deletedRecords',
