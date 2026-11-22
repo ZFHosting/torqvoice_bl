@@ -14,7 +14,7 @@
  * number could be checked against its fake.
  */
 import 'dotenv/config'
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { buildFixtures } from './fixture-build'
 import type { RawResponseFile } from './raw'
@@ -47,9 +47,11 @@ function main() {
     allow: lines(arg('allow')),
   })
 
+  // The values themselves go to a gitignored file for the operator to review, never to the log; a
+  // clean run removes the list an earlier run left, since it holds real values.
+  const leakFile = path.join('tmp', 'shopmonkey-leaks.txt')
+  if (result.leaks.length === 0) rmSync(leakFile, { force: true })
   if (result.leaks.length > 0) {
-    // The values themselves go to a gitignored file for the operator to review, never to the log.
-    const leakFile = path.join('tmp', 'shopmonkey-leaks.txt')
     mkdirSync('tmp', { recursive: true })
     writeFileSync(leakFile, `${result.leaks.join('\n')}\n`)
     console.error(

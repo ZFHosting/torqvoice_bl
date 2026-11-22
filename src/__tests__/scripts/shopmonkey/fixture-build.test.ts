@@ -79,6 +79,18 @@ describe('buildFixtures', () => {
     expect(p1.note).not.toBe('Cash')
   })
 
+  it('refuses a customer name typed into a kept service name, possessive and all', () => {
+    const customer = raw('customers', 'customer', [
+      { id: 'c1', firstName: 'Zebulon', lastName: 'Krakowski' },
+    ])
+    const order = raw('orders', 'order_service', [
+      { id: 's1', orderId: 'o1', name: "Zebulon's truck brakes" },
+    ])
+    const result = buildFixtures([customer, order], { salt: SALT })
+    expect(result.leaks).toEqual(['Zebulon'])
+    expect(result.files.size).toBe(0)
+  })
+
   it('ignores failed responses and responses without a table', () => {
     const failed = { ...findOrder, status: 404 }
     const untabled = { ...listPage, table: null }

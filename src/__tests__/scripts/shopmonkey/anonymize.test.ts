@@ -272,6 +272,12 @@ describe('findLeaks', () => {
     expect(findLeaks('{"note":"Ask for Marge."}', ['Marge'])).toEqual(['Marge'])
   })
 
+  it('finds a name written with a possessive, with a straight or curly apostrophe', () => {
+    expect(findLeaks(`{"name":"Zebulon's truck brakes"}`, ['Zebulon'])).toEqual(['Zebulon'])
+    expect(findLeaks('{"name":"Zebulon’s truck brakes"}', ['Zebulon'])).toEqual(['Zebulon'])
+    expect(findLeaks('{"name":"Zebulonia"}', ['Zebulon'])).toEqual([])
+  })
+
   it('finds a deny-listed name squashed into a domain', () => {
     expect(findLeaks('{"website":"https://joesgarage.example"}', [], ['Joes Garage'])).toEqual([
       'Joes Garage',

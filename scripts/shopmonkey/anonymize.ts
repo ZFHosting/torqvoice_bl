@@ -604,12 +604,15 @@ function extensionOf(url: string): string {
   return m ? `.${m[1].toLowerCase()}` : ''
 }
 
-/** Lowercase words, with apostrophes dropped inside them, so "O'Rourke" and "orourke" compare equal. */
-function words(value: string): string {
+/**
+ * Lowercase words. Apostrophes are dropped (so "O'Rourke" and "orourke" compare equal) or, with
+ * `apostropheAs: ' '`, split words (so "Zebulon's" contains "zebulon").
+ */
+function words(value: string, apostropheAs: '' | ' ' = ''): string {
   return (
     value
       .toLowerCase()
-      .replace(/['’`]/g, '')
+      .replace(/['’`]/g, apostropheAs)
       .replace(/[^a-z0-9@.+]+/g, ' ')
       // A dot only joins words (an email, a domain); at the end of a sentence it's punctuation.
       .replace(/(^|\s)\.+|\.+(?=\s|$)/g, ' ')
@@ -620,7 +623,8 @@ function words(value: string): string {
 /**
  * Original values still present in the serialized output, plus any deny-listed string (the shop's
  * name, a surname you know is in the data). Empty means safe to write. A value counts as present when
- * its words appear as whole words, ignoring case and apostrophes; a deny-listed value also counts when
+ * its words appear as whole words, ignoring case and apostrophes, with or without a possessive "'s"
+ * ("Zebulon's truck" contains "Zebulon"; a plural "brakes" doesn't contain "Brake"); a deny-listed value also counts when
  * it appears squashed into one word (`Joes Garage` in `joesgarage.example`). `allowList` names
  * originals that are known false positives (a customer whose surname is "Brake").
  */
@@ -631,7 +635,9 @@ export function findLeaks(
   allowList: Iterable<string> = []
 ): string[] {
   const allowed = new Set([...allowList].map((v) => words(v)))
+  // Two readings of the output: apostrophes dropped ("orourke") and apostrophes as spaces ("zebulon s").
   const haystack = ` ${words(serialized)} `
+  const split = ` ${words(serialized, ' ')} `
   const squashed = haystack.replace(/[^a-z0-9]/g, '')
   const deny = new Set([...denyList].map((v) => v.trim()).filter(Boolean))
   const leaks: string[] = []
@@ -641,6 +647,7 @@ export function findLeaks(
     const compact = needle.replace(/[^a-z0-9]/g, '')
     const found =
       haystack.includes(` ${needle} `) ||
+      split.includes(` ${needle} `) ||
       (deny.has(value.trim()) && compact.length >= 6 && squashed.includes(compact))
     if (found) leaks.push(value)
   }
