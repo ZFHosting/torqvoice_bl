@@ -63,9 +63,24 @@ Done so far:
   `src/__tests__/scripts/shopmonkey/anonymize.test.ts` (8 passing).
 - [x] `scripts/shopmonkey/spike-client.ts` (read-only guard, pacing, raw recording), tests
   `spike-client.test.ts` (4 passing).
-- [ ] Next: `scripts/shopmonkey/spike.ts` (the S1–S12 call plan), S1–S12 from the docs in RESULTS.md,
-  synthetic fixtures + README under `fixtures/shopmonkey/synthetic/`, remaining MAPPING markers → `[docs]`
-  or `[provisional: Sx]`, then DoD, reviewer, merge. Shopmonkey field lists are in `docs/fork/spikes/SHOPMONKEY-SCHEMAS.md`; a fuller
+- [x] `scripts/shopmonkey/spike.ts` (S1–S12 call plan), S1–S12 from the docs in RESULTS.md, synthetic
+  fixtures (`scripts/shopmonkey/build-synthetic-fixtures.ts` → `fixtures/shopmonkey/synthetic/`, guard test
+  `src/__tests__/features/integrations/shopmonkey/fixtures.test.ts`, 4 passing), MAPPING markers resolved.
+- [x] DoD: Biome on the LF worktree 14 errors = baseline, none in fork files; `npm test` 10 failing
+  files, all in the baseline set, 0 new (138 files, 1643 tests pass); `tsc --noEmit` exit 0. `test:db` not
+  required (no loaders or migrations).
+- [ ] migration-reviewer, then merge.
+
+M0 acceptance:
+- [x] NOTICE-FORK.md, README link, CLAUDE.md import, docs/fork/UPSTREAM.md (commit 0c7ec939).
+- [x] RESULTS.md answers S1–S12 (docs only, provisional) and T1–T7 (confirmed; spike file above).
+- [~] Fixtures for every MAPPING §3 table incl. a complex order: **synthetic** (22 tables; order 1003 has
+  4 services, fees, discount, deposit, partial payment, refund). Recorded fixtures wait on B1.
+- [~] Grep for the real shop name / surname / VIN: no real data has ever been fetched; the guard test
+  checks for real-looking emails, phones and VINs on every run; `anonymize-fixtures.ts` refuses to write
+  output containing any replaced value or `--deny` string. Re-run the grep once recorded fixtures exist.
+- [x] No `[M0]` markers left in MAPPING.md (only the legend); unconfirmed rules are `[provisional: Sx]`.
+- [x] PLAN §6 questions assigned: blockers B2–B8 (defaults taken), B9 licensing, B10 portal privacy. Shopmonkey field lists are in `docs/fork/spikes/SHOPMONKEY-SCHEMAS.md`; a fuller
   docs survey was in the session scratchpad (`shopmonkey-api-reference.md`); if it's gone, re-read shopmonkey.dev.
 
 ## Blockers (need a human)
