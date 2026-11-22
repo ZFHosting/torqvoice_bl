@@ -1,0 +1,80 @@
+{
+  "table": "authorization",
+  "source": "synthetic",
+  "synthetic": true,
+  "note": "SYNTHETIC: invented from Shopmonkey published schemas, not recorded. See README.md.",
+  "endpoint": "/v3/order/:id/authorization",
+  "total": 1,
+  "records": [
+    {
+      "id": "syn_aut_1",
+      "companyId": "syn_com_1",
+      "locationId": "syn_loc_1",
+      "createdDate": "2025-03-10T16:00:00.000Z",
+      "updatedDate": "2025-03-10T16:00:00.000Z",
+      "metadata": null,
+      "orderId": "syn_ord_1003",
+      "customerId": "syn_cus_1",
+      "serviceWriterId": "syn_usr_3",
+      "date": "2025-03-10T16:00:00.000Z",
+      "method": "Phone",
+      "note": "Approved brakes, tires and alignment; declined coolant.",
+      "authorizedCostCents": 116811,
+      "serviceAuthorizationReset": false,
+      "services": [
+        {
+          "id": "syn_aus_1",
+          "companyId": "syn_com_1",
+          "locationId": "syn_loc_1",
+          "createdDate": "2025-03-10T16:00:00.000Z",
+          "updatedDate": "2025-03-10T16:00:00.000Z",
+          "metadata": null,
+          "authorizationId": "syn_aut_1",
+          "serviceId": "syn_svc_1003_1",
+          "name": "Front brake service",
+          "authorizationStatus": "Authorized",
+          "authorizedCostCents": 0
+        },
+        {
+          "id": "syn_aus_2",
+          "companyId": "syn_com_1",
+          "locationId": "syn_loc_1",
+          "createdDate": "2025-03-10T16:00:00.000Z",
+          "updatedDate": "2025-03-10T16:00:00.000Z",
+          "metadata": null,
+          "authorizationId": "syn_aut_1",
+          "serviceId": "syn_svc_1003_2",
+          "name": "Tires: mount and balance",
+          "authorizationStatus": "Authorized",
+          "authorizedCostCents": 0
+        },
+        {
+          "id": "syn_aus_3",
+          "companyId": "syn_com_1",
+          "locationId": "syn_loc_1",
+          "createdDate": "2025-03-10T16:00:00.000Z",
+          "updatedDate": "2025-03-10T16:00:00.000Z",
+          "metadata": null,
+          "authorizationId": "syn_aut_1",
+          "serviceId": "syn_svc_1003_3",
+          "name": "Four-wheel alignment (sublet)",
+          "authorizationStatus": "Authorized",
+          "authorizedCostCents": 0
+        },
+        {
+          "id": "syn_aus_4",
+          "companyId": "syn_com_1",
+          "locationId": "syn_loc_1",
+          "createdDate": "2025-03-10T16:00:00.000Z",
+          "updatedDate": "2025-03-10T16:00:00.000Z",
+          "metadata": null,
+          "authorizationId": "syn_aut_1",
+          "serviceId": "syn_svc_1003_4",
+          "name": "Coolant flush",
+          "authorizationStatus": "Declined",
+          "authorizedCostCents": 0
+        }
+      ]
+    }
+  ]
+}

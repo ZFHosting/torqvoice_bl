@@ -1,0 +1,46 @@
+{
+  "table": "vehicle_owner",
+  "source": "synthetic",
+  "synthetic": true,
+  "note": "SYNTHETIC: invented from Shopmonkey published schemas, not recorded. See README.md.",
+  "endpoint": "/v3/vehicle/:id/owners",
+  "total": 4,
+  "records": [
+    {
+      "id": "syn_vow_1",
+      "companyId": "syn_com_1",
+      "vehicleId": "syn_veh_1",
+      "customerId": "syn_cus_1",
+      "createdDate": "2020-05-04T16:40:00.000Z",
+      "updatedDate": null,
+      "metadata": null
+    },
+    {
+      "id": "syn_vow_2",
+      "companyId": "syn_com_1",
+      "vehicleId": "syn_veh_2",
+      "customerId": "syn_cus_2",
+      "createdDate": "2021-02-11T14:10:00.000Z",
+      "updatedDate": null,
+      "metadata": null
+    },
+    {
+      "id": "syn_vow_3",
+      "companyId": "syn_com_1",
+      "vehicleId": "syn_veh_3",
+      "customerId": "syn_cus_1",
+      "createdDate": "2020-09-09T09:00:00.000Z",
+      "updatedDate": null,
+      "metadata": null
+    },
+    {
+      "id": "syn_vow_4",
+      "companyId": "syn_com_1",
+      "vehicleId": "syn_veh_3",
+      "customerId": "syn_cus_4",
+      "createdDate": "2024-04-01T09:00:00.000Z",
+      "updatedDate": null,
+      "metadata": null
+    }
+  ]
+}

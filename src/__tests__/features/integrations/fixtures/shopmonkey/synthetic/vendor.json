@@ -1,0 +1,33 @@
+{
+  "table": "vendor",
+  "source": "synthetic",
+  "synthetic": true,
+  "note": "SYNTHETIC: invented from Shopmonkey published schemas, not recorded. See README.md.",
+  "endpoint": "/v3/vendor",
+  "total": 1,
+  "records": [
+    {
+      "id": "syn_ven_1",
+      "companyId": "syn_com_1",
+      "locationId": "syn_loc_1",
+      "createdDate": "2019-01-02T15:00:00.000Z",
+      "updatedDate": "2019-01-02T15:00:00.000Z",
+      "metadata": null,
+      "name": "Westbrook Parts Supply",
+      "accountNumber": "ACCT-9",
+      "contactFirstName": "Gray",
+      "contactLastName": "Glenhollow",
+      "contactEmail": "orders@example.test",
+      "contactPhone": {
+        "number": "+12025550104"
+      },
+      "address1": "1 Industrial Ct",
+      "city": "Brookfield",
+      "state": "TX",
+      "postalCode": "90055",
+      "country": "US",
+      "url": "https://vendor.example.test",
+      "deleted": false
+    }
+  ]
+}

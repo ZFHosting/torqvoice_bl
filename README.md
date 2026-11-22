@@ -1,3 +1,5 @@
+> **Modified version.** This is the BlueLabel fork of Torqvoice, changed by ZF Hosting: see [NOTICE-FORK.md](NOTICE-FORK.md).
+
 <br />
 <p align="center">
 	<a href="https://github.com/Torqvoice/torqvoice">

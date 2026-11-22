@@ -1,0 +1,100 @@
+{
+  "table": "inspection",
+  "source": "synthetic",
+  "synthetic": true,
+  "note": "SYNTHETIC: invented from Shopmonkey published schemas, not recorded. See README.md.",
+  "endpoint": "/v3/inspection",
+  "total": 1,
+  "records": [
+    {
+      "id": "syn_ins_1",
+      "companyId": "syn_com_1",
+      "locationId": "syn_loc_1",
+      "createdDate": "2025-03-10T17:00:00.000Z",
+      "updatedDate": "2025-03-10T17:00:00.000Z",
+      "metadata": null,
+      "orderId": "syn_ord_1003",
+      "templateId": "syn_itp_1",
+      "name": "Multi-point inspection",
+      "note": "Front pads worn; tires near the wear bars.",
+      "completed": true,
+      "completedById": "syn_usr_1",
+      "completedDate": "2025-03-10T17:30:00.000Z",
+      "createdById": "syn_usr_1",
+      "checklistStage": "RepairOrder",
+      "ordinal": 0,
+      "recommended": false,
+      "items": [
+        {
+          "id": "syn_iit_1",
+          "inspectionId": "syn_ins_1",
+          "name": "Brakes",
+          "message": "Front pads at 2 mm.",
+          "ordinal": 0,
+          "status": "Red",
+          "publicId": "syn-iit-1",
+          "inspectorUserId": "syn_usr_1",
+          "inspectionDate": "2025-03-10T17:00:00.000Z",
+          "recommendedCannedServiceIds": ["syn_can_1"],
+          "reviewStatus": null,
+          "files": [
+            {
+              "id": "syn_ifl_1",
+              "fileName": "brakes.jpg",
+              "fileSize": 48213,
+              "fileType": "image/jpeg",
+              "thumbnailUrl": "https://files.example.test/synthetic/brakes-thumb.jpg",
+              "url": "https://files.example.test/synthetic/brakes.jpg"
+            }
+          ],
+          "createdDate": "2025-03-10T17:00:00.000Z"
+        },
+        {
+          "id": "syn_iit_2",
+          "inspectionId": "syn_ins_1",
+          "name": "Tires",
+          "message": "Tread at 3/32\".",
+          "ordinal": 1,
+          "status": "Yellow",
+          "publicId": "syn-iit-2",
+          "inspectorUserId": "syn_usr_1",
+          "inspectionDate": "2025-03-10T17:00:00.000Z",
+          "recommendedCannedServiceIds": [],
+          "reviewStatus": null,
+          "files": [],
+          "createdDate": "2025-03-10T17:00:00.000Z"
+        },
+        {
+          "id": "syn_iit_3",
+          "inspectionId": "syn_ins_1",
+          "name": "Wiper blades",
+          "message": "",
+          "ordinal": 2,
+          "status": "Green",
+          "publicId": "syn-iit-3",
+          "inspectorUserId": "syn_usr_1",
+          "inspectionDate": "2025-03-10T17:00:00.000Z",
+          "recommendedCannedServiceIds": [],
+          "reviewStatus": null,
+          "files": [],
+          "createdDate": "2025-03-10T17:00:00.000Z"
+        },
+        {
+          "id": "syn_iit_4",
+          "inspectionId": "syn_ins_1",
+          "name": "Battery",
+          "message": "",
+          "ordinal": 3,
+          "status": "NotApplicable",
+          "publicId": "syn-iit-4",
+          "inspectorUserId": "syn_usr_1",
+          "inspectionDate": "2025-03-10T17:00:00.000Z",
+          "recommendedCannedServiceIds": [],
+          "reviewStatus": null,
+          "files": [],
+          "createdDate": "2025-03-10T17:00:00.000Z"
+        }
+      ]
+    }
+  ]
+}

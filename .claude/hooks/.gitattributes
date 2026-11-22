@@ -1,0 +1,2 @@
+# fork: the Stop hook runs under bash, which breaks on CRLF line endings
+*.sh text eol=lf

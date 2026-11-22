@@ -1,0 +1,15 @@
+{
+  "table": "company",
+  "source": "synthetic",
+  "synthetic": true,
+  "note": "SYNTHETIC: invented from Shopmonkey published schemas, not recorded. See README.md.",
+  "endpoint": "/v3/company/:id",
+  "total": 1,
+  "records": [
+    {
+      "id": "syn_com_1",
+      "name": "Synthetic Auto Works",
+      "createdDate": "2019-01-02T15:00:00.000Z"
+    }
+  ]
+}

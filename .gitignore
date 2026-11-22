@@ -16,12 +16,19 @@
 # next.js
 /.next/
 /out/
-.claude
+# fork: version the fork's Claude Code kit, keep personal files (settings.local.json) ignored
+.claude/*
+!.claude/commands/
+!.claude/agents/
+!.claude/hooks/
+!.claude/settings.json
 
 # production
 /build
 
 # misc
+# fork: raw spike output (scripts/shopmonkey/) and other scratch files
+tmp/
 .DS_Store
 *.pem
 
