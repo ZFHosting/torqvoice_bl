@@ -16,6 +16,7 @@ export const SHOPMONKEY_BASE_URL = 'https://api.shopmonkey.cloud'
 /**
  * POST endpoints that only read: every `.../search` route in Shopmonkey's API reference
  * (docs/fork/spikes/RESULTS.md S4). Exact paths, not a pattern, so nothing new is allowed by accident.
+ * PROVISIONAL(M0:S2): from the docs; confirm with a key that each one only reads.
  */
 export const SEARCH_ALLOWLIST: ReadonlySet<string> = new Set([
   '/v3/appointment/search',

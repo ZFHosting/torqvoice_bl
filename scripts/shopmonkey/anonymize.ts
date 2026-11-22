@@ -229,10 +229,8 @@ export const SAFE_KEYS: ReadonlySet<string> = new Set([
   'parentName',
   'partNumber',
   'productionDate',
-  'purchaseOrderNumber',
   'quickbooksRef',
   'readMethod',
-  'readOnlyReason',
   'rearTireSize',
   'serviceType',
   'size',
@@ -246,7 +244,6 @@ export const SAFE_KEYS: ReadonlySet<string> = new Set([
   'transmissionMfrCode',
   'transmissionSpeed',
   'unit',
-  'userDefinedType',
   'vendorInvoiceNumber',
   'extension',
   'licensePlateState',
@@ -280,9 +277,7 @@ const THING_TABLES = new Set([
   'inspection_template',
   'inspection_template_item',
   'workflow_status',
-  'labor_rate',
   'label',
-  'referral_source',
   'tax_config',
   'payment_term',
   'tire_model',
@@ -324,6 +319,7 @@ const CHILD_TABLE: Record<string, string> = {
   files: 'file',
   statusDetails: 'inspection_item_status_detail',
   owners: 'vehicle_owner',
+  contactPhone: 'phone_number',
   workflowStatus: 'workflow_status',
   paymentTerm: 'payment_term',
   appointments: 'appointment',
@@ -348,6 +344,7 @@ export type Kind =
   | 'fileName'
   | 'digits'
   | 'token'
+  | 'word'
   | 'secret'
 
 /** Key name (lowercased) → what it holds, where a specific fake reads better than generic text. */
@@ -512,6 +509,7 @@ export function createAnonymizer(salt: string): Anonymizer {
         return `file-${h.toString('hex').slice(0, 10)}${extensionOf(original)}`
       case 'digits':
         return String(h.readUInt16BE(0) % 10000).padStart(4, '0')
+      case 'word':
       case 'token':
         return `x${h.toString('hex').slice(0, 12)}`
       case 'secret':
@@ -562,7 +560,10 @@ export function createAnonymizer(salt: string): Anonymizer {
     const decision = key === null ? 'note' : decide(table, key)
     if (decision === 'keep') return scrub(value)
     // A single word that isn't a name becomes a token rather than a sentence.
-    if (decision === 'note' && !/\s/.test(value.trim())) return replace('token', value)
+    // A single word of free text becomes a token. It isn't leak-checked: a word like "Cash" or "Fleet"
+    // is just as likely to be an enum value or a part name elsewhere, and the identifiers that matter
+    // (names, contacts, VINs, plates, serials, tax ids) have kinds of their own that are checked.
+    if (decision === 'note' && !/\s/.test(value.trim())) return replace('word', value)
     return replace(decision, value)
   }
 
@@ -581,7 +582,8 @@ export function createAnonymizer(salt: string): Anonymizer {
     if (typeof value === 'number' && key !== null) {
       if (/(latitude|longitude)$/i.test(key)) return 0
       const kind = decide(table, key)
-      if (kind === 'phone' || kind === 'digits') return replace(kind, String(value))
+      if (kind === 'phone' || kind === 'digits' || kind === 'postalCode')
+        return replace(kind, String(value))
     }
     return value
   }

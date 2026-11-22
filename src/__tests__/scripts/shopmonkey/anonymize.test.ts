@@ -140,6 +140,23 @@ describe('createAnonymizer', () => {
     expect(out.files[0].url).not.toContain('cdn.invalid')
   })
 
+  it('replaces names hiding in rates, referral sources, reasons, references and vendor phones', () => {
+    const anon = createAnonymizer(SALT)
+    const out = JSON.stringify([
+      anon.record('labor_rate', { id: 'r1', name: 'Krakowski family rate', valueCents: 9000 }),
+      anon.record('referral_source', { id: 'rs1', name: 'Referred by Zebulon Krakowski' }),
+      anon.record('phone_number', { id: 'ph1', userDefinedType: 'Zebulon work cell' }),
+      anon.record('order', {
+        id: 'o1',
+        readOnlyReason: 'Signed by Zebulon',
+        purchaseOrderNumber: 'Krakowski claim 4471',
+      }),
+      anon.record('vendor', { id: 'v1', contactPhone: { number: '867-5309' }, postalCode: 97035 }),
+    ])
+    expect(out).not.toMatch(/zebulon|krakowski|867-5309|97035/i)
+    expect(out).toContain('"valueCents":9000')
+  })
+
   it('zeroes coordinates', () => {
     const out = createAnonymizer(SALT).record('timesheet', {
       clockInLatitude: 45.5,
@@ -178,9 +195,7 @@ describe('createAnonymizer', () => {
       'inspection_template',
       'inspection_template_item',
       'workflow_status',
-      'labor_rate',
       'label',
-      'referral_source',
       'tax_config',
       'payment_term',
       'tire_model',

@@ -14,7 +14,8 @@ either changed `MAPPING.md` or is cited from it.
 > (the spike below); T3, T4, T6 and T7 come from reading the code, cited by file and line. The brief
 > asked for screenshots where the answer is visual (T3, T4). None were taken, because this run had no
 > browser driving the app. The invoice side of both is covered by the T5 PDF's extracted text, and the
-> screens are checked by the M8 Playwright spec, which renders imported fixtures.
+> screens get Playwright checks in M8 (added to the M8 brief: an imported year-0 vehicle's page and a
+> previous owner's job in the portal).
 
 How the Torqvoice spikes were run: `scripts/spikes/torqvoice.spike.ts`, a throwaway Vitest file run
 against the local test database (`E2E_DATABASE_URL=... npx vitest run --config
@@ -374,6 +375,7 @@ step (MAPPING §9) only sets an empty format when every imported number is all d
 Open until a key exists. The spike records `meta.total` where a list or search returns one: orders
 (the paging probe), customers (an unfiltered, sorted search), and every catalog and configuration table
 it samples. Vehicles have no list, so it estimates them from the customers' own `vehicleCount` (and
-vehicles without an owner are only reachable through orders). Files are counted per order from
-`files[]`, not in total. Some searches document no `meta` at all, so a total may come back empty;
+vehicles without an owner are only reachable through orders). Files aren't counted: the spike reads
+Find Order (with its `files[]`) for the sampled orders only, so it shows what an order's files look like,
+not how many there are in all. Some searches document no `meta` at all, so a total may come back empty;
 `_summary.json` says which. Sizing assumption until then: 50,000 orders (blocker B3).

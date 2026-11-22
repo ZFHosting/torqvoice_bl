@@ -207,7 +207,7 @@ async function main() {
     const tries: [string, string | null][] = [
       [`/v3/order/${id}`, 'order'],
       [`/v3/order/${id}/service`, 'order_service'],
-      [`/v3/order/${id}/authorization`, 'order_authorization'],
+      [`/v3/order/${id}/authorization`, 'authorization'],
       [`/v3/order/${id}/payment`, 'payment'],
       [`/v3/order/${id}/pdf?document_type=invoice`, null],
     ]

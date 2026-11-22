@@ -63,6 +63,22 @@ describe('buildFixtures', () => {
     expect(result.files.size).toBe(0)
   })
 
+  it('writes the fixtures when a single word of free text matches an enum or a name elsewhere', () => {
+    const payment = raw('payments', 'payment', [{ id: 'p1', paymentType: 'Cash', note: 'Cash' }])
+    const customer = raw('customers', 'customer', [
+      { id: 'c1', customerType: 'Fleet', customFields: { segment: 'Fleet' } },
+    ])
+    const order = raw('orders', 'order', [
+      { id: 'o1', name: 'Brakes', services: [{ id: 's1', name: 'Brakes' }] },
+    ])
+    const result = buildFixtures([payment, customer, order], { salt: SALT })
+    expect(result.leaks).toEqual([])
+    expect(result.files.size).toBe(3)
+    const p1 = JSON.parse(result.files.get('payment.json') as string).records[0]
+    expect(p1.paymentType).toBe('Cash')
+    expect(p1.note).not.toBe('Cash')
+  })
+
   it('ignores failed responses and responses without a table', () => {
     const failed = { ...findOrder, status: 404 }
     const untabled = { ...listPage, table: null }

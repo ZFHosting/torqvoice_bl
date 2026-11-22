@@ -48,10 +48,13 @@ function main() {
   })
 
   if (result.leaks.length > 0) {
-    // Print how many and how long, never the values themselves.
+    // The values themselves go to a gitignored file for the operator to review, never to the log.
+    const leakFile = path.join('tmp', 'shopmonkey-leaks.txt')
+    mkdirSync('tmp', { recursive: true })
+    writeFileSync(leakFile, `${result.leaks.join('\n')}\n`)
     console.error(
-      `Refusing to write: ${result.leaks.length} original value(s) are still in the output (lengths ${result.leaks.map((l) => l.length).join(', ')}). ` +
-        'Extend the rules in scripts/shopmonkey/anonymize.ts, or list known false positives with --allow.'
+      `Refusing to write: ${result.leaks.length} original value(s) are still in the output; they're listed in ${leakFile} (gitignored). ` +
+        'Extend the rules in scripts/shopmonkey/anonymize.ts, or list known false positives in a file passed with --allow.'
     )
     process.exit(1)
   }

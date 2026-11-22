@@ -23,6 +23,9 @@ each wrapped in `withAuth` with `requiredPermissions` for settings management.
 ## Acceptance
 - [ ] A Playwright spec (`e2e/specs/shopmonkey-import.spec.ts`) runs connect (mock server) → mapping → dry run → load → report shows all gates passing → undo.
 - [ ] Works in dark mode and with a non-English locale (falls back to English strings).
+- [ ] The same spec opens an imported vehicle with no year, make or model (shows "Unknown Unknown", no
+      stray "0"), and a job billed to a vehicle's previous owner, on the work order and in the current
+      owner's portal (M0 spikes T3, T4; blocker B10).
 - [ ] Every action is owner/admin only. A member gets `forbidden`.
 
 ## Out of scope
