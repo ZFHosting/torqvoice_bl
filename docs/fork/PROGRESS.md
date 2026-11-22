@@ -85,7 +85,31 @@ Done so far:
 
 ## Re-verify with real Shopmonkey data
 
-(every `PROVISIONAL(M0:Sx)` assumption in code, with file and the spike question it depends on)
+Every `PROVISIONAL(M0:Sx)` assumption in code, and every **[provisional: Sx]** rule in `MAPPING.md`.
+Rerun `grep -rn "PROVISIONAL(M0" scripts src` to refresh the code list. When B1 is resolved: record real
+fixtures, compare each item below with them, fix the code or MAPPING, and remove the marker.
+
+| Spike | Assumption | Where |
+| --- | --- | --- |
+| S1 | Locations come from `GET /v3/location`, falling back to `user/me.locations`; `api_key/status` 200 + `success` means valid | MAPPING §1; RESULTS S1 (M2 `server.ts` will carry the marker) |
+| S2 | Search allowlist `^/v3(/[a-z_]+){1,3}/search$` covers every read-only POST | `scripts/shopmonkey/spike-client.ts:17` (and M2 `client.ts`) |
+| S2 | GET lists ignore `where` and are unstable without `orderby` on `id`; max useful `limit` is 100; incremental pulls fall back to re-list + `payloadHash` | MAPPING §1; RESULTS S2 (M3 extractor) |
+| S4 | Vehicle's current owner = the most recently created `vehicle_owner` row | `build-synthetic-fixtures.ts:797`; MAPPING §3 VehicleOwner |
+| S4 | Order files list/download path (not in the reference); until confirmed only PDFs and inspection photos download | MAPPING §1, §3 Order files |
+| S4 | Order services come nested with lines from `GET /v3/order/:id/service` (and `include` on `GET /v3/order`) | MAPPING §1; RESULTS S4 |
+| S4 | Order `labels` object read as label names; customer fleet entity archive only; signed-document images | MAPPING §3, §6.1 |
+| S4 | `reminderOptOut` only from the primary email's `subscribed: false` | MAPPING §4 |
+| S4 | `recommendation` prints on Shopmonkey's invoice → `invoiceNotes` | MAPPING §6.1 |
+| S5 | Line total = gross − `discountCents` (labor `round(hours × rate × multiplier)`, parts/tires `round(qty × retail)`, sublet `retail`); percent fee = `round(percent% × service line base)` | `build-synthetic-fixtures.ts:113`; MAPPING §6.2 |
+| S5 | A service counts toward order totals unless `Declined` or `deferredDate` set | `build-synthetic-fixtures.ts:363`; MAPPING §6.3 |
+| S5 | Order-level discount comes off after tax (`totalCostCents = subtotal − discount + tax`) | `build-synthetic-fixtures.ts:412` |
+| S5 | Refunds have negative `amountCents` (importer uses `-abs`); `refundedAmountCents` on charges is not subtracted again | `build-synthetic-fixtures.ts:414`; MAPPING §6.5 |
+| S5 | EPA / shop supplies are never also `fee` rows; tire FET and waste fee are outside the line total | MAPPING §6.2 |
+| S6 | Fees are never taxed; EPA/shop supplies taxability from the tax config | MAPPING §6.2 |
+| S7 | Inspection item photos hang off the item (`files[]`) | `build-synthetic-fixtures.ts:1494`; MAPPING §3, §8 |
+| S8 | Timesheet `duration` is milliseconds (unused: minutes come from clock times) | `build-synthetic-fixtures.ts:1529`; MAPPING §3 |
+| S11 | `publicId` and order `number` are digits in practice (both are strings in the schema) | MAPPING §4, §9 |
+| S12 | Volumes (sizing assumes 50,000 orders) | RESULTS S12, blocker B3 |
 
 ## Decisions log
 
