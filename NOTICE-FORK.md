@@ -10,6 +10,8 @@ published or supported by Torqvoice's authors.
 
 ## What was changed
 
+Built in milestones (`docs/fork/PLAN.md`); `docs/fork/PROGRESS.md` says how far each has got.
+
 1. **A Shopmonkey importer.** A connector that copies a shop's full history out of Shopmonkey
    (read-only) into Torqvoice, keeps it in sync until cutover, and reports on whether anything was lost
    (`src/integrations/shopmonkey/`, `src/features/shopmonkey-import/`).

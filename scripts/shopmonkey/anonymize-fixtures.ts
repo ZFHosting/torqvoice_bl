@@ -1,7 +1,7 @@
 /**
  * Turns the raw responses the spike recorded (tmp/shopmonkey-raw/, gitignored) into anonymized
  * fixtures under src/__tests__/features/integrations/fixtures/shopmonkey/recorded/, one file per
- * table. Only this output is ever committed (docs/fork/FORK.md).
+ * table. Only this output is ever committed (docs/fork/FORK.md). The work is in fixture-build.ts.
  *
  *   ANONYMIZE_SALT=<secret, 16+ chars> npx tsx scripts/shopmonkey/anonymize-fixtures.ts \
  *     [--in tmp/shopmonkey-raw] [--out <dir>] [--deny deny.txt] [--allow allow.txt]
@@ -13,9 +13,10 @@
  * Keep the salt out of git and out of shell history you share: with it, a guess at a real phone
  * number could be checked against its fake.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import 'dotenv/config'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { createAnonymizer, findLeaks } from './anonymize'
+import { buildFixtures } from './fixture-build'
 import type { RawResponseFile } from './raw'
 
 function arg(name: string): string | undefined {
@@ -31,78 +32,41 @@ function lines(file: string | undefined): string[] {
     .filter((l) => l && !l.startsWith('#'))
 }
 
-function recordsOf(body: unknown): unknown[] {
-  if (!body || typeof body !== 'object') return []
-  const data = (body as { data?: unknown }).data
-  if (Array.isArray(data)) return data
-  if (data && typeof data === 'object') return [data]
-  return []
-}
-
 function main() {
-  const salt = process.env.ANONYMIZE_SALT ?? ''
   const inDir = arg('in') ?? 'tmp/shopmonkey-raw'
   const outDir = arg('out') ?? 'src/__tests__/features/integrations/fixtures/shopmonkey/recorded'
   if (!existsSync(inDir))
     throw new Error(`No raw responses in ${inDir}. Run scripts/shopmonkey/spike.ts first.`)
 
-  const anon = createAnonymizer(salt)
-  const tables = new Map<
-    string,
-    { endpoint: string; total: number | null; records: Map<string, unknown> }
-  >()
+  const raws = readdirSync(inDir)
+    .filter((n) => n.endsWith('.json') && !n.startsWith('_'))
+    .map((n) => JSON.parse(readFileSync(path.join(inDir, n), 'utf-8')) as RawResponseFile)
+  const result = buildFixtures(raws, {
+    salt: process.env.ANONYMIZE_SALT ?? '',
+    deny: lines(arg('deny')),
+    allow: lines(arg('allow')),
+  })
 
-  for (const name of readdirSync(inDir)
-    .filter((n) => n.endsWith('.json'))
-    .sort()) {
-    const raw = JSON.parse(readFileSync(path.join(inDir, name), 'utf-8')) as RawResponseFile
-    if (!raw.table || raw.status !== 200) continue
-    const entry = tables.get(raw.table) ?? {
-      endpoint: raw.request.path,
-      total: null,
-      records: new Map(),
-    }
-    const meta = (raw.body as { meta?: { total?: number } } | null)?.meta
-    if (typeof meta?.total === 'number') entry.total = Math.max(entry.total ?? 0, meta.total)
-    for (const record of recordsOf(raw.body)) {
-      const id = String((record as { id?: unknown }).id ?? `${name}#${entry.records.size}`)
-      entry.records.set(id, anon.record(raw.table, record))
-    }
-    tables.set(raw.table, entry)
-  }
-
-  const files = new Map<string, string>()
-  for (const [table, entry] of tables) {
-    const fixture = {
-      table,
-      source: 'recorded',
-      anonymized: true,
-      endpoint: entry.endpoint,
-      total: entry.total,
-      records: [...entry.records.values()],
-    }
-    files.set(`${table}.json`, `${JSON.stringify(fixture, null, 2)}\n`)
-  }
-
-  const leaks = findLeaks(
-    [...files.values()].join('\n'),
-    anon.originals(),
-    lines(arg('deny')),
-    lines(arg('allow'))
-  )
-  if (leaks.length > 0) {
-    // Print how many and how long, never the values themselves.
+  // The values themselves go to a gitignored file for the operator to review, never to the log; a
+  // clean run removes the list an earlier run left, since it holds real values.
+  const leakFile = path.join('tmp', 'shopmonkey-leaks.txt')
+  if (result.leaks.length === 0) rmSync(leakFile, { force: true })
+  if (result.leaks.length > 0) {
+    mkdirSync('tmp', { recursive: true })
+    writeFileSync(leakFile, `${result.leaks.join('\n')}\n`)
     console.error(
-      `Refusing to write: ${leaks.length} original value(s) are still in the output (lengths ${leaks.map((l) => l.length).join(', ')}). ` +
-        'Extend the rules in scripts/shopmonkey/anonymize.ts, or list known false positives with --allow.'
+      `Refusing to write: ${result.leaks.length} original value(s) are still in the output; they're listed in ${leakFile} (gitignored). ` +
+        'Extend the rules in scripts/shopmonkey/anonymize.ts, or list known false positives in a file passed with --allow.'
     )
     process.exit(1)
   }
 
   mkdirSync(outDir, { recursive: true })
-  for (const [name, content] of files) writeFileSync(path.join(outDir, name), content)
+  for (const [name, content] of result.files) writeFileSync(path.join(outDir, name), content)
   console.log(
-    `Wrote ${files.size} fixture file(s) to ${outDir}: ${[...tables].map(([t, e]) => `${t}=${e.records.size}`).join(', ')}`
+    `Wrote ${result.files.size} fixture file(s) to ${outDir}: ${Object.entries(result.counts)
+      .map(([t, n]) => `${t}=${n}`)
+      .join(', ')}`
   )
 }
 

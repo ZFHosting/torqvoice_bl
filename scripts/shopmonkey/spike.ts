@@ -11,6 +11,7 @@
  * It deliberately never calls the VIN or plate decode endpoints (/v3/vehicle/vin/:vin,
  * /v3/vehicle/license_plate/...): they look a vehicle up with a data provider and may cost money.
  */
+import 'dotenv/config'
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { createSpikeClient, type SpikeResponse } from './spike-client'
@@ -25,6 +26,11 @@ function arg(name: string, fallback: string): string {
 const apiKey = process.env.SHOPMONKEY_API_KEY ?? ''
 const rawDir = arg('out', 'tmp/shopmonkey-raw')
 const orderSample = Number(arg('orders', '10'))
+/** Orders to record by id, chosen to cover the S5 cases (discount, fees, EPA, declined, refund...). */
+const orderIds = arg('order-ids', '')
+  .split(',')
+  .map((id) => id.trim())
+  .filter(Boolean)
 
 const summary: Json = { startedAt: new Date().toISOString(), questions: {} as Json }
 const answers = summary.questions as Json
@@ -49,6 +55,33 @@ function shapeOf(value: unknown, depth = 0): unknown {
     )
   }
   return value === null ? 'null' : typeof value
+}
+
+/**
+ * A keyless GET of a file URL (an order file, an inspection photo): records whether it downloads
+ * without the API key, its type and size. The body is discarded, never written, and the key is
+ * never sent anywhere but Shopmonkey's API.
+ */
+async function probeUrl(url: string): Promise<Json> {
+  let host = ''
+  try {
+    host = new URL(url).host
+    const res = await fetch(url, { method: 'GET', redirect: 'manual' })
+    const result = {
+      host,
+      status: res.status,
+      contentType: res.headers.get('content-type'),
+      contentLength: res.headers.get('content-length'),
+      redirectsTo: res.headers.get('location')
+        ? new URL(res.headers.get('location') as string).host
+        : null,
+      signedUrl: /[?&](X-Amz-|Signature=|sig=|token=|Expires=)/i.test(url),
+    }
+    await res.body?.cancel()
+    return result
+  } catch (err) {
+    return { host, error: err instanceof Error ? err.message : String(err) }
+  }
 }
 
 async function main() {
@@ -120,7 +153,20 @@ async function main() {
     ).map((o) => String(o.id))
   const firstRead = [...(await pageIds(0, 's2-stable-a0')), ...(await pageIds(50, 's2-stable-a1'))]
   const secondRead = [...(await pageIds(0, 's2-stable-b0')), ...(await pageIds(50, 's2-stable-b1'))]
+  // The whole customer list, unfiltered and sorted, for its total (S12) and to compare with the
+  // filtered search above (does `where` filter at all?).
+  const allCustomers = await search(
+    '/v3/customer/search',
+    'customer',
+    { limit: 100, skip: 0, orderBy: { id: 'asc' } },
+    's2-customer-search-all'
+  )
   answers.S2 = {
+    customerSearchAll: {
+      status: allCustomers.status,
+      returned: list(allCustomers).length,
+      total: meta(allCustomers).total ?? null,
+    },
     stableWithOrderbyId: JSON.stringify(firstRead) === JSON.stringify(secondRead),
     duplicatesAcrossPages: firstRead.length - new Set(firstRead).size,
     limits,
@@ -129,7 +175,16 @@ async function main() {
   }
 
   // S4 (+S5, S11): orders and their children, on a sample.
-  const orders = list(await get('/v3/order', 'order', { limit: orderSample }, 's4-orders'))
+  const orders =
+    orderIds.length > 0
+      ? (
+          await Promise.all(
+            orderIds.map(
+              async (id) => data(await get(`/v3/order/${id}`, 'order')) as Json | undefined
+            )
+          )
+        ).filter((o): o is Json => !!o)
+      : list(await get('/v3/order', 'order', { limit: orderSample }, 's4-orders'))
   // GET /v3/order documents an `include` that nests services and their lines: one call per page
   // instead of one per order, if it works.
   const withServices = await get(
@@ -152,7 +207,7 @@ async function main() {
     const tries: [string, string | null][] = [
       [`/v3/order/${id}`, 'order'],
       [`/v3/order/${id}/service`, 'order_service'],
-      [`/v3/order/${id}/authorization`, 'order_authorization'],
+      [`/v3/order/${id}/authorization`, 'authorization'],
       [`/v3/order/${id}/payment`, 'payment'],
       [`/v3/order/${id}/pdf?document_type=invoice`, null],
     ]
@@ -207,9 +262,22 @@ async function main() {
   }
   answers.S4 = children
   answers.S5 = 'Compare order, service and line *Cents in the recorded order_service files by hand.'
+  // Find Order embeds files[]: can their URLs be fetched without the key, and how long do they live?
+  const fullOrder = orders[0]
+    ? (data(await get(`/v3/order/${orders[0].id}`, 'order', undefined, 's4-order-full')) as
+        | Json
+        | undefined)
+    : undefined
+  const firstFile = (fullOrder?.files as Json[] | undefined)?.find((f) => typeof f.url === 'string')
+  answers.S4files = firstFile
+    ? await probeUrl(String(firstFile.url))
+    : 'no order files in the sample'
+
+  const customers = list(allCustomers)
   answers.S11 = {
-    orderNumbers: orders.map((o) => typeof o.number),
-    publicIdShape: firstCustomer ? typeof firstCustomer.publicId : null,
+    orderNumbersAllDigits: orders.every((o) => /^\d+$/.test(String(o.number))),
+    publicIdsAllDigits: customers.every((c) => /^\d+$/.test(String(c.publicId))),
+    publicIdsUnique: new Set(customers.map((c) => c.publicId)).size === customers.length,
   }
 
   // S6–S10: configuration and catalog tables.
@@ -250,8 +318,30 @@ async function main() {
   const firstInspection = list(
     await get('/v3/inspection', 'inspection', { limit: 1 }, 's7-inspection')
   )[0]
-  if (firstInspection)
-    await get(`/v3/inspection/${firstInspection.id}`, 'inspection', undefined, 's7-inspection-full')
+  if (firstInspection) {
+    const full = data(
+      await get(
+        `/v3/inspection/${firstInspection.id}`,
+        'inspection',
+        undefined,
+        's7-inspection-full'
+      )
+    ) as Json | undefined
+    const photo = ((full?.items as Json[] | undefined) ?? [])
+      .flatMap((item) => (item.files as Json[] | undefined) ?? [])
+      .find((f) => typeof f.url === 'string')
+    answers.S7photos = photo
+      ? await probeUrl(String(photo.url))
+      : 'no inspection photos in the sample'
+  }
+  // There's no vehicle list: estimate the count from the customers' own vehicleCount.
+  const vehicleCounts = customers.map((c) => Number(c.vehicleCount) || 0)
+  counts.customer = { total: meta(allCustomers).total ?? null }
+  counts.vehicleEstimate = {
+    sampledCustomers: customers.length,
+    vehiclesInSample: vehicleCounts.reduce((a, b) => a + b, 0),
+    note: 'vehicles ≈ vehiclesInSample / sampledCustomers × customer total (vehicles without an owner are reached only through orders)',
+  }
   answers.S6toS12 = counts
 
   // S3: rate limit, measured from the headers.

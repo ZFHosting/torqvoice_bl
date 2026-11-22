@@ -1,0 +1,34 @@
+{
+  "table": "label",
+  "source": "synthetic",
+  "synthetic": true,
+  "note": "SYNTHETIC: invented from Shopmonkey published schemas, not recorded. See README.md.",
+  "endpoint": "/v3/label",
+  "total": 2,
+  "records": [
+    {
+      "id": "syn_lbl_1",
+      "companyId": "syn_com_1",
+      "locationId": "syn_loc_1",
+      "createdDate": "2019-04-01T12:00:00.000Z",
+      "updatedDate": "2019-04-01T12:00:00.000Z",
+      "metadata": null,
+      "name": "VIP",
+      "color": "purple",
+      "entity": "Customer",
+      "saved": true
+    },
+    {
+      "id": "syn_lbl_2",
+      "companyId": "syn_com_1",
+      "locationId": "syn_loc_1",
+      "createdDate": "2019-04-01T12:00:00.000Z",
+      "updatedDate": "2019-04-01T12:00:00.000Z",
+      "metadata": null,
+      "name": "Fleet",
+      "color": "blue",
+      "entity": "Order",
+      "saved": true
+    }
+  ]
+}

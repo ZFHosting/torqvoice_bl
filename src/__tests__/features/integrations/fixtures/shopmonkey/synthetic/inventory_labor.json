@@ -1,0 +1,36 @@
+{
+  "table": "inventory_labor",
+  "source": "synthetic",
+  "synthetic": true,
+  "note": "SYNTHETIC: invented from Shopmonkey published schemas, not recorded. See README.md.",
+  "endpoint": "POST /v3/inventory_labor/search",
+  "total": 1,
+  "records": [
+    {
+      "id": "syn_inl_1",
+      "companyId": "syn_com_1",
+      "locationId": "syn_loc_1",
+      "createdDate": "2019-04-01T12:00:00.000Z",
+      "updatedDate": "2019-04-01T12:00:00.000Z",
+      "metadata": null,
+      "name": "Brake inspection",
+      "note": "",
+      "hours": 0.5,
+      "rateCents": 14000,
+      "rateId": "syn_rate_1",
+      "multiplier": 1,
+      "multiplierType": "Hours",
+      "discountCents": 0,
+      "discountPercent": 0,
+      "discountValueType": "FixedCents",
+      "costHours": null,
+      "costRateCents": null,
+      "categoryId": "syn_cat_1",
+      "taxable": true,
+      "taxableGST": false,
+      "taxableHST": false,
+      "taxablePST": false,
+      "deleted": false
+    }
+  ]
+}

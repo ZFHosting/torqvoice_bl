@@ -13,8 +13,8 @@ counts as done for the hook).
 
 | Id | Status | Branch | Notes |
 | --- | --- | --- | --- |
-| M0 | in_progress | fork/M0-setup-and-spikes | |
-| M1 | todo | | |
+| M0 | provisional | fork/M0-setup-and-spikes | Merged 249e3dd3. S1–S12 from docs only and synthetic fixtures: re-verify with a key (B1). Reviewer: ready for PR after 3 passes. |
+| M1 | in_progress | fork/M1-schema-extensions | |
 | A1 | todo | | |
 | A2 | todo | | |
 | M2 | todo | | |
@@ -32,8 +32,6 @@ counts as done for the hook).
 
 ## Current step
 
-**M0, branch `fork/M0-setup-and-spikes` (from `fork/integration`, which was cut from `main` at 03619f67).**
-
 Environment (local, Windows):
 - Postgres 16 runs in Docker as container `torqvoice-bl-db` on `127.0.0.1:5442` (5432 is taken by another
   project; 54860–55698 are Windows-reserved). Dev DB `torqvoice`, test DB `torqvoice_test`, both migrated.
@@ -43,39 +41,41 @@ Environment (local, Windows):
   runs against an LF worktree in the session scratchpad (`git -c core.autocrlf=false worktree add --detach`),
   using the main checkout's `node_modules/.bin/biome`. Tests and `tsc` run in the main checkout.
 - Baseline on untouched upstream (see Decisions log): `npm run check` has 14 pre-existing errors; `npm test`
-  has 11–13 failing files, all Windows-specific (restic spawn, path separators).
+  has 11–13 failing files, all Windows-specific (restic spawn, path separators). PDF-rendering tests
+  (`*-template-preset`) time out at 5 s when another suite runs at the same time; rerun them alone.
+- Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-Plan:
-1. Part 1 hygiene: `NOTICE-FORK.md` + README link, `CLAUDE.md` import, `docs/fork/UPSTREAM.md` (upstream
-   remote added: `https://github.com/Torqvoice/torqvoice.git`), `.env.example` entries, `.gitignore`.
-2. Part 3 Torqvoice spikes T1–T7, answered from code plus throwaway scripts under `scripts/spikes/`.
-3. Part 2 Shopmonkey spikes: no `SHOPMONKEY_API_KEY`, so write `scripts/shopmonkey/spike.ts` and
-   `anonymize-fixtures.ts` (tested), answer S1–S12 from shopmonkey.dev as far as the docs go, and build
-   **synthetic** fixtures in `src/__tests__/features/integrations/fixtures/shopmonkey/synthetic/`. M0 → `provisional`.
-4. `RESULTS.md`, update `MAPPING.md` markers, answer/assign PLAN §6 questions (blockers).
+**M1, in progress (started early on branch `fork/M1-schema-extensions`, cut from the M0 tip; merge
+`fork/integration` into it first, since M0 gained review fixes after the cut).** WIP commit e9826c26:
+- [x] `prisma/schema/fork.prisma` (X1–X6 + ApiKey, ApiIdempotencyKey, DeletedRecord), upstream `/// fork:`
+  columns and back-relations, migration `20261122064950_fork_import_foundation` (additive only: checked),
+  applied to `torqvoice` and `torqvoice_test`; tenancy schema regenerated (97e90c67).
+- [x] Backups: manifest/layout/build-data register the tables (SourceRecord + DeletedRecord under the
+  `auditLogs` option; WorkJob nested under ServiceRecord and Quote; contacts under Customer; shifts under
+  Technician; meta under ServiceRecord); ApiKey + ApiIdempotencyKey excluded (reason in manifest).
+  Restore lives in `src/lib/backup/fork-restore.ts`, called from `import.ts` by `// fork:` one-liners.
+  Upstream tests updated for the new datasets and the part's second owner path (job).
+- [x] `src/integrations/shopmonkey/schema/sourceExtra.ts` + test; `src/__tests__/lib/backup/fork-backup.test.ts`.
+- [ ] `npm run test:db` round trip: failed only because the Prisma client was stale. **Prisma 7's
+  `migrate dev` doesn't run `generate`: run `npx prisma generate` after every migrate/branch switch.**
+  Also **convert `prisma/schema/*.prisma` to LF before `test:db`** (`sed -i 's/\r$//' prisma/schema/*.prisma`):
+  the round-trip test splits the schema on `\n` and a CRLF checkout leaves every field unparsed.
+- [ ] Windows: `scripts/generate-tenancy-schema.ts` writes the file then fails to spawn `npx`; run
+  `npx biome format --write src/lib/backup/tenancy-schema.ts` after it.
+- [ ] DoD, reviewer, merge.
 
-Done so far:
-- [x] Part 1 hygiene committed (0c7ec939): NOTICE-FORK.md, README link, CLAUDE.md import, UPSTREAM.md,
-  .env.example, .gitignore, versioned .claude kit.
-- [x] T1–T7 answered in `docs/fork/spikes/RESULTS.md` (dc3e7a34), MAPPING updated, blockers B2–B10 raised.
-  Evidence: `scripts/spikes/torqvoice.spike.ts` (5 passing checks against `torqvoice_test`).
-- [x] `scripts/shopmonkey/anonymize.ts` + CLI `anonymize-fixtures.ts`, tests
-  `src/__tests__/scripts/shopmonkey/anonymize.test.ts` (8 passing).
-- [x] `scripts/shopmonkey/spike-client.ts` (read-only guard, pacing, raw recording), tests
-  `spike-client.test.ts` (4 passing).
-- [x] `scripts/shopmonkey/spike.ts` (S1–S12 call plan), S1–S12 from the docs in RESULTS.md, synthetic
-  fixtures (`scripts/shopmonkey/build-synthetic-fixtures.ts` → `fixtures/shopmonkey/synthetic/`, guard test
-  `src/__tests__/features/integrations/shopmonkey/fixtures.test.ts`, 4 passing), MAPPING markers resolved.
-- [x] DoD: Biome on the LF worktree 14 errors = baseline, none in fork files; `npm test` 10 failing
-  files, all in the baseline set, 0 new (138 files, 1643 tests pass); `tsc --noEmit` exit 0. `test:db` not
-  required (no loaders or migrations).
-- [ ] migration-reviewer, then merge.
+**A1 drafts** (keys.server, withPublicApi, pagination, etag, idempotency, rateLimit, clientIp, errors,
+openapi, settings resource, apiKeyActions, ApiKeysSettings component, apiKeys.en.json) are in the session
+scratchpad `a1/` folder; if it's gone, write them from the A1 brief.
 
 M0 acceptance:
 - [x] NOTICE-FORK.md, README link, CLAUDE.md import, docs/fork/UPSTREAM.md (commit 0c7ec939).
 - [x] RESULTS.md answers S1–S12 (docs only, provisional) and T1–T7 (confirmed; spike file above).
-- [~] Fixtures for every MAPPING §3 table incl. a complex order: **synthetic** (22 tables; order 1003 has
-  4 services, fees, discount, deposit, partial payment, refund). Recorded fixtures wait on B1.
+- [~] Fixtures for the MAPPING §3 tables, incl. a complex order: **synthetic** (26 tables; order 1003 has
+  4 services, fees, discount, deposit, partial payment, refund). Deferred, with reasons: Fleet (no
+  Fleet table in Shopmonkey's published schemas; `customer.fleetId` stays in SourceRecord) and Message
+  (archive only, B4). Synthetic records carry the fields the importer reads, not every documented field
+  (README). Recorded fixtures wait on B1.
 - [~] Grep for the real shop name / surname / VIN: no real data has ever been fetched; the guard test
   checks for real-looking emails, phones and VINs on every run; `anonymize-fixtures.ts` refuses to write
   output containing any replaced value or `--deny` string. Re-run the grep once recorded fixtures exist.
@@ -92,11 +92,12 @@ M0 acceptance:
 | B3 | M0 (PLAN §6 Q2) | Rough **volumes** (customers, vehicles, orders, inspections, files/GB). The spike prints `meta.total` per table once a key exists (S12). Default: sized for 50,000 orders (the M6/A6 test size). | 2026-11-22 |
 | B4 | M0 (PLAN §6 Q3) | Should **message history** (SMS/email threads) come over now? Default: **archive only** (`includeMessages` off), per MAPPING §3. | 2026-11-22 |
 | B5 | M0 (PLAN §6 Q4) | **Original invoice PDFs**: every invoice, or the last N years? Default: setting `downloadInvoicePdfs` = `last 2 years`. | 2026-11-22 |
-| B6 | M0 (PLAN §6 Q5) | How do the shop's Shopmonkey **workflow statuses map** to pending / in progress / completed? Default: by position (first → pending, last → completed, the rest → in progress), editable per status in the M8 mapping panel before any load. | 2026-11-22 |
+| B6 | M0 (PLAN §6 Q5) | How do the shop's Shopmonkey **workflow statuses map** to pending / in progress / completed? Default: a status in Shopmonkey's invoice workflow → completed; in the repair-order workflow the first by position → pending and the rest → in progress (RESULTS S9); editable per status in the M8 mapping panel before any load. | 2026-11-22 |
 | B7 | M0 (PLAN §6 Q6) | Which **staff need logins** on day one? Default: none are created; a `Technician` is created for every Shopmonkey user on labor lines, assignments or timesheets, and the owner invites logins by hand. | 2026-11-22 |
 | B8 | M0 (PLAN §6 Q7) | **Cutover date** and how long the shop can stop editing Shopmonkey for the final delta. Default: plan for a freeze under one hour (CUTOVER.md, M7). | 2026-11-22 |
-| B10 | M5 (T3) | **Previous owners' orders.** When a Shopmonkey order's customer differs from the vehicle's current owner, the importer sets `ServiceRecord.customerId` (MAPPING §6.1), so invoices bill the right person. Side effect (upstream behaviour, `docs/fork/spikes/RESULTS.md` T3): the vehicle's **current owner sees those jobs listed in the customer portal, with the previous owner's name and address** on the sheet. Default taken: keep MAPPING (set `customerId`). Alternative if that's not acceptable: split such vehicles into one vehicle per owner period. | 2026-11-22 |
 | B9 | All | **Licensing:** hosting this fork for BlueLabel as a third party is the licensor's call under ELv2 (FORK.md). Needs a decision from Torqvoice's licensor before production hosting. Not a code task. | 2026-11-22 |
+| B10 | M5 (T3) | **Previous owners' orders.** When a Shopmonkey order's customer differs from the vehicle's current owner, the importer sets `ServiceRecord.customerId` (MAPPING §6.1), so invoices bill the right person. Side effect (upstream behaviour, `docs/fork/spikes/RESULTS.md` T3): the vehicle's **current owner sees those jobs listed in the customer portal, with the previous owner's name and address** on the sheet. Default taken: keep MAPPING (set `customerId`). Alternative if that's not acceptable: split such vehicles into one vehicle per owner period. | 2026-11-22 |
+| B11 | All | **Confirm the committed Claude Code config.** The `.claude/` kit (settings.json with the Stop hook `keep-going.sh`, the autopilot and milestone commands, the reviewer agent) and the autopilot section of `docs/fork/README.md` were in the working tree, untracked, when this run started, newer than `bluelabel-fork-kit.zip`; M0 committed them as found. The Stop hook runs in **every** Claude Code session in this repo, not only `/autopilot`: it refuses to stop while a milestone is `todo` or `in_progress` (escape: `touch .claude/STOP`). Confirm that's wanted, or scope it. | 2026-11-22 |
 
 ## Re-verify with real Shopmonkey data
 
@@ -107,22 +108,22 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | Spike | Assumption | Where |
 | --- | --- | --- |
 | S1 | Locations come from `GET /v3/location`, falling back to `user/me.locations`; `api_key/status` 200 + `success` means valid | MAPPING §1; RESULTS S1 (M2 `server.ts` will carry the marker) |
-| S2 | Search allowlist `^/v3(/[a-z_]+){1,3}/search$` covers every read-only POST | `scripts/shopmonkey/spike-client.ts:17` (and M2 `client.ts`) |
+| S2 | The enumerated search allowlist (every `/search` route in the reference) is complete and every one only reads | `SEARCH_ALLOWLIST` in `scripts/shopmonkey/spike-client.ts` (and M2 `client.ts`) |
 | S2 | GET lists ignore `where` and are unstable without `orderby` on `id`; max useful `limit` is 100; incremental pulls fall back to re-list + `payloadHash` | MAPPING §1; RESULTS S2 (M3 extractor) |
-| S4 | Vehicle's current owner = the most recently created `vehicle_owner` row | `build-synthetic-fixtures.ts:797`; MAPPING §3 VehicleOwner |
+| S4 | Vehicle's current owner = the most recently created `vehicle_owner` row | `build-synthetic-fixtures.ts` (`vehicleOwner`); MAPPING §3 VehicleOwner |
 | S4 | Order files (`files[]` on Find Order, documented) download from their `url` without extra auth | `build-synthetic-fixtures.ts` (order `files`); MAPPING §3 Order files |
 | S4 | Order services come nested with lines from `GET /v3/order/:id/service` (and `include` on `GET /v3/order`) | MAPPING §1; RESULTS S4 |
 | S4 | Order `labels` object read as label names; customer fleet entity archive only; signed-document images | MAPPING §3, §6.1 |
 | S4 | `reminderOptOut` only from the primary email's `subscribed: false` | MAPPING §4 |
 | S4 | `recommendation` prints on Shopmonkey's invoice → `invoiceNotes` | MAPPING §6.1 |
-| S5 | Line total = gross − `discountCents` (labor `round(hours × rate × multiplier)`, parts/tires `round(qty × retail)`, sublet `retail`); percent fee = `round(percent% × service line base)` | `build-synthetic-fixtures.ts:113`; MAPPING §6.2 |
-| S5 | A service counts toward order totals unless `Declined` or `deferredDate` set | `build-synthetic-fixtures.ts:363`; MAPPING §6.3 |
-| S5 | Order-level discount comes off after tax (`totalCostCents = subtotal − discount + tax`) | `build-synthetic-fixtures.ts:412` |
-| S5 | Refunds have negative `amountCents` (importer uses `-abs`); `refundedAmountCents` on charges is not subtracted again | `build-synthetic-fixtures.ts:414`; MAPPING §6.5 |
+| S5 | Line total = gross − `discountCents` (labor `round(hours × rate × multiplier)`, parts/tires `round(qty × retail)`, sublet `retail`); percent fee = `round(percent% × service line base)` | `build-synthetic-fixtures.ts` (`lineTotal`); MAPPING §6.2 |
+| S5 | A service counts toward order totals unless `Declined` or `deferredDate` set | `build-synthetic-fixtures.ts` (`countsTowardTotals`); MAPPING §6.3 |
+| S5 | Order-level discount comes off after tax (`totalCostCents = subtotal − discount + tax`) | `build-synthetic-fixtures.ts` (`rollUpOrder`) |
+| S5 | Refunds have negative `amountCents` (importer uses `-abs`); `refundedAmountCents` on charges is not subtracted again | `build-synthetic-fixtures.ts` (`rollUpOrder`, payments); MAPPING §6.5 |
 | S5 | EPA / shop supplies are never also `fee` rows; tire FET and waste fee are outside the line total | MAPPING §6.2 |
 | S6 | Fees are never taxed; EPA/shop supplies taxability from the tax config | MAPPING §6.2 |
-| S7 | Inspection item photos (`items[].files[]`, documented) download from their `url` | `build-synthetic-fixtures.ts:1494`; MAPPING §3, §8 |
-| S8 | Timesheet `duration` is milliseconds (unused: minutes come from clock times) | `build-synthetic-fixtures.ts:1529`; MAPPING §3 |
+| S7 | Inspection item photos (`items[].files[]`, documented) download from their `url` | `build-synthetic-fixtures.ts` (`inspectionItem`); MAPPING §3, §8 |
+| S8 | Timesheet `duration` is milliseconds (unused: minutes come from clock times) | `build-synthetic-fixtures.ts` (`timesheet`); MAPPING §3 |
 | S11 | `publicId` and order `number` are digits in practice (both are strings in the schema) | MAPPING §4, §9 |
 | S12 | Volumes (sizing assumes 50,000 orders) | RESULTS S12, blocker B3 |
 
@@ -138,4 +139,6 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-22 | M5 must refuse to issue imported invoices while a connection subscribed to `service.update` is active (MAPPING §6.1, M5 brief task 6). | Spike T5: `issueInvoice` → `notifyIntegrations('service.update')` → `accounting.invoice` jobs on Xero/QuickBooks/Fiken/Zoho, calendar pushes on Google/M365/Zoom. |
 | 2026-11-22 | Numbering after import sets the format to `''` **and** `invoiceStartNumber` (MAPPING §9). | Spike T1: with `{year}-` left in place, numbering restarts from the newest job's digits, not the highest. |
 | 2026-11-22 | Refunds are imported as negative payments with a `refund_net_nonpositive` warning when net paid ≤ 0 (MAPPING §6.5); the upstream display issues are listed in MAPPING §10. | Spike T2: totals are right everywhere; only the net ≤ 0 case displays oddly, in upstream code. |
+| 2026-11-22 | M0 review (migration-reviewer): **needs changes**, four must-fix items, all fixed on the branch. (1) The anonymizer now replaces every string by default unless its key is an id, a documented enum or a listed catalog fact, with a test over every string field of all 110 documented tables. (2) The fixture CLI merges every response for a record (`fixture-build.ts`, tested). (3) Overclaims corrected: synthetic `authorization`, `inventory_labor`, `inventory_fee` and `label` added, Fleet and Message deferred with reasons, RESULTS says which T-spikes ran on Postgres and that no screenshots were taken, and the S12 claim matches the spike. (4) This entry and B11. Should-fixes done: the spike client allows an enumerated list, pins the origin and doesn't follow redirects; the spike counts customers, estimates vehicles, probes file URLs keyless and takes `--order-ids`; refunded charges carry `refundedAmountCents`; B6 has one default everywhere. | Reviewer findings. |
+| 2026-11-22 | The `.claude/` kit and the autopilot section of `docs/fork/README.md` and M0 brief item 5 were committed as found in the working tree (they're newer than `bluelabel-fork-kit.zip`; this run didn't write them). The Stop hook's reach is raised as B11. | Provenance, per the M0 review. |
 | 2026-11-22 | `SourceRecord.connectionId` must not be a required FK to `IntegrationConnection` (for M1). | Spike T6: connections and links are excluded from backups by design; a backed-up `SourceRecord` would fail to restore. |

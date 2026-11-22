@@ -122,6 +122,9 @@ M6 2, M7 2, M8 2–3, A1 2, A2 4–6, A3 2–3, A4 3–4, A5 2, A6 2.
 
 ## 6. Open questions to answer in M0
 
+Answered with conservative defaults and raised as blockers B2–B8 in `docs/fork/PROGRESS.md`, pending
+confirmation.
+
 1. Does BlueLabel's Shopmonkey account have Enterprise (EDS)? How many locations?
 2. Rough volumes: customers, vehicles, orders, inspections, files (sizes the backfill and the disk).
 3. Should message history (SMS and email threads) come over in this phase, or stay archive only?

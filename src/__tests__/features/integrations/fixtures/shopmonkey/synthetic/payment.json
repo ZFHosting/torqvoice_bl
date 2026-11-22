@@ -54,8 +54,8 @@
       "cardDigits": "4242",
       "refundReason": null,
       "chargeId": null,
-      "refunded": null,
-      "refundedAmountCents": null,
+      "refunded": true,
+      "refundedAmountCents": 5000,
       "receiptNumber": 2,
       "statementId": null,
       "bulkPaymentId": null
@@ -135,8 +135,8 @@
       "cardDigits": null,
       "refundReason": null,
       "chargeId": null,
-      "refunded": null,
-      "refundedAmountCents": null,
+      "refunded": true,
+      "refundedAmountCents": 14400,
       "receiptNumber": 5,
       "statementId": null,
       "bulkPaymentId": null

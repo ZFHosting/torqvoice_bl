@@ -381,6 +381,8 @@ interface PaymentIn {
   cardDigits?: string | null
   refundReason?: string | null
   chargeId?: string | null
+  /** On a charge that was later refunded: Shopmonkey's own refund summary (MAPPING §6.5). */
+  refundedAmountCents?: number | null
 }
 
 function rollUpOrder(
@@ -1034,8 +1036,8 @@ function addOrder(o: Rec, svcIn: ServiceIn[], pays: PaymentIn[] = [], orderDisco
         cardDigits: p.cardDigits ?? null,
         refundReason: p.refundReason ?? null,
         chargeId: p.chargeId ?? null,
-        refunded: null,
-        refundedAmountCents: null,
+        refunded: p.refundedAmountCents ? true : null,
+        refundedAmountCents: p.refundedAmountCents ?? null,
         receiptNumber: payments.length + 1,
         statementId: null,
         bulkPaymentId: null,
@@ -1328,6 +1330,7 @@ addOrder(
       status: 'Succeeded',
       recordedDate: '2025-03-14T17:30:00.000Z',
       cardDigits: '4242',
+      refundedAmountCents: 5000,
     },
     {
       id: 'syn_pay_1003_3',
@@ -1406,6 +1409,7 @@ addOrder(
       status: 'Succeeded',
       recordedDate: '2023-11-02T18:10:00.000Z',
       checkNumber: '5521',
+      refundedAmountCents: 14400,
     },
     {
       id: 'syn_pay_1004_2',
@@ -1443,6 +1447,82 @@ addOrder(
     },
   ]
 )
+
+// The customer's authorization of order 1003: how and when, and per service. PROVISIONAL(M0:S4): we
+// assume GET /v3/order/:id/authorization nests the authorization_service rows as `services`.
+const authorization = [
+  base('syn_aut_1', '2025-03-10T16:00:00.000Z', {
+    orderId: 'syn_ord_1003',
+    customerId: 'syn_cus_1',
+    serviceWriterId: 'syn_usr_3',
+    date: '2025-03-10T16:00:00.000Z',
+    method: 'Phone',
+    note: 'Approved brakes, tires and alignment; declined coolant.',
+    authorizedCostCents: 116811,
+    serviceAuthorizationReset: false,
+    services: [
+      ['syn_svc_1003_1', 'Front brake service', 'Authorized'],
+      ['syn_svc_1003_2', 'Tires: mount and balance', 'Authorized'],
+      ['syn_svc_1003_3', 'Four-wheel alignment (sublet)', 'Authorized'],
+      ['syn_svc_1003_4', 'Coolant flush', 'Declined'],
+    ].map(([serviceId, name, authorizationStatus], i) =>
+      base(`syn_aus_${i + 1}`, '2025-03-10T16:00:00.000Z', {
+        authorizationId: 'syn_aut_1',
+        serviceId,
+        name,
+        authorizationStatus,
+        authorizedCostCents: 0,
+      })
+    ),
+  }),
+]
+
+const inventoryLabor = [
+  base('syn_inl_1', '2019-04-01T12:00:00.000Z', {
+    name: 'Brake inspection',
+    note: '',
+    hours: 0.5,
+    rateCents: 14000,
+    rateId: 'syn_rate_1',
+    multiplier: 1,
+    multiplierType: 'Hours',
+    discountCents: 0,
+    discountPercent: 0,
+    discountValueType: 'FixedCents',
+    costHours: null,
+    costRateCents: null,
+    categoryId: 'syn_cat_1',
+    taxable: true,
+    taxableGST: false,
+    taxableHST: false,
+    taxablePST: false,
+    deleted: false,
+  }),
+]
+const inventoryFee = [
+  base('syn_inf_1', '2019-04-01T12:00:00.000Z', {
+    name: 'Shop disposal fee',
+    feeType: 'FixedCents',
+    amountCents: 350,
+    percent: 0,
+    categoryId: null,
+    deleted: false,
+  }),
+]
+const label = [
+  base('syn_lbl_1', '2019-04-01T12:00:00.000Z', {
+    name: 'VIP',
+    color: 'purple',
+    entity: 'Customer',
+    saved: true,
+  }),
+  base('syn_lbl_2', '2019-04-01T12:00:00.000Z', {
+    name: 'Fleet',
+    color: 'blue',
+    entity: 'Order',
+    saved: true,
+  }),
+]
 
 const appointment = [
   base('syn_apt_1', '2025-01-30T12:00:00.000Z', {
@@ -1614,6 +1694,10 @@ const TABLES: [table: string, endpoint: string, records: unknown[]][] = [
   ['order_service', '/v3/order/:id/service', services],
   ['payment', 'POST /v3/integration/payment/search', payments],
   ['appointment', '/v3/appointment', appointment],
+  ['authorization', '/v3/order/:id/authorization', authorization],
+  ['inventory_labor', 'POST /v3/inventory_labor/search', inventoryLabor],
+  ['inventory_fee', 'POST /v3/inventory_fee/search', inventoryFee],
+  ['label', '/v3/label', label],
   ['inspection_template', '/v3/inspection_template', inspectionTemplate],
   ['inspection', '/v3/inspection', inspection],
   ['timesheet', '/v3/timesheet', timesheet],
