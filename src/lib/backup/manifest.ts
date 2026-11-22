@@ -453,6 +453,40 @@ export const BACKUP_ENTITIES: readonly BackupEntity[] = [
   // inventory part's gallery or to a tire reading's condition photos, and
   // each parent has to carry its own or the rows are lost with it.
   { model: 'StoredImage', option: 'tireHotel', nestedUnder: 'TireMeasurement', restore: 'replace' },
+  // fork: the BlueLabel fork's tables (prisma/schema/fork.prisma), restored by
+  // src/lib/backup/fork-restore.ts. A job groups lines on a work order or a
+  // quote, so each parent carries its own, like the stored images above.
+  { model: 'WorkJob', option: 'vehicles', nestedUnder: 'ServiceRecord', restore: 'replace' },
+  { model: 'WorkJob', option: 'quotes', nestedUnder: 'Quote', restore: 'replace' },
+  {
+    model: 'ServiceRecordMeta',
+    option: 'vehicles',
+    nestedUnder: 'ServiceRecord',
+    restore: 'replace',
+  },
+  { model: 'CustomerContact', option: 'customers', nestedUnder: 'Customer', restore: 'replace' },
+  {
+    model: 'TechnicianShift',
+    option: 'technicians',
+    nestedUnder: 'Technician',
+    restore: 'replace',
+  },
+  // fork: what an import archived unchanged, and the deletes an API client
+  // syncs from. History, so they travel with the audit log.
+  {
+    model: 'SourceRecord',
+    key: 'sourceRecords',
+    option: 'auditLogs',
+    restore: 'replace',
+    clearOrder: 21,
+  },
+  {
+    model: 'DeletedRecord',
+    key: 'deletedRecords',
+    option: 'auditLogs',
+    restore: 'replace',
+    clearOrder: 22,
+  },
 ]
 
 /**
@@ -483,6 +517,11 @@ export const EXCLUDED_MODELS: Readonly<Record<string, string>> = {
   IntegrationLink:
     'Remote ids in a connected system, only valid for the connection that created them.',
   IntegrationLog: 'Connector activity log, rewritten every time a job runs.',
+  // fork: public API keys (docs/fork/API.md).
+  ApiKey:
+    'A credential bound to its service user account, which a backup does not carry; a restore keeps the keys this install already has, and new ones are created in Settings, API keys.',
+  ApiIdempotencyKey:
+    'Replayable API responses kept for 24 hours, meaningless without the key that made the request.',
   RepairDataCache:
     "Labor times and fluid specs kept from a repair data source while the workshop's key is on a paid plan. They belong to the connection, which a backup does not carry, and may only be kept while that plan lasts; the guide fetches them again when needed.",
   OrganizationMember: 'Membership of user accounts; people are restored by inviting them.',

@@ -179,7 +179,10 @@ describe('backup manifest', () => {
 
 describe('the routes implement the manifest', () => {
   const exportRoute = fs.readFileSync('src/lib/backup/build-data.ts', 'utf-8')
-  const importRoute = fs.readFileSync('src/lib/backup/import.ts', 'utf-8')
+  // fork: the fork's tables are restored from fork-restore.ts, called from import.ts
+  const importRoute = ['src/lib/backup/import.ts', 'src/lib/backup/fork-restore.ts']
+    .map((file) => fs.readFileSync(file, 'utf-8'))
+    .join('\n')
 
   it('restores every nested entity on the way back in', () => {
     // The two tests below only cover top-level keys, because a nested entity

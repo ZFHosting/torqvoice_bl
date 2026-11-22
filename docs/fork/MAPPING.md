@@ -27,7 +27,7 @@ Timestamps: Shopmonkey dates are ISO date-times. Store them as UTC `DateTime`. S
 ## 1. Where the data comes from
 
 All three adapters write the same thing: one `SourceRecord` row per Shopmonkey object, keyed by
-`(connectionId, table, remoteId)`, holding the payload unchanged. Transform and load only ever read
+`(organizationId, source, table, remoteId)`, holding the payload unchanged. Transform and load only ever read
 `SourceRecord`, so they don't care which adapter fetched the data.
 
 | Adapter | What it gets | When to use |
@@ -64,7 +64,7 @@ an upstream model with a `/// fork:` comment.
 
 | Id | Addition | Why |
 | --- | --- | --- |
-| **X1** | `SourceRecord` (organizationId, connectionId, source `'shopmonkey'`, table, remoteId, payload Json, payloadHash, remoteUpdatedAt, fetchedAt, remoteDeletedAt). Unique `(connectionId, table, remoteId)`. | Lossless archive. Transform reruns without refetching. The API's `/source-records` endpoint reads from it. |
+| **X1** | `SourceRecord` (organizationId, connectionId, source `'shopmonkey'`, table, remoteId, payload Json, payloadHash, remoteUpdatedAt, fetchedAt, remoteDeletedAt). Unique `(organizationId, source, table, remoteId)`: one Shopmonkey connection per workshop (§3), and a reconnect or a restore makes a new connection id, so the id can't be part of the key (M1 review). `connectionId` records which connection last fetched the row; it is a plain id, not a foreign key: connections hold credentials and are never in a backup, while the archive is (M1). | Lossless archive. Transform reruns without refetching. The API's `/source-records` endpoint reads from it. |
 | **X2** | `WorkJob` (organizationId, serviceRecordId?, quoteId?, name, note, ordinal, authorizationStatus, recommended, hidden, lumpSum, fixedPrice?, deferredDate?, deferredReason?, totalAmount, discountAmount, taxAmount). Upstream column `jobId` on `ServicePart`, `ServiceLabor`, `QuotePart` and `QuoteLabor`. | A Shopmonkey order is a list of **services** (jobs), each holding its own lines. Torqvoice lines are flat. Without this, the grouping (and per-job authorization and deferral) is lost. |
 | **X3** | Upstream columns on `ServiceLabor` and `QuoteLabor`: `lineKind`, `technicianId` (FK Technician, SetNull), `completed`, `costHours`, `costRate`, `discountAmount`, `sourceExtra Json`. On `ServicePart` and `QuotePart`: `lineKind`, `discountAmount`, `note`, `sourceExtra Json`. | Per-line technician and cost are what tech pay and profitability need. `lineKind` records the original type (`labor`, `fee`, `epa`, `shopSupplies`, `part`, `tire`, `subcontract`), so the API can hand back exactly what Shopmonkey had. |
 | **X4** | `CustomerContact` (customerId, kind `'email'\|'phone'`, value, label/type, isPrimary, marketingOptIn, subscribed). | Shopmonkey keeps several emails and phones per customer **[docs]**. Torqvoice has one of each, which keeps holding the primary. |
@@ -300,3 +300,7 @@ in RESULTS T1.
   vehicle's current owner's portal (RESULTS T3, blocker B10).
 - Customer and vehicle details on imported invoices are frozen as they are in Shopmonkey at import time,
   not as they were on the invoice date.
+- **Editing an imported work order or quote in the app (until M5 task 12 lands)** would drop the fork's line
+  columns (job, kind, technician, completion, cost, discount, note, source fields): upstream saves lines by
+  deleting and recreating them from what the form sends, and the form doesn't carry those columns (M1
+  review). M5 task 12 keeps them; until then, imported documents are read-only in practice.

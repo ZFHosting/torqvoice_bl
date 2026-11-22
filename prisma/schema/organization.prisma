@@ -108,6 +108,22 @@ model Organization {
   technicianAbsences          TechnicianAbsence[]
   serviceRecordHelpers        ServiceRecordHelper[]
   platformBackup              PlatformBackup?
+  /// fork: raw source payloads (X1, prisma/schema/fork.prisma)
+  sourceRecords               SourceRecord[]
+  /// fork: line groups on work orders and quotes (X2)
+  workJobs                    WorkJob[]
+  /// fork: extra customer emails and phones (X4)
+  customerContacts            CustomerContact[]
+  /// fork: work order facts with no column (X5)
+  serviceRecordMetas          ServiceRecordMeta[]
+  /// fork: technician shifts (X6)
+  technicianShifts            TechnicianShift[]
+  /// fork: public API keys
+  apiKeys                     ApiKey[]
+  /// fork: public API idempotency records
+  apiIdempotencyKeys          ApiIdempotencyKey[]
+  /// fork: delete tombstones for API sync
+  deletedRecords              DeletedRecord[]
 
   @@map("organizations")
 }

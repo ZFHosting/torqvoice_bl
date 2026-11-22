@@ -24,8 +24,11 @@
    nullable columns, indexes and foreign keys.
 4. `npx tsx scripts/generate-tenancy-schema.ts`, then make the tenancy test pass.
 5. Backup and restore (per T6): include `SourceRecord`, `WorkJob`, `CustomerContact`, `ServiceRecordMeta`,
-   `TechnicianShift` and `DeletedRecord` in workshop backups. Exclude `ApiIdempotencyKey`. Back up `ApiKey`
-   with `keyHash` treated as a secret by `src/lib/backup/secrets.ts`, so a restore keeps the current install's keys.
+   `TechnicianShift` and `DeletedRecord` in workshop backups. Exclude `ApiIdempotencyKey` and `ApiKey`
+   (`EXCLUDED_MODELS`, with reasons): a key is a credential bound to its service user, and user accounts and
+   memberships are never in a backup, so a restore keeps the current install's keys by not touching them.
+   (Changed in M1 from "back up `ApiKey` with `keyHash` redacted": restoring a key without its user would
+   fail its foreign key. See the Decisions log.)
 6. Zod shapes for the new JSON columns (`sourceExtra`) in `src/integrations/shopmonkey/schema/` (read
    leniently, like the upstream JSON columns).
 
@@ -33,7 +36,8 @@
 - [ ] The migration only adds; there are no edits to existing migrations.
 - [ ] The definition of done passes, including `npm run test:db` and the backup/tenancy tests.
 - [ ] The app behaves exactly as before. All new columns are nullable, and no screen reads them yet.
-- [ ] A test proves a workshop backup round-trips the new tables, and that `ApiKey.keyHash` is redacted.
+- [ ] A test proves a workshop backup round-trips the new tables, and that `ApiKey` (and so `keyHash`)
+      never reaches a backup file.
 
 ## Out of scope
 Any code that writes the new tables (that starts in M3 and A1).

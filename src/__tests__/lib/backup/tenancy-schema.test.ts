@@ -26,7 +26,8 @@ describe('tenancy-schema.ts', () => {
   it('knows the organisation column and the parent chain of the models a backup holds', () => {
     expect(TENANCY_SCHEMA.Customer.organizationId).toBe(true)
     expect(TENANCY_SCHEMA.ServicePart.organizationId).toBe(false)
-    expect(TENANCY_SCHEMA.ServicePart.ownerPaths).toEqual([['serviceRecord']])
+    // fork: a part also reaches its workshop through its job (WorkJob carries organizationId)
+    expect(TENANCY_SCHEMA.ServicePart.ownerPaths).toEqual([['job'], ['serviceRecord']])
     expect(TENANCY_SCHEMA.Inspection.foreignKeys.templateId).toEqual({
       target: 'InspectionTemplate',
       required: true,

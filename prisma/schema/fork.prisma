@@ -1,0 +1,213 @@
+// fork: tables the BlueLabel fork adds (docs/fork/MAPPING.md §2, X1–X6; docs/fork/API.md §2).
+// Nothing upstream reads them. Upstream models gain only nullable columns and back-relations, each
+// marked `/// fork:` where it is declared.
+
+/// X1. Every object fetched from a source system, stored unchanged before anything is transformed,
+/// so a transform can rerun without refetching and nothing without a home in Torqvoice is lost.
+model SourceRecord {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// The IntegrationConnection that last fetched it. Deliberately not a foreign key, and not part of
+  /// the record's identity: connections are left out of backups (they hold credentials) and a
+  /// reconnect makes a new one, so a restored or re-pulled archive must not depend on one existing.
+  connectionId    String
+  /// The source system, `shopmonkey`.
+  source          String    @default("shopmonkey")
+  /// The source's table name (`customer`, `order`, `order_service`, ...).
+  table           String
+  remoteId        String
+  payload         Json
+  /// SHA-256 of the payload's canonical JSON (sorted keys). An unchanged hash skips the write.
+  payloadHash     String
+  remoteUpdatedAt DateTime?
+  fetchedAt       DateTime  @default(now())
+  /// When the source reported it deleted. The row stays, so the archive and the API keep it.
+  remoteDeletedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  /// One record per source object per workshop (one Shopmonkey connection per workshop, MAPPING §3).
+  @@unique([organizationId, source, table, remoteId])
+  @@index([organizationId, table, remoteId])
+  @@index([organizationId, updatedAt, id])
+  @@map("source_records")
+}
+
+/// X2. A group of lines on a work order or a quote: a Shopmonkey "service". Lines point at it
+/// through their nullable `jobId`; a document without jobs is unchanged.
+model WorkJob {
+  id                  String         @id @default(cuid())
+  organizationId      String
+  organization        Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  serviceRecordId     String?
+  serviceRecord       ServiceRecord? @relation(fields: [serviceRecordId], references: [id], onDelete: Cascade)
+  quoteId             String?
+  quote               Quote?         @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  name                String
+  note                String?
+  ordinal             Int            @default(0)
+  /// Source values as they are (Shopmonkey: Pending, Authorized, Declined, ...).
+  authorizationStatus String?
+  recommended         Boolean        @default(false)
+  hidden              Boolean        @default(false)
+  lumpSum             Boolean        @default(false)
+  fixedPrice          Float?
+  deferredDate        DateTime?
+  deferredReason      String?
+  totalAmount         Float          @default(0)
+  discountAmount      Float          @default(0)
+  taxAmount           Float          @default(0)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  serviceParts ServicePart[]
+  serviceLabor ServiceLabor[]
+  quoteParts   QuotePart[]
+  quoteLabor   QuoteLabor[]
+
+  @@index([serviceRecordId])
+  @@index([quoteId])
+  @@index([organizationId, updatedAt, id])
+  @@map("work_jobs")
+}
+
+/// X4. A customer's emails and phones beyond the one of each Customer holds (which stays the
+/// primary).
+model CustomerContact {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerId     String
+  customer       Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  /// `email` or `phone`.
+  kind           String
+  value          String
+  /// The source's type or label (Mobile, Work, Home...).
+  label          String?
+  isPrimary      Boolean      @default(false)
+  marketingOptIn Boolean?
+  subscribed     Boolean?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([customerId])
+  /// Finding a customer by any of their emails or phones (API `?q=`, the importer's matching).
+  @@index([organizationId, kind, value])
+  @@index([organizationId, updatedAt, id])
+  @@map("customer_contacts")
+}
+
+/// X5. Order facts with no ServiceRecord column, kept out of the upstream model. One per record.
+model ServiceRecordMeta {
+  id                  String        @id @default(cuid())
+  organizationId      String
+  organization        Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  serviceRecordId     String        @unique
+  serviceRecord       ServiceRecord @relation(fields: [serviceRecordId], references: [id], onDelete: Cascade)
+  /// The source's own status name (Shopmonkey's `status` and workflow status).
+  sourceStatus        String?
+  /// The member who wrote the order up, when they have an account here. Plain id: user accounts
+  /// are not in a backup, so a restore keeps it only for a member of the workshop.
+  serviceWriterUserId String?
+  serviceWriterName   String?
+  mileageOut          Int?
+  labels              String[]      @default([])
+  authorizedAt        DateTime?
+  completedAt         DateTime?
+  fullyPaidAt         DateTime?
+  purchaseOrderNumber String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([organizationId, updatedAt, id])
+  @@map("service_record_meta")
+}
+
+/// X6. A technician's shift: clocked time not tied to a work order (TimeEntry needs one).
+model TechnicianShift {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  technicianId    String
+  technician      Technician   @relation(fields: [technicianId], references: [id], onDelete: Cascade)
+  clockIn         DateTime
+  clockOut        DateTime?
+  durationMinutes Int?
+  note            String?
+  /// `app`, `api` or `shopmonkey`.
+  source          String       @default("app")
+  sourceRemoteId  String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([technicianId, clockIn])
+  @@index([organizationId, clockIn])
+  @@index([organizationId, updatedAt, id])
+  @@map("technician_shifts")
+}
+
+/// A public API key (docs/fork/API.md §2). Only an HMAC of the key is stored. Each key acts as its
+/// own service user, whose membership role sets what it may do.
+model ApiKey {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  /// The 8 characters after `tvk_`, shown in the list and used to find the key.
+  prefix         String       @unique
+  /// HMAC-SHA256 of the whole key, peppered with API_KEY_PEPPER.
+  keyHash        String
+  serviceUserId  String       @unique
+  serviceUser    User         @relation("ApiKeyServiceUser", fields: [serviceUserId], references: [id], onDelete: Cascade)
+  /// Who created the key. Plain id, like an audit actor.
+  createdById    String?
+  ipAllowlist    String[]     @default([])
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  lastUsedAt     DateTime?
+  lastUsedIp     String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  idempotencyKeys ApiIdempotencyKey[]
+
+  @@index([organizationId])
+  @@map("api_keys")
+}
+
+/// A stored response for a POST sent with an Idempotency-Key, replayed for 24 hours.
+model ApiIdempotencyKey {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  apiKeyId       String
+  apiKey         ApiKey       @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  key            String
+  requestHash    String
+  responseStatus Int
+  responseBody   Json
+  createdAt      DateTime     @default(now())
+
+  @@unique([apiKeyId, key])
+  @@index([organizationId])
+  @@index([createdAt])
+  @@map("api_idempotency_keys")
+}
+
+/// A tombstone for a deleted record, so an API client syncing with `updatedSince` learns about
+/// deletes (`GET /api/v1/deleted`).
+model DeletedRecord {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entityType     String
+  entityId       String
+  deletedAt      DateTime     @default(now())
+  actorUserId    String?
+
+  /// `GET /api/v1/deleted` pages by (deletedAt, id).
+  @@index([organizationId, deletedAt, id])
+  @@index([organizationId, entityType, deletedAt])
+  @@map("deleted_records")
+}

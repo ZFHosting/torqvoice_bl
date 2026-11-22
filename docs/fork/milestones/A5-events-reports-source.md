@@ -20,6 +20,11 @@ raw access to everything archived from Shopmonkey, and delete tombstones.
 4. `/api/v1/source-records` (read-only, filter by `table`, `remoteId`, `updatedSince`), and
    `include=source` on resources that have a link (it looks up `IntegrationLink`, then `SourceRecord`).
 5. `/api/v1/deleted?since=&entityType=` from `DeletedRecord`.
+6. **Restores and sync** (M1 review): a restore replaces the tombstones, removes rows without writing
+   any, and brings rows back with their old `updatedAt`, so a client syncing with `updatedSince` can't
+   see what a restore did. Expose it: record each restore (time, workshop) and serve it at
+   `GET /api/v1/deleted` as a `restore` marker telling clients to resync in full, plus a `restore.complete`
+   webhook event.
 
 ## Acceptance
 - [ ] Each new event fires once per change from both the UI and the API, with the serialized `data`.

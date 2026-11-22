@@ -103,6 +103,9 @@ const serviceRecordTree = {
   statusReports: true,
   timeEntries: true,
   helpers: true,
+  // fork: jobs and order facts (prisma/schema/fork.prisma)
+  workJobs: true,
+  meta: true,
 } as const
 
 /** In file order. */
@@ -129,7 +132,9 @@ const DATASETS: readonly Dataset[] = [
   {
     key: 'customers',
     option: 'customers',
-    read: (organizationId, page) => db.customer.findMany({ ...page, where: { organizationId } }),
+    read: (organizationId, page) =>
+      // fork: contacts (prisma/schema/fork.prisma)
+      db.customer.findMany({ ...page, where: { organizationId }, include: { contacts: true } }),
   },
   // What issued invoices were issued with. The logo bytes travel as base64,
   // since the file is JSON.
@@ -252,6 +257,9 @@ const DATASETS: readonly Dataset[] = [
           statusReports: true,
           timeEntries: true,
           helpers: true,
+          // fork: jobs and order facts (prisma/schema/fork.prisma)
+          workJobs: true,
+          meta: true,
         },
       }),
   },
@@ -275,14 +283,20 @@ const DATASETS: readonly Dataset[] = [
       db.quote.findMany({
         ...page,
         where: { organizationId },
-        include: { partItems: true, laborItems: true, attachments: true },
+        // fork: workJobs (prisma/schema/fork.prisma)
+        include: { partItems: true, laborItems: true, attachments: true, workJobs: true },
       }),
   },
   {
     key: 'technicians',
     option: 'technicians',
     read: (organizationId, page) =>
-      db.technician.findMany({ ...page, where: { organizationId }, include: { absences: true } }),
+      db.technician.findMany({
+        ...page,
+        where: { organizationId },
+        // fork: shifts (prisma/schema/fork.prisma)
+        include: { absences: true, shifts: true },
+      }),
   },
   {
     key: 'workBays',
@@ -388,6 +402,20 @@ const DATASETS: readonly Dataset[] = [
     key: 'auditLogs',
     option: 'auditLogs',
     read: (organizationId, page) => db.auditLog.findMany({ ...page, where: { organizationId } }),
+  },
+  // fork: what an import archived unchanged, and delete tombstones (prisma/schema/fork.prisma)
+  {
+    key: 'sourceRecords',
+    option: 'auditLogs',
+    pageSize: 200,
+    read: (organizationId, page) =>
+      db.sourceRecord.findMany({ ...page, where: { organizationId } }),
+  },
+  {
+    key: 'deletedRecords',
+    option: 'auditLogs',
+    read: (organizationId, page) =>
+      db.deletedRecord.findMany({ ...page, where: { organizationId } }),
   },
   {
     key: 'smsMessages',

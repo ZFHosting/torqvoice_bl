@@ -56,6 +56,9 @@ model Customer {
   importBatchId String?
   importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
 
+  /// fork: emails and phones beyond `email` and `phone`, which stay the primary (X4)
+  contacts CustomerContact[]
+
   @@unique([organizationId, customerNumber])
   @@index([organizationId])
   @@index([importBatchId])

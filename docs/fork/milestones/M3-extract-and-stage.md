@@ -15,7 +15,8 @@ resumably, and without fetching the same unchanged record twice.
    authorizations, plus the PDF when the settings ask for it. Customer children are emails and phones.
    Vehicle children are owners.
 2. `src/integrations/shopmonkey/extract/stage.ts`: `stageRecord(table, payload)` upserts into
-   `SourceRecord` on `(connectionId, table, remoteId)`. It computes `payloadHash` over a canonical JSON
+   `SourceRecord` on `(organizationId, source, table, remoteId)`, setting `connectionId` to the
+   connection doing the fetch (M1 review: a reconnect makes a new connection id). It computes `payloadHash` over a canonical JSON
    (sorted keys) and skips the write when the hash is unchanged. It sets `remoteUpdatedAt` from
    `updatedDate`, and `remoteDeletedAt` when `deleted` is true.
 3. Checkpoints in the connection's `state` (through `ctx.saveState`), per table: `{ phase: 'backfill' |
@@ -45,6 +46,13 @@ resumably, and without fetching the same unchanged record twice.
 - [ ] Killing the run mid-table and restarting finishes with the same `SourceRecord` count, and no page is fetched twice past its checkpoint.
 - [ ] A changed fixture record is restaged, and its order's children are refetched; unchanged ones aren't.
 - [ ] No PII in `IntegrationLog` (test with a fixture containing a recognizable fake email).
+- [ ] **Backups stay restorable with the archive in them** (M1 review). Today `SourceRecord` and `DeletedRecord`
+      travel in `data.json` under the "Audit Logs" option, and restore refuses a data file over 128 MiB
+      (`src/lib/backup/limits.ts`). Before staging writes real volumes, give the archive its own export
+      option (labelled, on by default) and keep a 50,000-order archive restorable: a separate file, a
+      streamed dataset, or compressed payloads. Test: restore a backup holding a large synthetic archive.
+- [ ] Restoring the same backup twice leaves one `SourceRecord` per source object (the restore clears the
+      workshop's archive first; test it on the database).
 
 ## Out of scope
 Transforming or writing app tables.

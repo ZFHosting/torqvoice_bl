@@ -16,6 +16,17 @@ import {
   withIssuedDataFileUrls,
 } from '@/lib/backup/file-urls'
 import { columnsOf } from '@/lib/backup/rows'
+// fork: the BlueLabel fork's tables and columns (prisma/schema/fork.prisma)
+import {
+  forkClearable,
+  forkLaborColumns,
+  forkPartColumns,
+  restoreCustomerContacts,
+  restoreForkArchive,
+  restoreServiceRecordMeta,
+  restoreTechnicianShifts,
+  restoreWorkJobs,
+} from '@/lib/backup/fork-restore'
 import { toSafeDate } from '@/lib/invoice-utils'
 import { taxComponentsForCopy } from '@/features/settings/Lib/workshopTax'
 import { warrantyFromUntyped } from '@/lib/warranty'
@@ -355,6 +366,12 @@ async function importServiceRecordTree(
     },
   })
 
+  // fork: the record's jobs, before the lines that point at them
+  const forkJobIds = await restoreWorkJobs(tx, sr.workJobs, {
+    organizationId: opts.organizationId,
+    serviceRecordId: sr.id as string,
+  })
+
   // Service parts
   const partItems = sr.partItems as Record<string, unknown>[] | undefined
   if (partItems?.length) {
@@ -377,6 +394,8 @@ async function importServiceRecordTree(
         // line in it was taxed. One that says false is restored as it was.
         taxable: p.taxable !== false,
         serviceRecordId: sr.id as string,
+        // fork: job, kind, discount, note and source fields
+        ...forkPartColumns(p, forkJobIds),
       })),
     })
   }
@@ -420,9 +439,18 @@ async function importServiceRecordTree(
         pricingType: (l.pricingType as string) || 'hourly',
         taxable: l.taxable !== false,
         serviceRecordId: sr.id as string,
+        // fork: job, kind, technician, completion, cost and source fields
+        ...forkLaborColumns(l, forkJobIds, opts.technicianIds),
       })),
     })
   }
+
+  // fork: the record's extra facts
+  await restoreServiceRecordMeta(tx, sr.meta, {
+    organizationId: opts.organizationId,
+    serviceRecordId: sr.id as string,
+    memberUserIds: opts.memberUserIds,
+  })
 
   // Service attachments
   const restoredConcernIds = new Set((concerns ?? []).map((c) => c.id as string))
@@ -686,6 +714,8 @@ export async function restoreBackup(
           InspectionReminderCampaign: () =>
             tx.inspectionReminderCampaign.deleteMany({ where: { organizationId } }),
           AuditLog: () => tx.auditLog.deleteMany({ where: { organizationId } }),
+          // fork: source records and delete tombstones
+          ...forkClearable(tx, organizationId),
           Inspection: () => tx.inspection.deleteMany({ where: { organizationId } }),
           InspectionTemplate: () => tx.inspectionTemplate.deleteMany({ where: { organizationId } }),
           Quote: () => tx.quote.deleteMany({ where: { organizationId } }),
@@ -960,6 +990,8 @@ export async function restoreBackup(
               })
             ),
           })
+          // fork: the customers' extra emails and phones
+          await restoreCustomerContacts(tx, data.customers, ctx.organizationId)
         }
 
         // 4. Insert technicians
@@ -1041,6 +1073,8 @@ export async function restoreBackup(
           absences,
           { organizationId: ctx.organizationId }
         )
+        // fork: the technicians' shifts
+        await restoreTechnicianShifts(tx, data.technicians, ctx.organizationId, technicianIds)
 
         // 4b. Insert work bays. Service records and inspections point at them, so
         // they have to exist before either is restored.
@@ -1563,6 +1597,12 @@ export async function restoreBackup(
               },
             })
 
+            // fork: the quote's jobs, before the lines that point at them
+            const forkQuoteJobIds = await restoreWorkJobs(tx, q.workJobs, {
+              organizationId: ctx.organizationId,
+              quoteId: q.id as string,
+            })
+
             // Quote parts
             const partItems = q.partItems as Record<string, unknown>[] | undefined
             if (partItems?.length) {
@@ -1587,6 +1627,8 @@ export async function restoreBackup(
                   // it was written in.
                   sortOrder: numberOr(p.sortOrder, index),
                   quoteId: q.id as string,
+                  // fork: job, kind, discount, note and source fields
+                  ...forkPartColumns(p, forkQuoteJobIds),
                 })),
               })
             }
@@ -1608,6 +1650,8 @@ export async function restoreBackup(
                   taxable: l.taxable !== false,
                   sortOrder: numberOr(l.sortOrder, index),
                   quoteId: q.id as string,
+                  // fork: job, kind, technician, completion, cost and source fields
+                  ...forkLaborColumns(l, forkQuoteJobIds, technicianIds),
                 })),
               })
             }
@@ -2438,6 +2482,9 @@ export async function restoreBackup(
             ),
           })
         }
+
+        // fork: archived source payloads and delete tombstones
+        await restoreForkArchive(tx, data, ctx.organizationId, memberUserIds)
 
         // 12. Insert SMS messages
         if (data.smsMessages?.length) {

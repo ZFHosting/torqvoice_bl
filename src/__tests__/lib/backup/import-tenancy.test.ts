@@ -164,7 +164,10 @@ describe("a file that reuses another workshop's ids", () => {
     const asked = state.calls.find(
       (c) => c.model === 'servicePart' && c.method === 'findMany' && 'NOT' in c.args.where
     )
-    expect(asked?.args.where.NOT).toEqual({ serviceRecord: { organizationId: 'org-a' } })
+    // fork: through its service record or its job (WorkJob)
+    expect(asked?.args.where.NOT).toEqual({
+      OR: [{ job: { organizationId: 'org-a' } }, { serviceRecord: { organizationId: 'org-a' } }],
+    })
   })
 })
 

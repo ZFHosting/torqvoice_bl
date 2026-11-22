@@ -9,12 +9,19 @@ Statuses: `todo` · `in_progress` · `done` · `blocked` (needs a human; say wha
 `provisional` (done against synthetic fixtures; must be re-verified with real Shopmonkey data, which
 counts as done for the hook).
 
+## Summary
+
+**Autopilot is running** (resumed 2026-11-22 with `/autopilot`). The Milestones table, Current step and
+Blockers are the live state; a full summary (what's done, what's provisional, what I need from you, how to
+verify) is written here when the run stops. Earlier stop: B12 (M1's checks stopped for low memory), now
+resolved.
+
 ## Milestones
 
 | Id | Status | Branch | Notes |
 | --- | --- | --- | --- |
 | M0 | provisional | fork/M0-setup-and-spikes | Merged 249e3dd3. S1–S12 from docs only and synthetic fixtures: re-verify with a key (B1). Reviewer: ready for PR after 3 passes. |
-| M1 | in_progress | fork/M1-schema-extensions | |
+| M1 | in_progress | fork/M1-schema-extensions | DoD passes (see Current step); migration-reviewer next, then merge. |
 | A1 | todo | | |
 | A2 | todo | | |
 | M2 | todo | | |
@@ -34,15 +41,28 @@ counts as done for the hook).
 
 Environment (local, Windows):
 - Postgres 16 runs in Docker as container `torqvoice-bl-db` on `127.0.0.1:5442` (5432 is taken by another
-  project; 54860–55698 are Windows-reserved). Dev DB `torqvoice`, test DB `torqvoice_test`, both migrated.
-  `.env` (gitignored) points `DATABASE_URL` at it. For `npm run test:db`, export
-  `E2E_DATABASE_URL=postgresql://torqvoice:torqvoice@localhost:5442/torqvoice_test` (vitest doesn't read `.env`).
+  project; 54860–55698 are Windows-reserved). **Test DB `torqvoice_fork_test`** (all migrations, including
+  M1's final `fork_import_foundation`): for `npm run test:db`, export
+  `E2E_DATABASE_URL=postgresql://torqvoice:torqvoice@localhost:5442/torqvoice_fork_test` (vitest doesn't read
+  `.env`). The older `torqvoice` (dev, what `.env` points at) and `torqvoice_test` hold the pre-review
+  version of M1's migration and need `prisma migrate reset`, which Prisma refuses to run for an AI agent
+  without your consent (B14).
 - The checkout has CRLF endings (`core.autocrlf=true`); commits are normalized to LF. Biome's format check
   runs against an LF worktree in the session scratchpad (`git -c core.autocrlf=false worktree add --detach`),
   using the main checkout's `node_modules/.bin/biome`. Tests and `tsc` run in the main checkout.
-- Baseline on untouched upstream (see Decisions log): `npm run check` has 14 pre-existing errors; `npm test`
-  has 11–13 failing files, all Windows-specific (restic spawn, path separators). PDF-rendering tests
-  (`*-template-preset`) time out at 5 s when another suite runs at the same time; rerun them alone.
+- **Run Vitest with Node 22.23.4 from an upper-case `C:` path** (Decisions log, 2026-11-22 "Test runner"):
+  the machine's Node is 22.14, which can't start 634 of the 775 test files (`undici` 8 needs ≥22.19), and a
+  lower-case `c:` cwd loads vitest twice ("Cannot read properties of undefined (reading 'config')"). A
+  verified portable Node 22.23.4 is in the session scratchpad `node22/`; `run-chunk.sh` there runs one
+  folder chunk (`--maxWorkers=2`, each chunk under 10 minutes). If the scratchpad is gone: download
+  `node-v22.23.4-win-x64.zip` from nodejs.org, check it against `SHASUMS256.txt`, unzip, put it first on PATH.
+- Baseline on untouched upstream `main` with Node 22.23.4 (measured 2026-11-22): `npm run check` has 14
+  pre-existing errors; `npm test` fails 14 Windows-only files (list in the Decisions log). Timing-sensitive
+  tests (`lib/files/delete-paths`, the PDF `*-template-preset` ones) can time out at 5 s on the first run
+  after `prisma generate` or under load; rerun them alone.
+- After switching branches, re-run `sed -i 's/\r$//' prisma/schema/*.prisma`: checkout rewrites changed
+  schema files with CRLF, and `test:db`, `features/ai/workshop-columns` and `lib/files/references` parse the
+  schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
 **M1, in progress (started early on branch `fork/M1-schema-extensions`, cut from the M0 tip; merge
@@ -56,13 +76,36 @@ Environment (local, Windows):
   Restore lives in `src/lib/backup/fork-restore.ts`, called from `import.ts` by `// fork:` one-liners.
   Upstream tests updated for the new datasets and the part's second owner path (job).
 - [x] `src/integrations/shopmonkey/schema/sourceExtra.ts` + test; `src/__tests__/lib/backup/fork-backup.test.ts`.
-- [ ] `npm run test:db` round trip: failed only because the Prisma client was stale. **Prisma 7's
+- [x] `npm run test:db`: 13 files, 81 tests pass, incl. the backup round trip over the new tables and the
+  restore tenancy tests (after merging `fork/integration` in, 8884c6ab). It had failed only because the client was stale. **Prisma 7's
   `migrate dev` doesn't run `generate`: run `npx prisma generate` after every migrate/branch switch.**
   Also **convert `prisma/schema/*.prisma` to LF before `test:db`** (`sed -i 's/\r$//' prisma/schema/*.prisma`):
   the round-trip test splits the schema on `\n` and a CRLF checkout leaves every field unparsed.
-- [ ] Windows: `scripts/generate-tenancy-schema.ts` writes the file then fails to spawn `npx`; run
+- Note (Windows): `scripts/generate-tenancy-schema.ts` writes the file then fails to spawn `npx`; run
   `npx biome format --write src/lib/backup/tenancy-schema.ts` after it.
-- [ ] DoD, reviewer, merge.
+- [x] DoD (2026-11-22, B12 resolved by the `/autopilot` rerun):
+  - `npx tsc --noEmit` exit 0 (at 9c325829).
+  - `npm run check` (LF worktree at 9c325829): 14 errors = upstream baseline.
+  - `npm test` on Node 22.23.4, all 775 files in 7 chunks (lib 144, api/app/components/… 100, features
+    96 + 106 + 119 + 119 + 91): failing files = the same 14 that fail on untouched `main` (rerun there with the
+    same Node), plus `lib/files/delete-paths` timing out on a cold first run (passes at 5 s warm: 3.05 s on
+    M1, 3.0–3.1 s on `main`). Four upstream schema-coverage tests failed on M1's columns and were fixed
+    (ca0ed928): `lib/files/references`, `features/backup/part-restore-fields`,
+    `features/backup/restore-map-fields`, `features/ai/workshop-columns` (Decisions log).
+  - `npm run test:db`: 13 files, 81 tests pass (after the fixes).
+- [x] migration-reviewer pass 1 (2026-11-22): **needs changes**, two must-fix items, both fixed (Decisions log):
+  `SourceRecord` re-keyed to `(organizationId, source, table, remoteId)` in the unmerged migration (verified on
+  an empty database: every migration applied, `prisma migrate diff` against the schema reports no
+  difference); technician pay hidden from the AI chat. Should-fix done in the same pass: indexes for
+  contact lookup, tombstone paging and idempotency rows; the `WorkJob` one-parent CHECK; shifts attach to
+  their parent technician on restore; API.md drift; a database test that no backup carries a key hash
+  or a stored API response (`src/__tests__/db/fork-backup-secrets.db.test.ts`); this ledger's stale
+  summary. Logged for later briefs: archive size in backups and its own export option (M3), UI saves
+  dropping fork line columns (M5 task 12, MAPPING §10), re-linking after restore or reconnect (M5 task 13),
+  restores invisible to sync (A5 task 6). After the fixes: `test:db` 14 files / 82 tests pass on
+  `torqvoice_fork_test`; the backup, AI, references, Shopmonkey and tenancy unit folders pass (44 files;
+  only `lib/backup/engine` and `restic` fail, both baseline).
+- [ ] migration-reviewer pass 2 until "ready for PR", then merge into `fork/integration` (`--no-ff`) and push.
 
 **A1 drafts** (keys.server, withPublicApi, pagination, etag, idempotency, rateLimit, clientIp, errors,
 openapi, settings resource, apiKeyActions, ApiKeysSettings component, apiKeys.en.json) are in the session
@@ -98,6 +141,9 @@ M0 acceptance:
 | B9 | All | **Licensing:** hosting this fork for BlueLabel as a third party is the licensor's call under ELv2 (FORK.md). Needs a decision from Torqvoice's licensor before production hosting. Not a code task. | 2026-11-22 |
 | B10 | M5 (T3) | **Previous owners' orders.** When a Shopmonkey order's customer differs from the vehicle's current owner, the importer sets `ServiceRecord.customerId` (MAPPING §6.1), so invoices bill the right person. Side effect (upstream behaviour, `docs/fork/spikes/RESULTS.md` T3): the vehicle's **current owner sees those jobs listed in the customer portal, with the previous owner's name and address** on the sheet. Default taken: keep MAPPING (set `customerId`). Alternative if that's not acceptable: split such vehicles into one vehicle per owner period. | 2026-11-22 |
 | B11 | All | **Confirm the committed Claude Code config.** The `.claude/` kit (settings.json with the Stop hook `keep-going.sh`, the autopilot and milestone commands, the reviewer agent) and the autopilot section of `docs/fork/README.md` were in the working tree, untracked, when this run started, newer than `bluelabel-fork-kit.zip`; M0 committed them as found. The Stop hook runs in **every** Claude Code session in this repo, not only `/autopilot`: it refuses to stop while a milestone is `todo` or `in_progress` (escape: `touch .claude/STOP`). Confirm that's wanted, or scope it. | 2026-11-22 |
+| B12 | M1 (and everything after it) | ~~Re-run M1's checks.~~ **Resolved 2026-11-22:** rerunning `/autopilot` was the go-ahead; the checks ran one at a time in the foreground with two test workers, and pass (Current step). | 2026-11-22 |
+| B13 | All (not blocking) | **Upgrade Node on this machine to 22.23.4** (what CI, the Dockerfile and the devcontainer pin), or at least ≥22.19. With the installed 22.14, `npm test` silently runs only 141 of 775 test files: `jsdom` 30 pulls `undici` 8, which needs `zlib.createZstdDecompress`, and the other 634 files' workers crash on start without counting as failures. The build carries on with a checksum-verified portable Node 22.23.4 in the session scratchpad, so nothing waits on this. | 2026-11-22 |
+| B14 | None (local housekeeping) | **Reset or drop the old local databases** `torqvoice` (what `.env`'s `DATABASE_URL` points at) and `torqvoice_test` in the `torqvoice-bl-db` container: they hold the pre-review version of M1's migration, so `prisma migrate dev` against them now wants a reset, and Prisma refuses `migrate reset` from an AI agent without your explicit consent. Either run `npx prisma migrate reset` against each yourself, or tell me to, or point `.env` at `torqvoice_fork_test`. Tests already use `torqvoice_fork_test`, so nothing waits on this. | 2026-11-22 |
 
 ## Re-verify with real Shopmonkey data
 
@@ -142,3 +188,13 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-22 | M0 review (migration-reviewer): **needs changes**, four must-fix items, all fixed on the branch. (1) The anonymizer now replaces every string by default unless its key is an id, a documented enum or a listed catalog fact, with a test over every string field of all 110 documented tables. (2) The fixture CLI merges every response for a record (`fixture-build.ts`, tested). (3) Overclaims corrected: synthetic `authorization`, `inventory_labor`, `inventory_fee` and `label` added, Fleet and Message deferred with reasons, RESULTS says which T-spikes ran on Postgres and that no screenshots were taken, and the S12 claim matches the spike. (4) This entry and B11. Should-fixes done: the spike client allows an enumerated list, pins the origin and doesn't follow redirects; the spike counts customers, estimates vehicles, probes file URLs keyless and takes `--order-ids`; refunded charges carry `refundedAmountCents`; B6 has one default everywhere. | Reviewer findings. |
 | 2026-11-22 | The `.claude/` kit and the autopilot section of `docs/fork/README.md` and M0 brief item 5 were committed as found in the working tree (they're newer than `bluelabel-fork-kit.zip`; this run didn't write them). The Stop hook's reach is raised as B11. | Provenance, per the M0 review. |
 | 2026-11-22 | `SourceRecord.connectionId` must not be a required FK to `IntegrationConnection` (for M1). | Spike T6: connections and links are excluded from backups by design; a backed-up `SourceRecord` would fail to restore. |
+| 2026-11-22 | M1: `ApiKey` and `ApiIdempotencyKey` are **excluded** from backups (manifest `EXCLUDED_MODELS`) instead of backing up `ApiKey` with `keyHash` redacted; M1 brief task 5 and its acceptance item updated. | A key's service user and membership are never in a backup, so a restored key would fail its foreign key; excluding it keeps the install's own keys, which is what the brief wanted. |
+| 2026-11-22 | M1: `SourceRecord` and `DeletedRecord` travel under the existing "Audit Logs" export option; `WorkJob` nests under both `ServiceRecord` and `Quote`; the fork's restore lives in `src/lib/backup/fork-restore.ts`, called from `import.ts` by one-line `// fork:` hooks; the manifest test reads both files. | No new export checkbox (UI change); smallest upstream diff in a file upstream edits often. |
+| 2026-11-22 | M1: five upstream backup tests had their expectations extended (new dataset keys; `ServicePart`'s second owner path through its job; `WorkJob`'s one-parent columns), each marked `// fork:`. | The schema really changed; the checks stay exact. |
+| 2026-11-22 | **Test runner, correcting the baseline row above:** Vitest runs on Node 22.23.4 (CI's pin) from an upper-case `C:` path. The earlier "11–13 failing files" baseline was measured on the machine's Node 22.14, where 634 of 775 files never start (B13), so it covered only the 141 node-environment files. Re-measured on untouched `main` (03619f67) with Node 22.23.4, the Windows-only failures are 14 files: `api/health`, `api/photo-handoff`, `api/portal-upload`, `features/equipment/equipment-gates`, `features/meters/meters-gates`, `features/portal/portal-file-route`, `lib/backup/engine`, `lib/backup/restic`, `lib/files/manager`, `lib/files/only-the-manager-deletes`, `lib/safe-path`, `lib/status-colors`, `lib/upload-root`, `lib/viewer-access` (path separators, restic spawning). | Without it the definition of done would pass while most of the suite never ran. The portable Node lives in the session scratchpad; nothing is installed system-wide. |
+| 2026-11-22 | M1: `SourceRecord.payload`, the four lines' `sourceExtra` and `ApiIdempotencyKey.responseBody` are listed in `lib/files/references.test.ts`'s `NOT_FILES` (never a Torqvoice file). | Their URLs, if any, point at Shopmonkey or are a 24-hour response replay; the file manager must not count them as uses. |
+| 2026-11-22 | M1: upstream's `part-restore-fields` and `restore-map-fields` tests read the import through `src/__tests__/stubs/fork-import-source.ts`, which inlines the `fork-restore.ts` spreads and appends that file. | They read `import.ts` as text and couldn't see the fork's restore. With the helper they check the fork's maps as strictly as upstream's: dropping `note` from the part map or `label` from contacts fails both (mutation run). |
+| 2026-11-22 | M1: the AI workshop chat lists the lines' new columns (`jobId`, `lineKind`, `discountAmount`, `note` on parts; job, kind, technician, completion, discount on labor) and hides `sourceExtra`, `costHours` and `costRate` (`HIDDEN_COLUMNS`). **Revised after review:** the first version listed `costHours`/`costRate`. | Upstream's `workshop-columns` test requires every column to be listed or hidden. The line tables are open to anyone who may read work orders; `costRate` is a technician's pay, which upstream holds nowhere, so it stays out until a payroll or reports permission exists to gate it (revisit with A5's technician report). `sourceExtra` is raw Shopmonkey data, reachable through the API. |
+| 2026-11-22 | M1 review: `SourceRecord` is unique on `(organizationId, source, table, remoteId)`, not `(connectionId, table, remoteId)`; `connectionId` means "last fetched by". The unmerged migration was edited in place rather than followed by a second one. | Disconnecting deletes a connection and a reconnect or a restore makes a new id, so the old key would have duplicated the whole archive on the next pull. The migration exists only on this branch and the local databases; editing it keeps M1 one additive migration. |
+| 2026-11-22 | M1 review: the generated tenancy schema counts a labor line's technician as one of its owner paths (`tenancy-schema.ts`, generated from the new `technicianId` relation). Left as generated. | It loosens `assertNoForeignRows`'s ownership proof slightly, but the restore's own sanitising drops cross-workshop technician ids (`kept()`), so it isn't exploitable. The generator is upstream's; special-casing it would be a larger upstream edit. |
+| 2026-11-22 | M1 review: `readLaborSourceExtra`/`readPartSourceExtra` drop the whole object when one key is malformed. Left for M4, where the transform writes `sourceExtra` and the reader first matters. | Nothing writes or reads `sourceExtra` before M4; M4's fixture tests will show which keys need per-key leniency. |

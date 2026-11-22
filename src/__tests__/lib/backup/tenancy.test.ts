@@ -148,7 +148,10 @@ describe('sanitiseForeignIds', () => {
 describe('ownershipWhere', () => {
   it('uses the model column, or the parent chain for a child model', () => {
     expect(ownershipWhere('Customer', ORG)).toEqual({ organizationId: ORG })
-    expect(ownershipWhere('ServicePart', ORG)).toEqual({ serviceRecord: { organizationId: ORG } })
+    // fork: a part reaches its workshop through its service record or its job (WorkJob)
+    expect(ownershipWhere('ServicePart', ORG)).toEqual({
+      OR: [{ job: { organizationId: ORG } }, { serviceRecord: { organizationId: ORG } }],
+    })
     expect(ownershipWhere('InspectionTemplateItem', ORG)).toEqual({
       section: { template: { organizationId: ORG } },
     })
@@ -198,7 +201,8 @@ describe('assertNoForeignRows', () => {
     // Child models are asked through their parent.
     expect(calls.find((c) => c.model === 'servicePart')?.where).toEqual({
       id: { in: ['part1'] },
-      NOT: { serviceRecord: { organizationId: ORG } },
+      // fork: through its service record or its job (WorkJob)
+      NOT: { OR: [{ job: { organizationId: ORG } }, { serviceRecord: { organizationId: ORG } }] },
     })
   })
 

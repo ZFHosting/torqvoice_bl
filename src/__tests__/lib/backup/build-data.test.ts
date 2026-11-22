@@ -114,6 +114,9 @@ describe('organisation scope', () => {
       'reportSchedules',
       'roles',
       'auditLogs',
+      // fork: archived source payloads and delete tombstones
+      'sourceRecords',
+      'deletedRecords',
       'smsMessages',
       'whatsappMessages',
       'telegramMessages',
