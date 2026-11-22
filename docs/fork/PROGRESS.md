@@ -54,7 +54,19 @@ Plan:
    **synthetic** fixtures in `src/__tests__/features/integrations/fixtures/shopmonkey/synthetic/`. M0 → `provisional`.
 4. `RESULTS.md`, update `MAPPING.md` markers, answer/assign PLAN §6 questions (blockers).
 
-Done so far: branches created, upstream remote added (no upstream changes to merge), env set up.
+Done so far:
+- [x] Part 1 hygiene committed (0c7ec939): NOTICE-FORK.md, README link, CLAUDE.md import, UPSTREAM.md,
+  .env.example, .gitignore, versioned .claude kit.
+- [x] T1–T7 answered in `docs/fork/spikes/RESULTS.md` (dc3e7a34), MAPPING updated, blockers B2–B10 raised.
+  Evidence: `scripts/spikes/torqvoice.spike.ts` (5 passing checks against `torqvoice_test`).
+- [x] `scripts/shopmonkey/anonymize.ts` + CLI `anonymize-fixtures.ts`, tests
+  `src/__tests__/scripts/shopmonkey/anonymize.test.ts` (8 passing).
+- [x] `scripts/shopmonkey/spike-client.ts` (read-only guard, pacing, raw recording), tests
+  `spike-client.test.ts` (4 passing).
+- [ ] Next: `scripts/shopmonkey/spike.ts` (the S1–S12 call plan), S1–S12 from the docs in RESULTS.md,
+  synthetic fixtures + README under `fixtures/shopmonkey/synthetic/`, remaining MAPPING markers → `[docs]`
+  or `[provisional: Sx]`, then DoD, reviewer, merge. Shopmonkey API notes from a docs survey are in the
+  session scratchpad (`shopmonkey-api-reference.md`); if it's gone, re-survey shopmonkey.dev.
 
 ## Blockers (need a human)
 

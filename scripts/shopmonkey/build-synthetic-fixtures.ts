@@ -380,6 +380,7 @@ interface PaymentIn {
   checkNumber?: string | null
   cardDigits?: string | null
   refundReason?: string | null
+  chargeId?: string | null
 }
 
 function rollUpOrder(
@@ -410,9 +411,11 @@ function rollUpOrder(
     shopSuppliesCents
   // PROVISIONAL(M0:S5): the order-level discount comes off after tax here.
   const totalCostCents = subtotal - orderDiscountCents + taxCents
+  // PROVISIONAL(M0:S5): refunds carry a negative amountCents (error PAYM-101beb: "Refunded amount must
+  // be a negative value"), so the amount paid is the plain signed sum of succeeded transactions.
   const paidCostCents = payments
     .filter((p) => p.status === 'Succeeded')
-    .reduce((a, p) => a + (p.transactionType === 'Refund' ? -p.amountCents : p.amountCents), 0)
+    .reduce((a, p) => a + p.amountCents, 0)
   const remainingCostCents = totalCostCents - paidCostCents
   return {
     ...order,
@@ -596,7 +599,7 @@ const customer = (id: string, created: string, extra: Rec) =>
     website: null,
     ...extra,
   })
-const customers = [
+const customersBare = [
   customer('syn_cus_1', '2020-05-04T16:30:00.000Z', {
     publicId: '1001',
     firstName: 'Dana',
@@ -643,6 +646,7 @@ const customers = [
   }),
 ]
 
+// Every customer read embeds its contacts as emails[] and phoneNumbers[] (shopmonkey.dev, Customer).
 const email = (
   id: string,
   customerId: string,
@@ -700,6 +704,12 @@ const customerPhone = [
   phone('syn_phn_2', 'syn_cus_1', '+12025550102', 'Landline', false, '2021-03-03T12:00:00.000Z'),
   phone('syn_phn_3', 'syn_cus_2', '+12025550103', 'Mobile', true, '2021-02-11T14:00:00.000Z'),
 ]
+
+const customers = customersBare.map((c) => ({
+  ...c,
+  emails: customerEmail.filter((e) => e.customerId === c.id),
+  phoneNumbers: customerPhone.filter((p) => p.customerId === c.id),
+}))
 
 const vehicle = (id: string, created: string, extra: Rec) =>
   base(id, created, {
@@ -1023,6 +1033,7 @@ function addOrder(o: Rec, svcIn: ServiceIn[], pays: PaymentIn[] = [], orderDisco
         checkNumber: p.checkNumber ?? null,
         cardDigits: p.cardDigits ?? null,
         refundReason: p.refundReason ?? null,
+        chargeId: p.chargeId ?? null,
         refunded: null,
         refundedAmountCents: null,
         receiptNumber: payments.length + 1,
@@ -1309,7 +1320,8 @@ addOrder(
     },
     {
       id: 'syn_pay_1003_3',
-      amountCents: 5000,
+      amountCents: -5000,
+      chargeId: 'syn_pay_1003_2',
       transactionType: 'Refund',
       paymentType: 'Card',
       status: 'Succeeded',
@@ -1386,7 +1398,8 @@ addOrder(
     },
     {
       id: 'syn_pay_1004_2',
-      amountCents: 14400,
+      amountCents: -14400,
+      chargeId: 'syn_pay_1004_1',
       transactionType: 'Refund',
       paymentType: 'Check',
       status: 'Succeeded',
@@ -1513,8 +1526,9 @@ const inspection = [
 ]
 
 const timesheet = [
-  // PROVISIONAL(M0:S8): `duration`'s unit is unknown; the importer derives minutes from clockIn and
-  // clockOut and keeps `duration` only in SourceRecord.
+  // PROVISIONAL(M0:S8): `duration` has no documented unit. The timesheet list's meta reports
+  // totals in milliseconds, so the fixtures use milliseconds; the importer derives minutes from clockIn
+  // and clockOut and keeps `duration` only in SourceRecord.
   base('syn_tsh_1', '2025-03-10T18:00:00.000Z', {
     technicianId: 'syn_usr_1',
     activity: 'Labor',
@@ -1523,7 +1537,7 @@ const timesheet = [
     laborId: 'syn_lab_1003_1',
     clockIn: '2025-03-10T18:00:00.000Z',
     clockOut: '2025-03-10T19:30:00.000Z',
-    duration: 90,
+    duration: 5_400_000,
     inProgress: false,
     note: '',
     number: '1',
@@ -1539,7 +1553,7 @@ const timesheet = [
     laborId: null,
     clockIn: '2025-03-10T13:00:00.000Z',
     clockOut: '2025-03-10T21:30:00.000Z',
-    duration: 510,
+    duration: 30_600_000,
     inProgress: false,
     note: 'Opening shift',
     number: '2',
@@ -1576,8 +1590,6 @@ const TABLES: [table: string, endpoint: string, records: unknown[]][] = [
   ['user', '/v3/user', users],
   ['referral_source', '/v3/referral_source', referralSource],
   ['customer', 'POST /v3/customer/search', customers],
-  ['email', 'POST /v3/customer/email/search', customerEmail],
-  ['phone_number', 'POST /v3/customer/phone_number/search', customerPhone],
   ['vehicle', '/v3/customer/:id/vehicle', vehicles],
   ['vehicle_owner', '/v3/vehicle/:id/owners', vehicleOwner],
   ['inventory_category', '/v3/inventory_category', inventoryCategory],

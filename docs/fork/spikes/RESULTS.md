@@ -194,4 +194,171 @@ shop the vehicle's continuous history.
 
 ## Part 2: Shopmonkey spikes (documentation only, provisional)
 
-(filled from the documentation survey)
+Sources: Shopmonkey's published table schemas (`https://shopmonkey.dev/schema/<Table>`, e.g.
+`/schema/Order`) and API reference (`https://shopmonkey.dev`). Every answer below is **docs only** until
+`scripts/shopmonkey/spike.ts` records it against a real account (blocker B1). The spike already asks
+each question; its `_summary.json` holds the answers in the same order.
+
+### S1. Key status, identity, company and locations
+
+- `Authorization: Bearer <key>` against `https://api.shopmonkey.cloud/v3/...`. Keys are created by Admins
+  (Settings → Integration → API Keys) and carry their creator's permissions and location access. `401` =
+  bad key; `403` with code `API-472811` = the key's user lacks a permission or location.
+- `GET /v3/auth/api_key/status`: documented as "200 with a JSON object"; **the body isn't documented**.
+  → `test()` treats 200 + `success: true` as valid and shows Shopmonkey's `message` on 401/403.
+- **Identity: `GET /v3/user/me`**, which needs no ids: `companyId`, `currentLocationId`, `locations[]`
+  (`{companyId, id, name}`), `company` (`name`, ...) and `location` (address, `timezone`).
+  `GET /v3/company/:id` gives the company with `locations[]` as ids only.
+- **Locations:** the current docs only list `PUT /v3/location/:id`; `GET /v3/location` is in archived docs
+  (Nov 2025). → `remoteOptions.locations` tries `GET /v3/location` and falls back to `user/me.locations`
+  **[provisional: S1]**. Location count: open (B2).
+
+### S2. Paging and filters
+
+- Envelope: `{ success, data, meta: { hasMore, total } }` for lists; `{ success, data }` for one record;
+  errors `{ success: false, code, message, documentation_url, data }`.
+- GET lists take `limit`, `skip`, `orderby` (lower-case), `where`, `ids`, `include`; search bodies take
+  `where`, `orderBy` (camel-case), `limit`, `skip`. **No maximum or default `limit` is documented**;
+  community clients use 100.
+- `where` uses **Prisma-style operators** (`equals`, `in`, `gte`, `lte`), shown in the timesheet and
+  appointment search docs. No `$gt`. The query-string encoding is undocumented (most likely URL-encoded
+  JSON).
+- **Field report (unofficial, from a community client run against live shops):** the plain GET lists
+  (`/v3/order`, `/v3/appointment`) **ignore `where`** and return an **unstable order** between identical
+  calls, so skip-paging can repeat or miss records. Search endpoints apply their filters.
+- **Consequences for M2/M3 [provisional: S2]:** page with `limit=100` and an explicit `orderby` on `id`;
+  de-duplicate by `id`; finish on `hasMore === false` or a short page; and after a backfill, re-list
+  once and compare counts with `meta.total`. Incremental pulls use `where: { updatedDate: { gte } }` where
+  it's honoured (searches) and otherwise re-list and skip unchanged records by `payloadHash` (cheap,
+  because staging already skips unchanged payloads). The spike measures each form (`whereForms`) and
+  whether a sorted list is stable (`stableWithOrderbyId`).
+- `GET /v3/order` documents `include: { services: { include: { labors, parts, tires, fees, subcontracts } } }`,
+  which would fetch an order page with its lines in one call. The spike records whether it works.
+
+### S3. Rate limit
+
+Not published ("reach out to support"). A 429 carries `Retry-After` (seconds),
+`X-RateLimit-Limit-Minute` and `X-RateLimit-Remaining-Minute` (rolling 60 s), and every response has
+`x-request-id`. → the client paces itself from those headers (M2). Backfill estimate, to be replaced by
+the spike's measured limit: calls ≈ list pages + orders × (services 1 + payments 1 + authorizations 1 +
+files 1 + PDF 0–1), so **4–5 calls per order**, or 1–2 if `include` works. At an assumed 120 calls/min,
+50,000 orders take roughly 28–35 hours with children fetched separately, 7–14 with `include`. Hence the
+resumable checkpoints and the CLI.
+
+### S4. Paths and shapes
+
+Read endpoints the importer needs (from the API reference; `:id` is a Shopmonkey id):
+
+| Need | Endpoint | Note |
+| --- | --- | --- |
+| List orders / get order | `GET /v3/order`, `GET /v3/order/:id` | |
+| Order services with lines | `GET /v3/order/:orderId/service` | Services carry nested `labors`, `parts`, `tires`, `fees`, `subcontracts` **(assumed from MAPPING [docs]; re-verify)**. Parts and tires also have `GET /v3/order/:orderId/part` and `/tire`. |
+| Order payments | `POST /v3/integration/payment/search` with `where: { orderId }` | **No** `GET /v3/order/:id/payment` in the reference. The spike tries both. |
+| Order authorizations | `GET /v3/order/:id/authorization` | `Authorization` rows (method, date, note, `authorizedCostCents`) with `AuthorizationService` per service. |
+| Invoice PDF | `GET /v3/order/:id/pdf` | Binary. |
+| Order files | **not in the reference.** The spike tries `GET /v3/order/:id/file`. | **Open (S4).** Until confirmed, `includeFiles` downloads nothing but inspection photos and the PDF. |
+| Customers | **`POST /v3/customer/search`** (there is no `GET /v3/customer` list), `GET /v3/customer/:id` | |
+| Customer emails / phones | **Embedded** in every customer read as `emails[]` and `phoneNumbers[]` | Separate `email` / `phone_number` tables underneath. `POST /v3/customer/email/search` and `/phone_number/search` look customers up **by address** (`{ emails: [...] }`, max 5), not by customer, so the extractor doesn't use them. |
+| Customer vehicles | `GET /v3/customer/:id/vehicle` | **There is no `GET /v3/vehicle` list**: vehicles are reached through customers (or by id from orders). Vehicles with no owner are only reachable by id from an order. |
+| Vehicle owners | `GET /v3/vehicle/:parentId/owners` | `vehicle_owner` rows: `customerId`, `vehicleId`, `createdDate`, nothing else. No "current" flag. |
+| Inventory parts / tires / labor / fees | `POST /v3/inventory_part/search`, `/inventory_tire/search`, `/inventory_labor/search`, `/inventory_fee/search` | No GET lists. |
+| Everything else | `GET /v3/<table>` | `tax_config`, `labor_rate`, `workflow_status`, `user`, `timesheet`, `canned_service`, `inspection`, `inspection_template`, `appointment`, `vendor`, `inventory_category`, `referral_source`, `label`, `payment_type_config`, `message`, `purchase_order`. |
+
+**Never called:** `GET /v3/vehicle/vin/:vin` and `/v3/vehicle/license_plate/...` decode a vehicle with a
+data provider and may be billed. The spike and the importer leave them alone.
+
+**Consequence for M3:** the extractor walks customers (search) → their vehicles and contacts, then
+orders → their vehicles by id for any vehicle not seen yet. Search endpoints are `POST`, so the client's
+allowlist must cover `/v3/<table>/search` and `/v3/<table>/<sub>/search` (done in the spike client).
+
+### S5. Money
+
+Taken from the schemas:
+
+- **Lines carry no total.** `labor`: `hours`, `rateCents`, `multiplier`, `multiplierType` (`Hours`/`Rate`),
+  `discountCents`, `discountPercent`, `discountValueType` (`Percent`/`FixedCents`), `costHours`,
+  `costRateCents`, `costTotalCents`. `part`/`tire`: `quantity`, `retailCostCents`, `wholesaleCostCents`,
+  discount fields; tires add `federalExciseTaxCents`, `wasteTireFee`. `subcontract`: `costCents`,
+  `retailCostCents`, discount fields. `fee`: `feeType` (`FixedCents`, `PercentService`,
+  `PercentLineItem`), `amountCents`, `percent`, `subtotalCents`, `lineItemEntity`.
+- **Services carry computed totals:** `calculatedLaborCents`, `calculatedPartsCents`,
+  `calculatedTiresCents`, `calculatedSubcontractsCents`, `calculatedFeeCents`, `calculatedEpaCents`,
+  `calculatedShopSuppliesCents`, `calculatedDiscountCents`, `calculatedTaxCents` (+ GST/PST/HST) and
+  `totalCents`.
+- **Orders carry per-category sums:** `laborCents`, `partsCents`, `tiresCents`, `subcontractsCents`,
+  `feesCents`, `epaCents`, `shopSuppliesCents`, `discountCents`, `taxCents` (+ GST/PST/HST),
+  `totalCostCents`, `paidCostCents`, `remainingCostCents`.
+- **EPA and shop supplies** are service fields (`epaCents`/`epaPercent`/`epaValueType`,
+  `shopSuppliesCents`/...), computed into `calculatedEpaCents`/`calculatedShopSuppliesCents`. They are
+  not `fee` rows in the schema, so the double-count risk in MAPPING §6.2 looks unlikely, but it's
+  re-verified on recorded orders (the transform warns `epa_also_fee` if a fee is named like EPA or shop
+  supplies).
+
+**Formula (PROVISIONAL(M0:S5)), used by the synthetic fixtures and the M4 assertions:**
+line total = gross − `discountCents`, where gross is `round(hours × rateCents × multiplier)` for labor,
+`round(quantity × retailCostCents)` for parts and tires, and `retailCostCents` for a subcontract; a
+`FixedCents` fee is `amountCents`, a percent fee is `round(percent% × the service's line base)`. A
+service's `calculated*Cents` are the sums of its lines by category. An order sums the services that
+count (not `Declined`, no `deferredDate`); `totalCostCents = subtotal − discountCents + taxCents`.
+Because lines carry no total of their own, **the importer reconciles per service** (lines by category vs
+`calculated*Cents`) as well as per order. MAPPING §6.2 updated.
+
+### S6. Taxes
+
+`tax_config` (one per location): `taxSystem` (`US`, `CA`, `MX`), `taxPercent`, `gstPercent`,
+`pstPercent`, `hstPercent`, and per category `laborTaxable`, `partTaxable`, `subcontractTaxable`,
+`epaTaxable`, `shopSuppliesTaxable` (each with `…GST`/`…PST`/`…HST` variants), plus shop supplies caps.
+Lines and services carry `taxable`, `taxableGST`, `taxablePST`, `taxableHST`; services carry `taxPercent`
+and their own `gst/pst/hstPercent`. Customers carry `taxExempt`, `gstExempt`, `pstExempt`, `hstExempt`.
+→ `taxable` on a Torqvoice line is the line's own `taxable` (for `CA`: true if any of the GST/PST/HST
+flags is true). A Canadian order with more than one non-zero of GST/PST/HST becomes `taxComponents`.
+
+### S7. Inspections
+
+`inspection`: `orderId` (**required: every inspection belongs to an order**), `templateId`, `name`,
+`note`, `completed`, `completedDate`, `checklistStage` (`RepairOrder`/`Invoice`). `inspection_item`:
+`inspectionId`, `name`, `message`, `ordinal`, `status` **`Green` / `Yellow` / `Red` / `NotApplicable`**
+(nullable), `inspectorUserId`, `recommendedCannedServiceIds`, plus `inspection_item_status_detail` rows
+(checkbox labels per status). Templates: `inspection_template` + `inspection_template_item` (same
+`status` enum as a default). Photos: the schema has no file field; the API has
+`/v3/inspection/:id/item/:itemId/file`, so files hang off the item **(shape open: S7)**. Rating map
+(MAPPING §8): `Green → pass`, `Yellow → attention`, `Red → fail`, `NotApplicable → not_applicable`,
+`null → not_inspected`.
+
+### S8. Timesheets
+
+`timesheet`: `technicianId` (a user id), `activity` **`General` / `Order` / `Service` / `Labor`**,
+`orderId`, `serviceId`, `laborId` (nullable), `clockIn`, `clockOut` (nullable while `inProgress`),
+`duration` (number, **unit not stated: open S8**), `type` (`Timeclock`/`Manual`), `flatRate`,
+`rateCents`, `note`. → minutes are always derived from `clockIn`/`clockOut`; `duration` stays in
+`SourceRecord`. An open shift (no `clockOut`) becomes a `TechnicianShift` with `clockOut: null`.
+
+### S9. Workflow statuses
+
+`workflow_status`: `name`, `position`, and two flags, **`repairOrderWorkflow`** and **`invoiceWorkflow`**,
+plus archiving rules. There's no stage field. Orders carry `workflowStatusId`, `workflowStatusPosition`
+and `workflowStatusDate`. → Default stage (until the operator maps it, blocker B6): a status in the
+invoice workflow → `completed`; in the repair-order workflow, the first by `position` → `pending`, the
+rest → `in-progress`. Better than position alone, and still editable in M8.
+
+### S10. Catalog
+
+`canned_service` (+ `canned_service_labor`, `_part`, `_tire`, `_fee`, `_subcontract`; same fields as
+order lines, with service-level calculated totals), `inventory_part` (`name`, `number`, `sku`,
+`quantity`, `availableQuantity`, `minCriticalQuantity`, `reorderQuantity`, `retailCostCents`,
+`wholesaleCostCents`, `binLocation`, `categoryId`, `vendorId`), `inventory_tire` (the same plus size,
+load and speed ratings, `federalExciseTaxCents`, `wasteTireFeeCents`, `tireModelId`), `vendor` (`name`,
+`accountNumber`, contact name/email/`contactPhone` object, address, `url`), `inventory_category`
+(`name`, `parentId`). Counts: open (S12).
+
+### S11. Recognisable numbers
+
+`customer.publicId` and `order.number` are both **strings** in the schema (`order.number: string`). They
+may well be digits in practice, but the importer can't assume it. → `customerNumber` takes `publicId`
+only when it's all digits and unique; `invoiceNumber`/`quoteNumber` take `number` as is; the numbering
+step (MAPPING §9) only sets an empty format when every imported number is all digits.
+
+### S12. Counts
+
+Open until a key exists: the spike reads `meta.total` (if present) for every table and prints it to
+`_summary.json`. Sizing assumption until then: 50,000 orders (blocker B3).

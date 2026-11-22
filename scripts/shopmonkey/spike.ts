@@ -82,10 +82,19 @@ async function main() {
     limits[limit] = { status: res.status, returned: list(res).length, meta: meta(res) }
   }
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString()
+  // The docs show Prisma-style operators (equals, in, gte, lte) in search bodies and say nothing about
+  // the query-string encoding; a field report says GET lists ignore `where`. Try each form and compare
+  // `meta.total` with the unfiltered list's.
   const whereForms: Record<string, Json> = {
-    jsonGt: { where: JSON.stringify({ updatedDate: { $gt: since } }) },
-    jsonGtDeleted: { where: JSON.stringify({ updatedDate: { $gt: since }, deleted: false }) },
-    orderbyDesc: { orderby: JSON.stringify({ updatedDate: 'desc' }) },
+    unfiltered: {},
+    prismaGte: { where: JSON.stringify({ updatedDate: { gte: since } }) },
+    prismaGt: { where: JSON.stringify({ updatedDate: { gt: since } }) },
+    prismaGteNotDeleted: {
+      where: JSON.stringify({ updatedDate: { gte: since }, deleted: { equals: false } }),
+    },
+    mongoGt: { where: JSON.stringify({ updatedDate: { $gt: since } }) },
+    orderbyJson: { orderby: JSON.stringify({ updatedDate: 'desc' }) },
+    orderbyIdAsc: { orderby: JSON.stringify({ id: 'asc' }) },
     orderbyText: { orderby: 'updatedDate desc' },
   }
   const whereResults: Json = {}
@@ -96,10 +105,24 @@ async function main() {
   const customerSearch = await search(
     '/v3/customer/search',
     'customer',
-    { limit: 100, skip: 0, where: { updatedDate: { $gt: since } } },
+    { limit: 100, skip: 0, where: { updatedDate: { gte: since } }, orderBy: { id: 'asc' } },
     's2-customer-search'
   )
+  // Is a sorted list stable? Read the same two pages twice and compare the ids.
+  const pageIds = async (skip: number, label: string) =>
+    list(
+      await get(
+        '/v3/order',
+        'order',
+        { limit: 50, skip, orderby: JSON.stringify({ id: 'asc' }) },
+        label
+      )
+    ).map((o) => String(o.id))
+  const firstRead = [...(await pageIds(0, 's2-stable-a0')), ...(await pageIds(50, 's2-stable-a1'))]
+  const secondRead = [...(await pageIds(0, 's2-stable-b0')), ...(await pageIds(50, 's2-stable-b1'))]
   answers.S2 = {
+    stableWithOrderbyId: JSON.stringify(firstRead) === JSON.stringify(secondRead),
+    duplicatesAcrossPages: firstRead.length - new Set(firstRead).size,
     limits,
     whereResults,
     customerSearch: { status: customerSearch.status, returned: list(customerSearch).length },
@@ -107,6 +130,22 @@ async function main() {
 
   // S4 (+S5, S11): orders and their children, on a sample.
   const orders = list(await get('/v3/order', 'order', { limit: orderSample }, 's4-orders'))
+  // GET /v3/order documents an `include` that nests services and their lines: one call per page
+  // instead of one per order, if it works.
+  const withServices = await get(
+    '/v3/order',
+    'order',
+    {
+      limit: 2,
+      include: JSON.stringify({
+        services: {
+          include: { labors: true, parts: true, tires: true, fees: true, subcontracts: true },
+        },
+      }),
+    },
+    's4-orders-include-services'
+  )
+  answers.S4include = shapeOf(list(withServices)[0]?.services)
   const children: Json = {}
   for (const o of orders) {
     const id = String(o.id)
@@ -144,14 +183,22 @@ async function main() {
       const res = await get(p, table)
       children[p.replace(cid, ':id')] = { status: res.status, shape: shapeOf(data(res)) }
     }
-    for (const kind of ['email', 'phone_number'] as const) {
-      const res = await search(`/v3/customer/${kind}/search`, `customer_${kind}`, {
-        where: { customerId: cid },
-      })
-      children[`POST /v3/customer/${kind}/search`] = {
+    // Contacts come embedded in every customer read; the email and phone searches look a customer up
+    // by address (at most 5), so they're only recorded here to confirm their shape.
+    const full = data(
+      await get(`/v3/customer/${cid}`, 'customer', undefined, 's4-customer-full')
+    ) as Json | undefined
+    const firstEmail = (full?.emails as Json[] | undefined)?.[0]?.email
+    if (typeof firstEmail === 'string') {
+      const res = await search('/v3/customer/email/search', null, { emails: [firstEmail] })
+      children['POST /v3/customer/email/search'] = {
         status: res.status,
         shape: shapeOf(list(res)[0]),
       }
+    }
+    children.customerEmbedsContacts = {
+      emails: Array.isArray(full?.emails),
+      phoneNumbers: Array.isArray(full?.phoneNumbers),
     }
   }
   const firstVehicleId = orders.find((o) => o.vehicleId)?.vehicleId

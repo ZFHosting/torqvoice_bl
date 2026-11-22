@@ -28,12 +28,14 @@ Recorded fixtures use the same format with `source: "recorded"` and `anonymized:
 | Invoice billed to the vehicle's **previous owner**, order-level percent discount, paid by check and **refunded in full**, vehicle with no year/make/model | order `1004` |
 | Deleted order (archived, never loaded) | order `1005` |
 | Person, fleet company with contact, deleted customer, company-only customer with a non-numeric `publicId` | `customer.json` |
-| Several emails and phones per customer, marketing opt-in on one | `email.json`, `phone_number.json` |
+| Several emails and phones per customer (embedded as `emails[]` / `phoneNumbers[]`, as Shopmonkey returns them), marketing opt-in on one | `customer.json` |
 | Vehicle with two owners over time | `vehicle_owner.json` (`syn_veh_3`) |
 | Shifts (`General`), one still open, and a labor timesheet | `timesheet.json` |
 
 ## Conventions
 
+- Refunds carry a negative `amountCents` and a `chargeId` (Shopmonkey's error PAYM-101beb says refunded
+  amounts must be negative). Timesheet `duration` is in milliseconds (assumed).
 - Ids start with `syn_`. VINs start with `TVFX`. Emails are `@example.test`. Phones are `+1202555 01xx`.
 - Money is integer cents. A line's total is its gross (hours × rate × multiplier, or quantity × retail)
   minus its `discountCents`; services carry `calculated*Cents` and `totalCents`; orders carry the
