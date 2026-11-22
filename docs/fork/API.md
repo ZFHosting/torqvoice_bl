@@ -29,7 +29,9 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
   technician app's and goes through `withApiAuth`, not here.
 - Keys are created in **Settings → API keys** (new page, gated by the existing `api` plan feature,
   which is on for self-hosted). The full key is shown once. Only an HMAC-SHA256 of it is stored, peppered
-  with `API_KEY_PEPPER` from the environment.
+  with `API_KEY_PEPPER` from the environment (16+ characters). An install that hasn't set it gets a pepper
+  derived from `BETTER_AUTH_SECRET` under its own label, so keys work out of the box; changing either
+  secret invalidates every key. Settings → API keys is for owners and admins only.
 - **Each key acts as its own service user.** Creating a key creates a `User` with no password and no
   login, plus an `OrganizationMember` in the workshop with a role the owner picks. Permissions come from
   that role through the existing `src/lib/permissions.ts`, so a key's scope is managed with the same
@@ -58,10 +60,10 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
 | Paging | `?limit=` (default 50, max 200) and `?cursor=` (opaque). The response has `meta.nextCursor` and `meta.hasMore`. Order is `(updatedAt, id)` ascending unless `sort=` says otherwise. |
 | Sync | `?updatedSince=<ISO>` on every list. Deletes come from `GET /api/v1/deleted?since=`. |
 | Expansion | `?include=lines,jobs,payments,customFields,meta,source` on the endpoints that support it. Nothing nested comes back unless it's asked for. |
-| Idempotency | `Idempotency-Key` header on any `POST`. The same key with the same body replays the stored response; the same key with a different body gets 409 `idempotency_conflict`. |
+| Idempotency | `Idempotency-Key` header on any `POST`. The same key with the same body replays the stored response (with `Idempotent-Replayed: true`); the same key with a different body, or while the first request is still running, gets 409 `idempotency_conflict`. A request that fails with a 5xx gives the key back. Stored responses are kept 24 hours. |
 | Concurrency | Every single-record `GET` returns `ETag` (a hash of `updatedAt`). `PATCH` and `DELETE` honour `If-Match`; a mismatch gets 412 `precondition_failed`. |
 | Locks | Editing an issued or paid invoice gets 409 `document_locked` with `details.reason`, through the existing `documentLockedResponse`. |
-| Rate limit | Per key. 429 with `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`. The existing limiter is per process; that's fine for a single container. |
+| Rate limit | Per key, across every path: 120 requests a minute unless a route sets its own. Every answer carries `X-RateLimit-Limit` and `X-RateLimit-Remaining`; past the limit, 429 `rate_limited` with `Retry-After`. In-process, like upstream's limiter; that's fine for a single container. |
 | Versioning | Within v1, changes are additive only. Removing or renaming a field means v2. |
 
 ## 4. Resources
@@ -94,7 +96,7 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
 | `/work-order-statuses` | R | |
 | `/payments` | R | Across all work orders, for accounting sync: `?from=&to=`, `?method=`. |
 | `/webhooks` | R W | Manage webhook subscriptions (the existing `Webhook` model) from code. |
-| `/settings` | R | Currency, time zone, tax setup, default labor rate, numbering format. |
+| `/settings` | R | Currency, time zone, tax setup, default labor rate, numbering format. Needs `read:settings` (the numbering format isn't member-readable). |
 | `/reports/sales` | R | Totals by day, week or month: invoiced, collected, tax, parts, labor, fees. |
 | `/reports/receivables` | R | Open invoices with aging buckets. |
 | `/reports/technicians` | R | Per technician: hours sold (labor lines with `technicianId`), hours clocked (time entries), shift hours, and jobs completed in a period. This is the input BlueLabel's pay calculation needs. |

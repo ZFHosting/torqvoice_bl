@@ -65,23 +65,40 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**A1 (API foundation), in progress** on `fork/A1-api-foundation` (from `fork/integration` at 5605175e).
-Staged code: the session scratchpad `a1-final/` mirrors the repo paths (Lib, Schema, Serializers, Actions,
-Components, routes, cron, tests, `i18n_api_keys.py`). Plan, in order:
-1. [ ] Copy in `src/features/public-api/Lib/*` (keys.server, withPublicApi, rateLimit, pagination, etag,
-   idempotency, errors, openapi), `Schema/settings.ts`, `Schema/apiKeys.ts`, `Serializers/settings.ts`,
-   `GET /api/v1/settings`, `GET /api/v1/openapi.json`. Upstream edits, each `// fork:`: export
-   `clientAddress` from `src/lib/rate-limit.ts` (one source for the caller's address).
-2. [ ] Tests first run: `conventions`, `with-public-api`, `openapi` (devDependency
-   `@apidevtools/swagger-parser`), db tests `public-api-keys` and `public-api-idempotency`.
-3. [ ] Cron `src/lib/cron/purge-api-idempotency.ts`, registered in `src/cronTasks.ts` and
-   `src/instrumentation.ts` (`// fork:`).
-4. [ ] Settings → API keys: `Actions/apiKeyActions.ts` (owner/admin, `withAuth` + audit `api_key.create` /
-   `api_key.revoke`), `Components/ApiKeysSettings.tsx`, page `settings/api-keys`, nav entry in
-   `settingsPages.ts` (`gate: 'api'`), namespace `apiKeys` (14 locales, imported in `src/i18n/request.ts`),
-   nav label and audit labels in every locale; component test `api-keys-settings`.
-5. [ ] DoD, reviewer, merge.
-Acceptance evidence goes here as each item passes.
+**A1 (API foundation), in progress** on `fork/A1-api-foundation` (from `fork/integration` at 75978b94, after a
+clean upstream merge 03619f67..94abda44). Commits 32afc651 (foundation + `/settings`), 31877f75 (purge cron),
+e522a3d2 (Settings → API keys), then docs and ledger.
+1. [x] `src/features/public-api/Lib/*`, `Schema/settings.ts`, `Schema/apiKeys.ts`, `Serializers/settings.ts`,
+   `GET /api/v1/settings`, `GET /api/v1/openapi.json`; `clientAddress` exported from `src/lib/rate-limit.ts`.
+2. [x] Tests: `features/public-api/{conventions,with-public-api,openapi,api-keys-settings}` (24 tests);
+   db `public-api-keys` (13) and `public-api-idempotency` (6). Mutation checks: dropping the allowlist check
+   or the `revokedAt` check fails a test.
+3. [x] Cron `purge-api-idempotency` (hourly at :17) in `cronTasks.ts` and `instrumentation.ts`.
+4. [x] Settings → API keys: actions, component, page, nav entry (`gate: 'api'`), icon, namespace `apiKeys`
+   in 14 locales, nav and audit labels in every locale.
+5. [ ] DoD (done, below), reviewer, merge.
+
+A1 acceptance:
+- [x] A valid key; revoked → 401; expired → 401; disallowed IP → 403; missing permission → 403; rate limit
+  → 429 with `Retry-After`; workshop A's key reads only A (`src/__tests__/db/public-api-keys.db.test.ts`:
+  "reads its own workshop's settings", "never sees another workshop's", "is refused with 401 once revoked",
+  "is refused with 401 once expired", "…off its allowlist…", "…lacks the permission", "…429 and Retry-After…").
+- [x] The plaintext key isn't stored or logged: test "is stored only as a hash, and never logged" (console
+  spies, row contents), and a grep of every A1 test log for `tvk_[a-z0-9]{8}_[A-Za-z0-9_-]{43}` finds 0.
+- [x] `openapi.json` validates: `features/public-api/openapi.test.ts` "is valid OpenAPI 3.1"
+  (`@apidevtools/swagger-parser`), plus "documents every public route and method".
+- [x] Revoking in the UI takes effect on the next request: the page's revoke calls `revokeApiKey`
+  (`api-keys-settings.test.tsx` "revokes after a confirmation…"), and the next request is 401 (db test above).
+
+A1 DoD (at e522a3d2 + docs):
+- `tsc --noEmit` exit 0. Biome (LF worktree): 14 errors = baseline, none in A1's files.
+- `npm test`, all 796 files in 8 chunks on Node 22.23.4 (the 7 chunks + the new `features/audit/` from
+  upstream): failing = the 14 Windows-only baseline files; plus, environment only, `lib/backup-manifest`
+  and `features/ai/workshop-columns` (CRLF working-tree copies of `build-data.ts` and the schema after
+  branch switches; both pass once converted to LF, 17/17 and 67/67) and two 5 s timeouts under load
+  (`integrations/registry` passes alone; `integrations/fiken`'s pure-computation case takes 5.8–6.5 s on
+  this machine today, untouched by the fork and by upstream's merge).
+- `npm run test:db` on `torqvoice_fork_test`: 16 files, 101 tests pass.
 
 M0 acceptance:
 - [x] NOTICE-FORK.md, README link, CLAUDE.md import, docs/fork/UPSTREAM.md (commit 0c7ec939).
@@ -169,5 +186,14 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-22 | M1: the AI workshop chat lists the lines' new columns (`jobId`, `lineKind`, `discountAmount`, `note` on parts; job, kind, technician, completion, discount on labor) and hides `sourceExtra`, `costHours` and `costRate` (`HIDDEN_COLUMNS`). **Revised after review:** the first version listed `costHours`/`costRate`. | Upstream's `workshop-columns` test requires every column to be listed or hidden. The line tables are open to anyone who may read work orders; `costRate` is a technician's pay, which upstream holds nowhere, so it stays out until a payroll or reports permission exists to gate it (revisit with A5's technician report). `sourceExtra` is raw Shopmonkey data, reachable through the API. |
 | 2026-11-22 | M1 review: `SourceRecord` is unique on `(organizationId, source, table, remoteId)`, not `(connectionId, table, remoteId)`; `connectionId` means "last fetched by". The unmerged migration was edited in place rather than followed by a second one. | Disconnecting deletes a connection and a reconnect or a restore makes a new id, so the old key would have duplicated the whole archive on the next pull. The migration exists only on this branch and the local databases; editing it keeps M1 one additive migration. |
 | 2026-11-22 | M1 review: the generated tenancy schema counts a labor line's technician as one of its owner paths (`tenancy-schema.ts`, generated from the new `technicianId` relation). Left as generated. | It loosens `assertNoForeignRows`'s ownership proof slightly, but the restore's own sanitising drops cross-workshop technician ids (`kept()`), so it isn't exploitable. The generator is upstream's; special-casing it would be a larger upstream edit. |
+| 2026-11-22 | A1: the per-key rate limit is a fork module (`public-api/Lib/rateLimit.ts`), not an option on upstream's `rateLimit`. | Upstream's limiter counts per token **per path** and answers in its own body shape; an integration spreads calls over many paths, so the API counts per key across all of them and answers with `rate_limited` and the `X-RateLimit-*` headers. Keeping it separate leaves `src/lib/rate-limit.ts` with a one-word change (`export clientAddress`), which keeps the caller's-address logic (Cloudflare trust) in one place. |
+| 2026-11-22 | A1: without `API_KEY_PEPPER` the HMAC pepper is derived from `BETTER_AUTH_SECRET` (labelled, so the two never collide); API.md §2 updated. | Keys work on an install that hasn't set the new variable; setting it later invalidates existing keys, which the doc says. |
+| 2026-11-22 | A1: API writes run as realtime author `{ userId: <service user>, source: 'system' }`. | The author type allows only web, app and system; adding `api` would widen an upstream type and its wording. |
+| 2026-11-22 | A1: `Idempotency-Key` claims the key with an in-flight row before running (the unique index decides), so a concurrent repeat gets 409 and runs nothing; a 5xx gives the key back. | The draft stored after running, so two requests at once would both run (db test "runs only one of two requests sent at once"). |
+| 2026-11-22 | A1: `GET /api/v1/settings` needs `read:settings`. | The numbering format isn't in `MEMBER_READABLE_SETTINGS`; everything else it serves is. |
+| 2026-11-22 | A1: the audit sentences name the key's prefix as `{ref}`. | Upstream's audit-summaries test renders every sentence with a fixed sample set; `ref` is in it, `prefix` isn't, and the upstream test stays untouched. |
+| 2026-11-22 | A1: `@apidevtools/swagger-parser@^13.1.0` added with npm 11.21.1 (the lockfile's own dialect); `ajv` moves 8.18 → 8.20 with it. | npm 10.9 rewrote the lockfile (dropped `libc`, changed `devOptional`), which would churn every upstream merge. |
+| 2026-11-22 | A1: the API keys page's strings in 13 languages besides English were written by Claude, not a translator. | The parity test needs every locale; they follow each locale's existing settings wording but deserve a native read before release. |
+| 2026-11-22 | A1: keys' service users show on Settings → Team and count as seats; left for A6 task 7 (label them, drop them from the seat count). | Self-hosted installs have every seat, so nothing is refused; editing a key's role on the Team page is how its scope is managed (API.md §2). |
 | 2026-11-22 | **M1 done.** DoD at 12628351: `tsc` exit 0; Biome 14 (baseline); `npm test` all 775 files on Node 22.23.4, failures = the 14 Windows-only baseline files (+ the cold-start `delete-paths` timeout); `test:db` 14 files / 82 tests on `torqvoice_fork_test`. Reviewer pass 2: ready for PR. Merged into `fork/integration` at 5605175e. | Evidence for the definition of done and acceptance (brief items 1–4). |
 | 2026-11-22 | M1 review: `readLaborSourceExtra`/`readPartSourceExtra` drop the whole object when one key is malformed. Left for M4, where the transform writes `sourceExtra` and the reader first matters. | Nothing writes or reads `sourceExtra` before M4; M4's fixture tests will show which keys need per-key leniency. |
