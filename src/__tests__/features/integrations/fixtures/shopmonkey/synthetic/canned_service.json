@@ -1,0 +1,68 @@
+{
+  "table": "canned_service",
+  "source": "synthetic",
+  "synthetic": true,
+  "note": "SYNTHETIC: invented from Shopmonkey published schemas, not recorded. See README.md.",
+  "endpoint": "/v3/canned_service",
+  "total": 1,
+  "records": [
+    {
+      "id": "syn_can_1",
+      "companyId": "syn_com_1",
+      "locationId": "syn_loc_1",
+      "createdDate": "2019-04-01T12:00:00.000Z",
+      "updatedDate": "2019-04-01T12:00:00.000Z",
+      "metadata": null,
+      "name": "Front brake service",
+      "note": "Pads, cleaner and a road test.",
+      "publicId": "1",
+      "lumpSum": false,
+      "pricing": "LineItem",
+      "recommended": false,
+      "bookable": true,
+      "deleted": false,
+      "labors": [
+        {
+          "id": "syn_cnl_1",
+          "name": "Replace front brake pads",
+          "hours": 1.5,
+          "rateCents": 14000,
+          "cannedServiceId": "syn_can_1",
+          "multiplier": 1,
+          "discountCents": 0,
+          "taxable": true,
+          "ordinal": 0,
+          "note": ""
+        }
+      ],
+      "parts": [
+        {
+          "id": "syn_cnp_1",
+          "cannedServiceId": "syn_can_1",
+          "name": "Ceramic brake pads (front)",
+          "inventoryPartId": "syn_inv_1",
+          "quantity": 1,
+          "retailCostCents": 8999,
+          "wholesaleCostCents": 4200,
+          "discountCents": 0,
+          "taxable": true,
+          "ordinal": 0,
+          "note": ""
+        }
+      ],
+      "fees": [
+        {
+          "id": "syn_cnf_1",
+          "cannedServiceId": "syn_can_1",
+          "name": "Brake cleaner",
+          "feeType": "FixedCents",
+          "amountCents": 500,
+          "percent": 0,
+          "ordinal": 0
+        }
+      ],
+      "tires": [],
+      "subcontracts": []
+    }
+  ]
+}

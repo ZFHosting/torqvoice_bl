@@ -1,0 +1,36 @@
+{
+  "table": "labor_rate",
+  "source": "synthetic",
+  "synthetic": true,
+  "note": "SYNTHETIC: invented from Shopmonkey published schemas, not recorded. See README.md.",
+  "endpoint": "/v3/labor_rate",
+  "total": 2,
+  "records": [
+    {
+      "id": "syn_rate_1",
+      "companyId": "syn_com_1",
+      "locationId": "syn_loc_1",
+      "createdDate": "2019-01-02T15:00:00.000Z",
+      "updatedDate": "2019-01-02T15:00:00.000Z",
+      "metadata": null,
+      "name": "Standard",
+      "valueCents": 14000,
+      "flatRate": false,
+      "isEmployeeRate": false,
+      "deleted": false
+    },
+    {
+      "id": "syn_rate_2",
+      "companyId": "syn_com_1",
+      "locationId": "syn_loc_1",
+      "createdDate": "2019-01-02T15:00:00.000Z",
+      "updatedDate": "2019-01-02T15:00:00.000Z",
+      "metadata": null,
+      "name": "Diagnostic",
+      "valueCents": 16000,
+      "flatRate": false,
+      "isEmployeeRate": false,
+      "deleted": false
+    }
+  ]
+}

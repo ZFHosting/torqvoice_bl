@@ -1,0 +1,36 @@
+{
+  "table": "inventory_tire",
+  "source": "synthetic",
+  "synthetic": true,
+  "note": "SYNTHETIC: invented from Shopmonkey published schemas, not recorded. See README.md.",
+  "endpoint": "POST /v3/inventory_tire/search",
+  "total": 1,
+  "records": [
+    {
+      "id": "syn_itr_1",
+      "companyId": "syn_com_1",
+      "locationId": "syn_loc_1",
+      "createdDate": "2019-03-01T12:00:00.000Z",
+      "updatedDate": "2019-03-01T12:00:00.000Z",
+      "metadata": null,
+      "name": "All-season 225/45R17",
+      "size": "225/45R17",
+      "sizeFormat": "Conventional",
+      "partNumber": "AS-2254517",
+      "sku": "AS2254517",
+      "tireModelId": "syn_tmod_1",
+      "quantity": 8,
+      "availableQuantity": 8,
+      "reservedQuantity": 0,
+      "minCriticalQuantity": 4,
+      "reorderQuantity": 4,
+      "retailCostCents": 13500,
+      "wholesaleCostCents": 9000,
+      "federalExciseTaxCents": 0,
+      "wasteTireFeeCents": 300,
+      "discountCents": 0,
+      "taxable": true,
+      "deleted": false
+    }
+  ]
+}

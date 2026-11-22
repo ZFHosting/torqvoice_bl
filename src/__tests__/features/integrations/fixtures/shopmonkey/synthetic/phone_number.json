@@ -1,0 +1,55 @@
+{
+  "table": "phone_number",
+  "source": "synthetic",
+  "synthetic": true,
+  "note": "SYNTHETIC: invented from Shopmonkey published schemas, not recorded. See README.md.",
+  "endpoint": "POST /v3/customer/phone_number/search",
+  "total": 3,
+  "records": [
+    {
+      "id": "syn_phn_1",
+      "companyId": "syn_com_1",
+      "locationId": "syn_loc_1",
+      "createdDate": "2020-05-04T16:30:00.000Z",
+      "updatedDate": "2020-05-04T16:30:00.000Z",
+      "metadata": null,
+      "customerId": "syn_cus_1",
+      "number": "+12025550101",
+      "type": "Mobile",
+      "primary": true,
+      "extension": null,
+      "country": "US",
+      "userDefinedType": null
+    },
+    {
+      "id": "syn_phn_2",
+      "companyId": "syn_com_1",
+      "locationId": "syn_loc_1",
+      "createdDate": "2021-03-03T12:00:00.000Z",
+      "updatedDate": "2021-03-03T12:00:00.000Z",
+      "metadata": null,
+      "customerId": "syn_cus_1",
+      "number": "+12025550102",
+      "type": "Landline",
+      "primary": false,
+      "extension": null,
+      "country": "US",
+      "userDefinedType": null
+    },
+    {
+      "id": "syn_phn_3",
+      "companyId": "syn_com_1",
+      "locationId": "syn_loc_1",
+      "createdDate": "2021-02-11T14:00:00.000Z",
+      "updatedDate": "2021-02-11T14:00:00.000Z",
+      "metadata": null,
+      "customerId": "syn_cus_2",
+      "number": "+12025550103",
+      "type": "Mobile",
+      "primary": true,
+      "extension": null,
+      "country": "US",
+      "userDefinedType": null
+    }
+  ]
+}

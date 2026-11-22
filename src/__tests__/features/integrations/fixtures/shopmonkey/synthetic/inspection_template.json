@@ -1,0 +1,63 @@
+{
+  "table": "inspection_template",
+  "source": "synthetic",
+  "synthetic": true,
+  "note": "SYNTHETIC: invented from Shopmonkey published schemas, not recorded. See README.md.",
+  "endpoint": "/v3/inspection_template",
+  "total": 1,
+  "records": [
+    {
+      "id": "syn_itp_1",
+      "companyId": "syn_com_1",
+      "locationId": "syn_loc_1",
+      "createdDate": "2019-05-01T12:00:00.000Z",
+      "updatedDate": "2019-05-01T12:00:00.000Z",
+      "metadata": null,
+      "name": "Multi-point inspection",
+      "note": null,
+      "deleted": false,
+      "items": [
+        {
+          "id": "syn_iti_1",
+          "inspectionTemplateId": "syn_itp_1",
+          "name": "Brakes",
+          "message": "",
+          "ordinal": 0,
+          "status": null,
+          "recommendedCannedServiceIds": [],
+          "createdDate": "2019-05-01T12:00:00.000Z"
+        },
+        {
+          "id": "syn_iti_2",
+          "inspectionTemplateId": "syn_itp_1",
+          "name": "Tires",
+          "message": "",
+          "ordinal": 1,
+          "status": null,
+          "recommendedCannedServiceIds": [],
+          "createdDate": "2019-05-01T12:00:00.000Z"
+        },
+        {
+          "id": "syn_iti_3",
+          "inspectionTemplateId": "syn_itp_1",
+          "name": "Wiper blades",
+          "message": "",
+          "ordinal": 2,
+          "status": null,
+          "recommendedCannedServiceIds": [],
+          "createdDate": "2019-05-01T12:00:00.000Z"
+        },
+        {
+          "id": "syn_iti_4",
+          "inspectionTemplateId": "syn_itp_1",
+          "name": "Battery",
+          "message": "",
+          "ordinal": 3,
+          "status": null,
+          "recommendedCannedServiceIds": [],
+          "createdDate": "2019-05-01T12:00:00.000Z"
+        }
+      ]
+    }
+  ]
+}

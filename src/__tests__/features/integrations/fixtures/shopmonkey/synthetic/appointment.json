@@ -1,0 +1,35 @@
+{
+  "table": "appointment",
+  "source": "synthetic",
+  "synthetic": true,
+  "note": "SYNTHETIC: invented from Shopmonkey published schemas, not recorded. See README.md.",
+  "endpoint": "/v3/appointment",
+  "total": 1,
+  "records": [
+    {
+      "id": "syn_apt_1",
+      "companyId": "syn_com_1",
+      "locationId": "syn_loc_1",
+      "createdDate": "2025-01-30T12:00:00.000Z",
+      "updatedDate": "2025-01-30T12:00:00.000Z",
+      "metadata": null,
+      "name": "Fleet oil change",
+      "note": "Drop off before 8.",
+      "customerId": "syn_cus_2",
+      "vehicleId": "syn_veh_2",
+      "orderId": "syn_ord_1002",
+      "startDate": "2025-02-03T14:00:00.000Z",
+      "endDate": "2025-02-03T15:00:00.000Z",
+      "allDay": false,
+      "color": "blue",
+      "confirmationStatus": "Confirmed",
+      "origin": "Shop",
+      "publicId": "syn-apt-1",
+      "recurring": false,
+      "sendConfirmation": false,
+      "sendReminder": false,
+      "useEmail": false,
+      "useSMS": false
+    }
+  ]
+}
