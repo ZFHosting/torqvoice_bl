@@ -52,8 +52,10 @@ numbering and invoice locking done the way the app does them, and make the whole
     `note` and `sourceExtra`. Carry them across by line id in the save (a `// fork:` hook, or in the A2
     service if that has landed), so editing an imported job keeps them; a line added in the app has none.
 13. **Re-link after a restore or a reconnect** (M1 review). `IntegrationLink` is not in a backup and goes
-    with its connection, so a load after either would create every row again. Before creating, look the
-    row up through its `SourceRecord` (which is backed up and keyed by workshop) or a natural key, and
+    with its connection, so a load after either would create every row again. A `SourceRecord` alone
+    can't rebuild a link (it holds no local id), so keep a backed-up remote-id ↔ local-id mapping on the
+    fork side (new nullable `localEntity`/`localId` columns on `SourceRecord`, or a small fork table in
+    the backup), or match on a natural key per entity; before creating a row, look it up that way and
     rebuild the link instead.
 
 ## Acceptance

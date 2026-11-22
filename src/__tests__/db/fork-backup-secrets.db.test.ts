@@ -92,7 +92,8 @@ describe('a backup with everything ticked and secrets included', () => {
     out.end()
     const text = chunks.join('')
 
-    // The export ran and wrote this workshop's data: its role is in it.
+    // The export ran to the end and wrote this workshop's data: the file parses, its role is in it.
+    expect(() => JSON.parse(text)).not.toThrow()
     expect(written.rows).toBeGreaterThan(0)
     expect(text).toContain('"API role"')
     expect(text).not.toContain(HASH_SENTINEL)
