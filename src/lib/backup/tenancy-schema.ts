@@ -511,6 +511,129 @@ export const TENANCY_SCHEMA: SchemaGraph = {
     },
     ownerPaths: [],
   },
+  SourceRecord: {
+    organizationId: true,
+    foreignKeys: {
+      organizationId: {
+        target: 'Organization',
+        required: true,
+        relation: 'organization',
+      },
+    },
+    ownerPaths: [],
+  },
+  WorkJob: {
+    organizationId: true,
+    foreignKeys: {
+      organizationId: {
+        target: 'Organization',
+        required: true,
+        relation: 'organization',
+      },
+      serviceRecordId: {
+        target: 'ServiceRecord',
+        required: false,
+        relation: 'serviceRecord',
+      },
+      quoteId: {
+        target: 'Quote',
+        required: false,
+        relation: 'quote',
+      },
+    },
+    ownerPaths: [],
+  },
+  CustomerContact: {
+    organizationId: true,
+    foreignKeys: {
+      organizationId: {
+        target: 'Organization',
+        required: true,
+        relation: 'organization',
+      },
+      customerId: {
+        target: 'Customer',
+        required: true,
+        relation: 'customer',
+      },
+    },
+    ownerPaths: [],
+  },
+  ServiceRecordMeta: {
+    organizationId: true,
+    foreignKeys: {
+      organizationId: {
+        target: 'Organization',
+        required: true,
+        relation: 'organization',
+      },
+      serviceRecordId: {
+        target: 'ServiceRecord',
+        required: true,
+        relation: 'serviceRecord',
+      },
+    },
+    ownerPaths: [],
+  },
+  TechnicianShift: {
+    organizationId: true,
+    foreignKeys: {
+      organizationId: {
+        target: 'Organization',
+        required: true,
+        relation: 'organization',
+      },
+      technicianId: {
+        target: 'Technician',
+        required: true,
+        relation: 'technician',
+      },
+    },
+    ownerPaths: [],
+  },
+  ApiKey: {
+    organizationId: true,
+    foreignKeys: {
+      organizationId: {
+        target: 'Organization',
+        required: true,
+        relation: 'organization',
+      },
+      serviceUserId: {
+        target: 'User',
+        required: true,
+        relation: 'serviceUser',
+      },
+    },
+    ownerPaths: [],
+  },
+  ApiIdempotencyKey: {
+    organizationId: true,
+    foreignKeys: {
+      organizationId: {
+        target: 'Organization',
+        required: true,
+        relation: 'organization',
+      },
+      apiKeyId: {
+        target: 'ApiKey',
+        required: true,
+        relation: 'apiKey',
+      },
+    },
+    ownerPaths: [],
+  },
+  DeletedRecord: {
+    organizationId: true,
+    foreignKeys: {
+      organizationId: {
+        target: 'Organization',
+        required: true,
+        relation: 'organization',
+      },
+    },
+    ownerPaths: [],
+  },
   ImportBatch: {
     organizationId: true,
     foreignKeys: {
@@ -1179,24 +1302,39 @@ export const TENANCY_SCHEMA: SchemaGraph = {
   QuotePart: {
     organizationId: false,
     foreignKeys: {
+      jobId: {
+        target: 'WorkJob',
+        required: false,
+        relation: 'job',
+      },
       quoteId: {
         target: 'Quote',
         required: true,
         relation: 'quote',
       },
     },
-    ownerPaths: [['quote']],
+    ownerPaths: [['job'], ['quote']],
   },
   QuoteLabor: {
     organizationId: false,
     foreignKeys: {
+      jobId: {
+        target: 'WorkJob',
+        required: false,
+        relation: 'job',
+      },
+      technicianId: {
+        target: 'Technician',
+        required: false,
+        relation: 'technician',
+      },
       quoteId: {
         target: 'Quote',
         required: true,
         relation: 'quote',
       },
     },
-    ownerPaths: [['quote']],
+    ownerPaths: [['job'], ['technician'], ['quote']],
   },
   StatusReport: {
     organizationId: true,
@@ -1362,24 +1500,39 @@ export const TENANCY_SCHEMA: SchemaGraph = {
   ServicePart: {
     organizationId: false,
     foreignKeys: {
+      jobId: {
+        target: 'WorkJob',
+        required: false,
+        relation: 'job',
+      },
       serviceRecordId: {
         target: 'ServiceRecord',
         required: true,
         relation: 'serviceRecord',
       },
     },
-    ownerPaths: [['serviceRecord']],
+    ownerPaths: [['job'], ['serviceRecord']],
   },
   ServiceLabor: {
     organizationId: false,
     foreignKeys: {
+      jobId: {
+        target: 'WorkJob',
+        required: false,
+        relation: 'job',
+      },
+      technicianId: {
+        target: 'Technician',
+        required: false,
+        relation: 'technician',
+      },
       serviceRecordId: {
         target: 'ServiceRecord',
         required: true,
         relation: 'serviceRecord',
       },
     },
-    ownerPaths: [['serviceRecord']],
+    ownerPaths: [['job'], ['technician'], ['serviceRecord']],
   },
   RecurringInvoice: {
     organizationId: false,

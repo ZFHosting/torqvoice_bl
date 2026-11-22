@@ -23,6 +23,12 @@ model Technician {
   absences       TechnicianAbsence[]
   /// Jobs this person works on beside the job's own technician.
   helping        ServiceRecordHelper[]
+  /// fork: labor lines this technician did (X3)
+  laborLines      ServiceLabor[]
+  /// fork: quote labor lines planned for this technician (X3)
+  quoteLaborLines QuoteLabor[]
+  /// fork: shifts not tied to a work order (X6)
+  shifts          TechnicianShift[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

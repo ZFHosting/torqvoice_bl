@@ -85,6 +85,9 @@ model Quote {
   laborItems  QuoteLabor[]
   attachments QuoteAttachment[]
 
+  /// fork: the jobs (Shopmonkey services) this quote's lines are grouped under (X2)
+  workJobs WorkJob[]
+
   @@index([organizationId])
   @@map("quotes")
 }
@@ -136,10 +139,25 @@ model QuotePart {
   /// rewritten on every save, so this is the array index they were sent in.
   sortOrder Int @default(0)
 
+  /// fork: the job this line is grouped under (X2)
+  jobId          String?
+  /// fork: the job relation (X2)
+  job            WorkJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  /// fork: the line's kind in its source: part, tire or subcontract (X3)
+  lineKind       String?
+  /// fork: the line's discount in its source, already taken off `total` (X3)
+  discountAmount Float?
+  /// fork: the line's note in its source (X3)
+  note           String?
+  /// fork: source fields with no column (X3, src/integrations/shopmonkey/schema/sourceExtra.ts)
+  sourceExtra    Json?
+
   quoteId String
   quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 
   @@index([quoteId])
+  // fork: lines by job
+  @@index([jobId])
   @@map("quote_parts")
 }
 
@@ -156,9 +174,33 @@ model QuoteLabor {
   /// Where the line sits on the quote. See QuotePart.sortOrder.
   sortOrder   Int     @default(0)
 
+  /// fork: the job this line is grouped under (X2)
+  jobId          String?
+  /// fork: the job relation (X2)
+  job            WorkJob?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  /// fork: the line's kind in its source: labor, fee, epa or shopSupplies (X3)
+  lineKind       String?
+  /// fork: the technician who did (or is to do) the work (X3)
+  technicianId   String?
+  /// fork: the technician relation (X3)
+  technician     Technician? @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+  /// fork: whether the work was marked done in its source (X3)
+  completed      Boolean?
+  /// fork: hours paid to the technician, for profitability (X3)
+  costHours      Float?
+  /// fork: rate paid to the technician per hour (X3)
+  costRate       Float?
+  /// fork: the line's discount in its source, already taken off `total` (X3)
+  discountAmount Float?
+  /// fork: source fields with no column (X3, src/integrations/shopmonkey/schema/sourceExtra.ts)
+  sourceExtra    Json?
+
   quoteId String
   quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 
   @@index([quoteId])
+  // fork: lines by job and by technician
+  @@index([jobId])
+  @@index([technicianId])
   @@map("quote_labor")
 }

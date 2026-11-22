@@ -72,6 +72,8 @@ model User {
   tireMovements            TireMovement[]
   tireTreatments           TireTreatment[]
   importBatches            ImportBatch[]
+  /// fork: the public API key this user is the service user of
+  apiKey                   ApiKey?                   @relation("ApiKeyServiceUser")
 
   @@map("users")
 }
