@@ -22,10 +22,14 @@ const NOT_FILES: Record<string, string> = {
   // fork: the Shopmonkey importer's and public API's columns (prisma/schema/fork.prisma)
   'SourceRecord.payload':
     'a Shopmonkey object as fetched; any URL in it points at Shopmonkey, and an imported file is its own attachment row',
-  'ServicePart.sourceExtra': 'Shopmonkey line fields with no Torqvoice column; any URL points at Shopmonkey',
-  'ServiceLabor.sourceExtra': 'Shopmonkey line fields with no Torqvoice column; any URL points at Shopmonkey',
-  'QuotePart.sourceExtra': 'Shopmonkey line fields with no Torqvoice column; any URL points at Shopmonkey',
-  'QuoteLabor.sourceExtra': 'Shopmonkey line fields with no Torqvoice column; any URL points at Shopmonkey',
+  'ServicePart.sourceExtra':
+    'Shopmonkey line fields with no Torqvoice column; any URL points at Shopmonkey',
+  'ServiceLabor.sourceExtra':
+    'Shopmonkey line fields with no Torqvoice column; any URL points at Shopmonkey',
+  'QuotePart.sourceExtra':
+    'Shopmonkey line fields with no Torqvoice column; any URL points at Shopmonkey',
+  'QuoteLabor.sourceExtra':
+    'Shopmonkey line fields with no Torqvoice column; any URL points at Shopmonkey',
   'ApiIdempotencyKey.responseBody':
     'a cached API response, replayed to a retried request for 24 hours; never a live use of a file',
   'AuditLog.metadata': 'history of what happened; never a live use of a file',

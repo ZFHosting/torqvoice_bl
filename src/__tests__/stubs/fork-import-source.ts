@@ -34,7 +34,10 @@ export function readImportSourceWithFork(root = process.cwd()): string {
   }
 
   const inline = (source: string) =>
-    source.replace(/\.\.\.(\w+)\(([^()]*)\)/g, (spread, name: string) => helpers.get(name) ?? spread)
+    source.replace(
+      /\.\.\.(\w+)\(([^()]*)\)/g,
+      (spread, name: string) => helpers.get(name) ?? spread
+    )
 
   return `${inline(importSource)}\n${inline(forkSource)}`
 }
