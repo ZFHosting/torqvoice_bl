@@ -40,7 +40,6 @@ function client(fetchImpl: typeof fetch) {
 describe('assertReadOnly', () => {
   it('allows GET and allowlisted search POSTs only', () => {
     expect(() => assertReadOnly('GET', '/v3/order')).not.toThrow()
-    expect(() => assertReadOnly('POST', '/v3/order/search')).not.toThrow()
     expect(() => assertReadOnly('POST', '/v3/customer/email/search')).not.toThrow()
     expect(() => assertReadOnly('POST', '/v3/integration/payment/search')).not.toThrow()
     for (const [method, p] of [
@@ -52,6 +51,7 @@ describe('assertReadOnly', () => {
       ['POST', '/v3/order/search/../abc'],
       ['POST', '/v3/order/64b0c1d2e3f4a5b6c7d8e9f0/search'],
       ['POST', '/v3/customer/email'],
+      ['POST', '/v3/order/search'],
     ]) {
       expect(() => assertReadOnly(method, p), `${method} ${p}`).toThrow(ReadOnlyViolation)
     }
@@ -59,6 +59,17 @@ describe('assertReadOnly', () => {
 })
 
 describe('createSpikeClient', () => {
+  it('refuses a path that leaves the API origin, and never follows redirects', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { success: true, data: [] }))
+    const { api } = client(fetchImpl as unknown as typeof fetch)
+    for (const p of ['https://evil.invalid/v3/order', '//evil.invalid/v3/order', '/v2/order']) {
+      await expect(api.request({ path: p }), p).rejects.toThrow(ReadOnlyViolation)
+    }
+    expect(fetchImpl).not.toHaveBeenCalled()
+    await api.request({ path: '/v3/order' })
+    expect((fetchImpl.mock.calls[0][1] as RequestInit).redirect).toBe('manual')
+  })
+
   it('refuses a write before any network call', async () => {
     const fetchImpl = vi.fn()
     const { api } = client(fetchImpl as unknown as typeof fetch)

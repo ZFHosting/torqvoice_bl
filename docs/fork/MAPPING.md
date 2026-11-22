@@ -87,7 +87,7 @@ children → calendar → inspections → time.
 | Company / Location | `Organization` + `AppSetting` | **One location per install.** More than one location needs Torqvoice's white-label license (`maxOrganizations`). The importer takes a `locationId` setting and imports that location only. |
 | Tax Config | Workshop tax settings (`src/features/settings/Lib/workshopTax.ts`) | Default rate from `taxPercent` (US) or the GST/PST/HST percents (CA), which become tax components. Shape **[docs]**, RESULTS S6. |
 | Labor Rate | Workshop default labor rate setting | Others are archive only. |
-| Workflow Status | `WorkOrderStatus` | Each one is filed under a stage (`pending`, `in-progress`, `completed`) by an operator mapping in the import UI. The default comes from position, and `name` and `sortOrder` are kept. |
+| Workflow Status | `WorkOrderStatus` | Each one is filed under a stage (`pending`, `in-progress`, `completed`) by an operator mapping in the import UI. The default, until the operator changes it: a status in Shopmonkey's invoice workflow → `completed`; in the repair-order workflow, the first by `position` → `pending` and the rest → `in-progress` (RESULTS S9, blocker B6). `name` and `sortOrder` are kept. |
 | User | `Technician` (+ optional `User` invite) | A Technician is created for every Shopmonkey user that appears on labor lines, assignments or timesheets. Login accounts are invited by hand in the UI; the importer never creates passwords. |
 | Customer | `Customer` | See §4. |
 | Email, PhoneNumber | `Customer.email` / `Customer.phone` (primary) + `CustomerContact` (X4) | Primary first, then the oldest. |

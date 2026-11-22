@@ -9,6 +9,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { FAKE_PHONE_PATTERN } from '../../../../../scripts/shopmonkey/anonymize'
 
 const ROOT = path.join(process.cwd(), 'src/__tests__/features/integrations/fixtures/shopmonkey')
 
@@ -49,8 +50,13 @@ describe.each(sets)('Shopmonkey fixtures: %s', (set, fixtures) => {
     const text = [...fixtures.values()].map((f) => JSON.stringify(f.records)).join('\n')
     const emails = text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) ?? []
     expect(emails.filter((e) => !e.endsWith('@example.test'))).toEqual([])
-    const phones = text.match(/\+\d{11}/g) ?? []
-    expect(phones.filter((p) => !/^\+1202555 ?01\d\d$/.test(p))).toEqual([])
+    // Any phone shape with ten or more digits: +15035550187, (503) 555-0187, 503.555.0187.
+    const phones =
+      text.match(/(?<![\w-])\+?\d{0,3}[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?![\w-])/g) ?? []
+    const normalized = phones.map((p) => p.replace(/[\s().-]/g, ''))
+    expect(
+      normalized.filter((p) => !FAKE_PHONE_PATTERN.test(p.startsWith('+') ? p : `+${p}`))
+    ).toEqual([])
     const vins = text.match(/\b[A-HJ-NPR-Z0-9]{17}\b/g) ?? []
     expect(vins.filter((v) => !v.startsWith('TVFX'))).toEqual([])
     expect(text).not.toMatch(/@(gmail|yahoo|hotmail|outlook|icloud)\./i)
@@ -104,6 +110,13 @@ describe.each(sets)('Shopmonkey fixtures: %s', (set, fixtures) => {
     expect(payments.some((p) => p.transactionType === 'Refund')).toBe(true)
     expect(payments.some((p) => p.deposit === true)).toBe(true)
     expect(payments.some((p) => p.status !== 'Succeeded')).toBe(true)
+    // A refunded charge carries Shopmonkey's own refund summary too (MAPPING §6.5: never subtract it twice).
+    expect(payments.some((p) => (p.refundedAmountCents as number) > 0)).toBe(true)
+    if (set === 'synthetic') {
+      for (const table of ['authorization', 'inventory_labor', 'inventory_fee', 'label']) {
+        expect(fixtures.get(table)?.records.length, table).toBeGreaterThan(0)
+      }
+    }
     // A complex order: several services, a fee, a discount, a partial payment and a refund.
     const complex = orders.find((o) => {
       const svcs = services.filter((s) => s.orderId === o.id)

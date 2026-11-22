@@ -10,7 +10,11 @@ either changed `MAPPING.md` or is cited from it.
 > `src/__tests__/features/integrations/fixtures/shopmonkey/synthetic/` are **synthetic**, built from the
 > documented shapes, not recorded. When a key is available: run `scripts/shopmonkey/spike.ts`, then
 > `scripts/shopmonkey/anonymize-fixtures.ts`, and replace each "docs only" answer below with the recorded
-> fact. **T1–T7 are confirmed** against this codebase and a real PostgreSQL.
+> fact. **T1–T7 are answered from this codebase**: T1, T2 and T5 also ran against a real PostgreSQL
+> (the spike below); T3, T4, T6 and T7 come from reading the code, cited by file and line. The brief
+> asked for screenshots where the answer is visual (T3, T4). None were taken, because this run had no
+> browser driving the app. The invoice side of both is covered by the T5 PDF's extracted text, and the
+> screens are checked by the M8 Playwright spec, which renders imported fixtures.
 
 How the Torqvoice spikes were run: `scripts/spikes/torqvoice.spike.ts`, a throwaway Vitest file run
 against the local test database (`E2E_DATABASE_URL=... npx vitest run --config
@@ -367,5 +371,9 @@ step (MAPPING §9) only sets an empty format when every imported number is all d
 
 ### S12. Counts
 
-Open until a key exists: the spike reads `meta.total` (if present) for every table and prints it to
-`_summary.json`. Sizing assumption until then: 50,000 orders (blocker B3).
+Open until a key exists. The spike records `meta.total` where a list or search returns one: orders
+(the paging probe), customers (an unfiltered, sorted search), and every catalog and configuration table
+it samples. Vehicles have no list, so it estimates them from the customers' own `vehicleCount` (and
+vehicles without an owner are only reachable through orders). Files are counted per order from
+`files[]`, not in total. Some searches document no `meta` at all, so a total may come back empty;
+`_summary.json` says which. Sizing assumption until then: 50,000 orders (blocker B3).

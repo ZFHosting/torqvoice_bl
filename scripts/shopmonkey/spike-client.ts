@@ -14,14 +14,25 @@ import type { RawResponseFile } from './raw'
 export const SHOPMONKEY_BASE_URL = 'https://api.shopmonkey.cloud'
 
 /**
- * POST endpoints that only read. PROVISIONAL(M0:S2): from the docs; extend only with paths whose
- * documentation says they search.
+ * POST endpoints that only read: every `.../search` route in Shopmonkey's API reference
+ * (docs/fork/spikes/RESULTS.md S4). Exact paths, not a pattern, so nothing new is allowed by accident.
  */
-export const SEARCH_ALLOWLIST: readonly RegExp[] = [
-  // /v3/customer/search, /v3/customer/email/search, /v3/integration/payment/search. Letters and
-  // underscores only between the slashes, so an id (which has digits) can never sit in the path.
-  /^\/v3(?:\/[a-z_]+){1,3}\/search$/,
-]
+export const SEARCH_ALLOWLIST: ReadonlySet<string> = new Set([
+  '/v3/appointment/search',
+  '/v3/customer/search',
+  '/v3/customer/email/search',
+  '/v3/customer/phone_number/search',
+  '/v3/integration/payment/search',
+  '/v3/inventory_fee/search',
+  '/v3/inventory_labor/search',
+  '/v3/inventory_part/search',
+  '/v3/inventory_tire/search',
+  '/v3/inventory_transfer/search',
+  '/v3/part_return/search',
+  '/v3/purchase_order/search',
+  '/v3/statement/search',
+  '/v3/timesheet/search',
+])
 
 export class ReadOnlyViolation extends Error {
   constructor(method: string, pathName: string) {
@@ -33,7 +44,7 @@ export class ReadOnlyViolation extends Error {
 export function assertReadOnly(method: string, pathName: string): void {
   const m = method.toUpperCase()
   if (m === 'GET') return
-  if (m === 'POST' && SEARCH_ALLOWLIST.some((re) => re.test(pathName))) return
+  if (m === 'POST' && SEARCH_ALLOWLIST.has(pathName)) return
   throw new ReadOnlyViolation(m, pathName)
 }
 
@@ -88,7 +99,11 @@ export function createSpikeClient(options: {
   async function request(req: SpikeRequest): Promise<SpikeResponse> {
     const method = req.method ?? 'GET'
     assertReadOnly(method, req.path)
+    // A path, never a URL: anything that resolves off Shopmonkey's API would take the key with it.
     const url = new URL(req.path, SHOPMONKEY_BASE_URL)
+    if (url.origin !== SHOPMONKEY_BASE_URL || !url.pathname.startsWith('/v3/')) {
+      throw new ReadOnlyViolation(method, req.path)
+    }
     for (const [k, v] of Object.entries(req.query ?? {}))
       if (v !== undefined) url.searchParams.set(k, String(v))
 
@@ -97,6 +112,8 @@ export function createSpikeClient(options: {
       const started = Date.now()
       const res = await fetchImpl(url, {
         method,
+        // A redirect would repeat the request somewhere this guard never checked.
+        redirect: 'manual',
         headers: {
           Authorization: `Bearer ${options.apiKey}`,
           Accept: 'application/json',

@@ -31,6 +31,13 @@ Recorded fixtures use the same format with `source: "recorded"` and `anonymized:
 | Several emails and phones per customer (embedded as `emails[]` / `phoneNumbers[]`, as Shopmonkey returns them), marketing opt-in on one | `customer.json` |
 | Vehicle with two owners over time | `vehicle_owner.json` (`syn_veh_3`) |
 | Shifts (`General`), one still open, and a labor timesheet | `timesheet.json` |
+| The customer's authorization of order 1003, per service (one declined) | `authorization.json` |
+| Catalog labor and fee items, labels | `inventory_labor.json`, `inventory_fee.json`, `label.json` |
+| A refunded charge carrying Shopmonkey's own `refundedAmountCents` (never subtracted twice) | `payment.json` |
+
+Not covered: Fleet (no Fleet table in the published schemas) and Message (archive only, blocker B4).
+Records carry the fields the importer reads plus a few around them, not every documented field
+(Order has about 64 of 111): the unmapped-field checks in M4 need recorded fixtures to mean much.
 
 ## Conventions
 
