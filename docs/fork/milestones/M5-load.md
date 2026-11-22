@@ -46,6 +46,15 @@ numbering and invoice locking done the way the app does them, and make the whole
     Confirm it isn't one of the events in `WEBHOOK_EVENTS`, so no webhook fires.
 11. CLI: `scripts/shopmonkey/run.ts load --connection <id> [--dry-run]`. A dry run executes every
     transaction and then rolls it back, and prints what would change.
+12. **Keep the fork's line columns through edits in the app** (M1 review). Upstream's work order and quote
+    saves (`serviceActions.ts`, `quoteActions.ts`) delete every line and recreate it from what the form
+    sends, so an edit drops `jobId`, `lineKind`, `technicianId`, `completed`, `cost*`, `discountAmount`,
+    `note` and `sourceExtra`. Carry them across by line id in the save (a `// fork:` hook, or in the A2
+    service if that has landed), so editing an imported job keeps them; a line added in the app has none.
+13. **Re-link after a restore or a reconnect** (M1 review). `IntegrationLink` is not in a backup and goes
+    with its connection, so a load after either would create every row again. Before creating, look the
+    row up through its `SourceRecord` (which is backed up and keyed by workshop) or a natural key, and
+    rebuild the link instead.
 
 ## Acceptance
 - [ ] `npm run test:db`: loading the fixture set into an empty workshop, then loading it again, gives identical row counts and no updates on the second run.
@@ -54,6 +63,9 @@ numbering and invoice locking done the way the app does them, and make the whole
 - [ ] An unpaid fixture invoice is unpaid in Torqvoice; a partly paid one shows the right balance.
 - [ ] Undo after a load leaves the workshop as it was before (counts per table).
 - [ ] No webhook deliveries are created by a load (assert `WebhookDelivery` count unchanged with an active `*` webhook).
+- [ ] Editing and saving an imported work order and an imported quote in the app keeps every fork column on
+      the lines it kept (task 12).
+- [ ] After a restore of the workshop (links gone), a second load creates no duplicate rows (task 13).
 
 ## Out of scope
 The reconciliation report (M6) and the UI (M8).

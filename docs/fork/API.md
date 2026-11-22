@@ -43,8 +43,8 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
 
 | Model | Fields |
 | --- | --- |
-| `ApiKey` | id, organizationId, name, prefix, keyHash, serviceUserId, createdById, ipAllowlist String[], expiresAt?, revokedAt?, lastUsedAt?, lastUsedIp?, createdAt |
-| `ApiIdempotencyKey` | id, apiKeyId, key, requestHash, responseStatus, responseBody Json, createdAt (purged after 24 h by a cron in `src/lib/cron/`) |
+| `ApiKey` | id, organizationId, name, prefix, keyHash, serviceUserId, createdById, ipAllowlist String[], expiresAt?, revokedAt?, lastUsedAt?, lastUsedIp?, createdAt, updatedAt |
+| `ApiIdempotencyKey` | id, organizationId, apiKeyId, key, requestHash, responseStatus, responseBody Json, createdAt (purged after 24 h by a cron in `src/lib/cron/`) |
 | `DeletedRecord` | id, organizationId, entityType, entityId, deletedAt, actorUserId? (written by every domain service delete) |
 
 ## 3. Conventions

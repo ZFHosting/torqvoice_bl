@@ -183,7 +183,7 @@ CREATE INDEX "source_records_organizationId_table_remoteId_idx" ON "source_recor
 CREATE INDEX "source_records_organizationId_updatedAt_id_idx" ON "source_records"("organizationId", "updatedAt", "id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "source_records_connectionId_table_remoteId_key" ON "source_records"("connectionId", "table", "remoteId");
+CREATE UNIQUE INDEX "source_records_organizationId_source_table_remoteId_key" ON "source_records"("organizationId", "source", "table", "remoteId");
 
 -- CreateIndex
 CREATE INDEX "work_jobs_serviceRecordId_idx" ON "work_jobs"("serviceRecordId");
@@ -196,6 +196,9 @@ CREATE INDEX "work_jobs_organizationId_updatedAt_id_idx" ON "work_jobs"("organiz
 
 -- CreateIndex
 CREATE INDEX "customer_contacts_customerId_idx" ON "customer_contacts"("customerId");
+
+-- CreateIndex
+CREATE INDEX "customer_contacts_organizationId_kind_value_idx" ON "customer_contacts"("organizationId", "kind", "value");
 
 -- CreateIndex
 CREATE INDEX "customer_contacts_organizationId_updatedAt_id_idx" ON "customer_contacts"("organizationId", "updatedAt", "id");
@@ -225,13 +228,16 @@ CREATE UNIQUE INDEX "api_keys_serviceUserId_key" ON "api_keys"("serviceUserId");
 CREATE INDEX "api_keys_organizationId_idx" ON "api_keys"("organizationId");
 
 -- CreateIndex
+CREATE INDEX "api_idempotency_keys_organizationId_idx" ON "api_idempotency_keys"("organizationId");
+
+-- CreateIndex
 CREATE INDEX "api_idempotency_keys_createdAt_idx" ON "api_idempotency_keys"("createdAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "api_idempotency_keys_apiKeyId_key_key" ON "api_idempotency_keys"("apiKeyId", "key");
 
 -- CreateIndex
-CREATE INDEX "deleted_records_organizationId_deletedAt_idx" ON "deleted_records"("organizationId", "deletedAt");
+CREATE INDEX "deleted_records_organizationId_deletedAt_id_idx" ON "deleted_records"("organizationId", "deletedAt", "id");
 
 -- CreateIndex
 CREATE INDEX "deleted_records_organizationId_entityType_deletedAt_idx" ON "deleted_records"("organizationId", "entityType", "deletedAt");
@@ -316,3 +322,8 @@ ALTER TABLE "service_labor" ADD CONSTRAINT "service_labor_jobId_fkey" FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE "service_labor" ADD CONSTRAINT "service_labor_technicianId_fkey" FOREIGN KEY ("technicianId") REFERENCES "technicians"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- A job belongs to a work order or to a quote, never both and never neither. The table is new, so
+-- it holds from the start.
+ALTER TABLE "work_jobs" ADD CONSTRAINT "work_jobs_one_parent"
+  CHECK (("serviceRecordId" IS NULL) <> ("quoteId" IS NULL));

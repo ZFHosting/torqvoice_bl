@@ -8,8 +8,9 @@ model SourceRecord {
   id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  /// The IntegrationConnection that fetched it. Deliberately not a foreign key: connections are left
-  /// out of backups (they hold credentials), and a restored archive must not depend on one existing.
+  /// The IntegrationConnection that last fetched it. Deliberately not a foreign key, and not part of
+  /// the record's identity: connections are left out of backups (they hold credentials) and a
+  /// reconnect makes a new one, so a restored or re-pulled archive must not depend on one existing.
   connectionId    String
   /// The source system, `shopmonkey`.
   source          String    @default("shopmonkey")
@@ -26,7 +27,8 @@ model SourceRecord {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  @@unique([connectionId, table, remoteId])
+  /// One record per source object per workshop (one Shopmonkey connection per workshop, MAPPING §3).
+  @@unique([organizationId, source, table, remoteId])
   @@index([organizationId, table, remoteId])
   @@index([organizationId, updatedAt, id])
   @@map("source_records")
@@ -90,6 +92,8 @@ model CustomerContact {
   updatedAt      DateTime     @updatedAt
 
   @@index([customerId])
+  /// Finding a customer by any of their emails or phones (API `?q=`, the importer's matching).
+  @@index([organizationId, kind, value])
   @@index([organizationId, updatedAt, id])
   @@map("customer_contacts")
 }
@@ -186,6 +190,7 @@ model ApiIdempotencyKey {
   createdAt      DateTime     @default(now())
 
   @@unique([apiKeyId, key])
+  @@index([organizationId])
   @@index([createdAt])
   @@map("api_idempotency_keys")
 }
@@ -201,7 +206,8 @@ model DeletedRecord {
   deletedAt      DateTime     @default(now())
   actorUserId    String?
 
-  @@index([organizationId, deletedAt])
+  /// `GET /api/v1/deleted` pages by (deletedAt, id).
+  @@index([organizationId, deletedAt, id])
   @@index([organizationId, entityType, deletedAt])
   @@map("deleted_records")
 }

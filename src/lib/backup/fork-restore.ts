@@ -185,20 +185,22 @@ export async function restoreTechnicianShifts(
   organizationId: string,
   technicianIds: ReadonlySet<string>
 ) {
+  // Each shift belongs to the technician it is nested under, whatever id the file wrote on it.
   const shifts = rowsOf(technicians)
-    .flatMap((t) => rowsOf(t.shifts))
+    .flatMap((t) => rowsOf(t.shifts).map((shift) => ({ shift, technicianId: t.id })))
     .filter(
-      (s) =>
-        typeof s.id === 'string' &&
-        technicianIds.has(s.technicianId as string) &&
-        date(s.clockIn) !== null
+      ({ shift, technicianId }) =>
+        typeof shift.id === 'string' &&
+        typeof technicianId === 'string' &&
+        technicianIds.has(technicianId) &&
+        date(shift.clockIn) !== null
     )
   if (shifts.length === 0) return
   await tx.technicianShift.createMany({
-    data: shifts.map((s) => ({
+    data: shifts.map(({ shift: s, technicianId }) => ({
       id: s.id as string,
       organizationId,
-      technicianId: s.technicianId as string,
+      technicianId: technicianId as string,
       clockIn: date(s.clockIn) as Date,
       clockOut: date(s.clockOut),
       durationMinutes: int(s.durationMinutes),
