@@ -9,26 +9,80 @@ Statuses: `todo` · `in_progress` · `done` · `blocked` (needs a human; say wha
 `provisional` (done against synthetic fixtures; must be re-verified with real Shopmonkey data, which
 counts as done for the hook).
 
+## Summary (autopilot stopped 2026-11-22)
+
+**Where it stands.** M0 is merged as `provisional`. M1 is finished in code and passes everything that ran,
+but its definition of done is incomplete: Claude Code **stopped the full `npm test` + `tsc` run because
+the machine was critically low on memory**, and its instruction is not to restart that run unless you ask.
+Every other milestone depends on M1, so they're marked `blocked` (waiting on M1) rather than started.
+
+**Done**
+- **M0** (`provisional`, merged into `fork/integration` at 249e3dd3, pushed): fork notice, the Claude Code
+  kit, the upstream routine; Torqvoice spikes T1–T7 answered (T1, T2, T5 on Postgres); Shopmonkey spikes
+  S1–S12 answered **from the published docs only**; a read-only spike client, a replace-by-default
+  anonymizer with a leak check, the fixture CLI; 26 tables of **synthetic** fixtures. The
+  migration-reviewer passed it after three rounds (`ready for PR`). Provisional because no Shopmonkey key
+  was available: see B1 and "Re-verify with real Shopmonkey data".
+
+**Blocked**
+- **M1** (`fork/M1-schema-extensions`, pushed, not merged): `fork.prisma` (X1–X6, API keys, idempotency,
+  tombstones), the additive migration `20261122064950_fork_import_foundation`, backup and restore of the new
+  tables, the `sourceExtra` schema. Verified: `npm run test:db` 13 files / 81 tests pass (incl. the backup
+  round trip over every new column and the restore tenancy tests); Biome at the 14-error upstream baseline;
+  the backup, manifest, tenancy and fork unit tests pass. **Not yet verified: the full `npm test` and
+  `tsc --noEmit` (stopped for memory), then the migration-reviewer pass and the merge.** Blocker B12.
+- **A1–A6, M2–M9**: waiting on M1 (B12). A1 has drafts in the session scratchpad (`a1/`), which may be
+  cleared; the brief is enough to start again.
+
+**What I need from you**
+1. **B12:** close other memory-heavy programs, then either tell me to continue (rerun `/autopilot`: it
+   reruns M1's checks, gets the review and merges), or run the checks yourself (commands below) and say
+   so. If you'd rather Claude Code didn't stop background commands under memory pressure, start it with
+   `CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP=1`.
+2. **B1:** a Shopmonkey API key (admin-created) plus a secret `ANONYMIZE_SALT`, to record real fixtures and
+   turn M0's provisional answers into facts.
+3. **B2–B8:** confirm or change the defaults taken for PLAN §6 (EDS, volumes, messages, PDFs, workflow
+   status stages, staff logins, cutover window).
+4. **B9:** the licensing question for hosting this for BlueLabel (ELv2: the licensor's call).
+5. **B10:** whether a vehicle's current owner may see a previous owner's jobs in the portal.
+6. **B11:** confirm the committed Claude Code kit, especially the Stop hook, which applies to every
+   Claude Code session in this repo.
+
+**Commands to verify** (in the repo; the local database is the Docker container `torqvoice-bl-db` on
+port 5442, which can be stopped with `docker stop torqvoice-bl-db` when not needed):
+
+```bash
+git checkout fork/M1-schema-extensions
+npx prisma generate                                   # Prisma 7's migrate dev doesn't generate
+npm test                                              # compare with the baseline list in the Decisions log
+NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit
+sed -i 's/\r$//' prisma/schema/*.prisma               # Windows checkout only: the db tests parse the schema
+E2E_DATABASE_URL=postgresql://torqvoice:torqvoice@localhost:5442/torqvoice_test npm run test:db
+```
+
+The latest ledger is on `fork/M1-schema-extensions` (this file); `fork/integration` has it as of the M0
+merge.
+
 ## Milestones
 
 | Id | Status | Branch | Notes |
 | --- | --- | --- | --- |
 | M0 | provisional | fork/M0-setup-and-spikes | Merged 249e3dd3. S1–S12 from docs only and synthetic fixtures: re-verify with a key (B1). Reviewer: ready for PR after 3 passes. |
-| M1 | in_progress | fork/M1-schema-extensions | |
-| A1 | todo | | |
-| A2 | todo | | |
-| M2 | todo | | |
-| M3 | todo | | |
-| M4 | todo | | |
-| M5 | todo | | |
-| A3 | todo | | |
-| A4 | todo | | |
-| M6 | todo | | |
-| M7 | todo | | |
-| M8 | todo | | |
-| A5 | todo | | |
-| A6 | todo | | |
-| M9 | todo | | optional, last |
+| M1 | blocked | fork/M1-schema-extensions | Code done, test:db passes; full `npm test` + `tsc` stopped for low memory, then review and merge (B12). |
+| A1 | blocked | | Waits on M1 (B12). |
+| A2 | blocked | | Waits on M1 (B12). |
+| M2 | blocked | | Waits on M1 (B12). |
+| M3 | blocked | | Waits on M1 (B12). |
+| M4 | blocked | | Waits on M1 (B12). |
+| M5 | blocked | | Waits on M1 (B12). |
+| A3 | blocked | | Waits on M1 (B12). |
+| A4 | blocked | | Waits on M1 (B12). |
+| M6 | blocked | | Waits on M1 (B12). |
+| M7 | blocked | | Waits on M1 (B12). |
+| M8 | blocked | | Waits on M1 (B12). |
+| A5 | blocked | | Waits on M1 (B12). |
+| A6 | blocked | | Waits on M1 (B12). |
+| M9 | blocked | | optional, last. Waits on M1 (B12). |
 
 ## Current step
 
@@ -63,7 +117,8 @@ Environment (local, Windows):
   the round-trip test splits the schema on `\n` and a CRLF checkout leaves every field unparsed.
 - [ ] Windows: `scripts/generate-tenancy-schema.ts` writes the file then fails to spawn `npx`; run
   `npx biome format --write src/lib/backup/tenancy-schema.ts` after it.
-- [ ] DoD, reviewer, merge.
+- [ ] DoD: Biome done (14 = baseline); `test:db` done; **full `npm test` and `tsc` were stopped by Claude Code
+  for low system memory and must not be restarted unasked (B12)**. Then the migration-reviewer, then merge.
 
 **A1 drafts** (keys.server, withPublicApi, pagination, etag, idempotency, rateLimit, clientIp, errors,
 openapi, settings resource, apiKeyActions, ApiKeysSettings component, apiKeys.en.json) are in the session
@@ -99,6 +154,7 @@ M0 acceptance:
 | B9 | All | **Licensing:** hosting this fork for BlueLabel as a third party is the licensor's call under ELv2 (FORK.md). Needs a decision from Torqvoice's licensor before production hosting. Not a code task. | 2026-11-22 |
 | B10 | M5 (T3) | **Previous owners' orders.** When a Shopmonkey order's customer differs from the vehicle's current owner, the importer sets `ServiceRecord.customerId` (MAPPING §6.1), so invoices bill the right person. Side effect (upstream behaviour, `docs/fork/spikes/RESULTS.md` T3): the vehicle's **current owner sees those jobs listed in the customer portal, with the previous owner's name and address** on the sheet. Default taken: keep MAPPING (set `customerId`). Alternative if that's not acceptable: split such vehicles into one vehicle per owner period. | 2026-11-22 |
 | B11 | All | **Confirm the committed Claude Code config.** The `.claude/` kit (settings.json with the Stop hook `keep-going.sh`, the autopilot and milestone commands, the reviewer agent) and the autopilot section of `docs/fork/README.md` were in the working tree, untracked, when this run started, newer than `bluelabel-fork-kit.zip`; M0 committed them as found. The Stop hook runs in **every** Claude Code session in this repo, not only `/autopilot`: it refuses to stop while a milestone is `todo` or `in_progress` (escape: `touch .claude/STOP`). Confirm that's wanted, or scope it. | 2026-11-22 |
+| B12 | M1 (and everything after it) | **Re-run M1's checks.** Claude Code stopped the background `npm test` + `tsc` run because the machine was critically low on memory, and said not to restart it unasked. Close other memory-heavy programs, then rerun `/autopilot` (it picks up at M1's checks, review and merge) or run the commands in the Summary yourself. | 2026-11-22 |
 
 ## Re-verify with real Shopmonkey data
 
