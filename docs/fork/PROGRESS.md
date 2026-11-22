@@ -11,6 +11,9 @@ counts as done for the hook).
 
 ## Summary (autopilot stopped 2026-11-22)
 
+> **Resumed 2026-11-22 (`/autopilot` rerun):** B12 is resolved and M1's checks pass. The Milestones table
+> and Current step hold the live state; this summary is out of date until the run stops and rewrites it.
+
 **Where it stands.** M0 is merged as `provisional`. M1 is finished in code and passes everything that ran,
 but its definition of done is incomplete: Claude Code **stopped the full `npm test` + `tsc` run because
 the machine was critically low on memory**, and its instruction is not to restart that run unless you ask.
@@ -68,21 +71,21 @@ merge.
 | Id | Status | Branch | Notes |
 | --- | --- | --- | --- |
 | M0 | provisional | fork/M0-setup-and-spikes | Merged 249e3dd3. S1–S12 from docs only and synthetic fixtures: re-verify with a key (B1). Reviewer: ready for PR after 3 passes. |
-| M1 | blocked | fork/M1-schema-extensions | Code done, test:db passes; full `npm test` + `tsc` stopped for low memory, then review and merge (B12). |
-| A1 | blocked | | Waits on M1 (B12). |
-| A2 | blocked | | Waits on M1 (B12). |
-| M2 | blocked | | Waits on M1 (B12). |
-| M3 | blocked | | Waits on M1 (B12). |
-| M4 | blocked | | Waits on M1 (B12). |
-| M5 | blocked | | Waits on M1 (B12). |
-| A3 | blocked | | Waits on M1 (B12). |
-| A4 | blocked | | Waits on M1 (B12). |
-| M6 | blocked | | Waits on M1 (B12). |
-| M7 | blocked | | Waits on M1 (B12). |
-| M8 | blocked | | Waits on M1 (B12). |
-| A5 | blocked | | Waits on M1 (B12). |
-| A6 | blocked | | Waits on M1 (B12). |
-| M9 | blocked | | optional, last. Waits on M1 (B12). |
+| M1 | in_progress | fork/M1-schema-extensions | DoD passes (see Current step); migration-reviewer next, then merge. |
+| A1 | todo | | |
+| A2 | todo | | |
+| M2 | todo | | |
+| M3 | todo | | |
+| M4 | todo | | |
+| M5 | todo | | |
+| A3 | todo | | |
+| A4 | todo | | |
+| M6 | todo | | |
+| M7 | todo | | |
+| M8 | todo | | |
+| A5 | todo | | |
+| A6 | todo | | |
+| M9 | todo | | optional, last |
 
 ## Current step
 
@@ -94,9 +97,19 @@ Environment (local, Windows):
 - The checkout has CRLF endings (`core.autocrlf=true`); commits are normalized to LF. Biome's format check
   runs against an LF worktree in the session scratchpad (`git -c core.autocrlf=false worktree add --detach`),
   using the main checkout's `node_modules/.bin/biome`. Tests and `tsc` run in the main checkout.
-- Baseline on untouched upstream (see Decisions log): `npm run check` has 14 pre-existing errors; `npm test`
-  has 11–13 failing files, all Windows-specific (restic spawn, path separators). PDF-rendering tests
-  (`*-template-preset`) time out at 5 s when another suite runs at the same time; rerun them alone.
+- **Run Vitest with Node 22.23.4 from an upper-case `C:` path** (Decisions log, 2026-11-22 "Test runner"):
+  the machine's Node is 22.14, which can't start 634 of the 775 test files (`undici` 8 needs ≥22.19), and a
+  lower-case `c:` cwd loads vitest twice ("Cannot read properties of undefined (reading 'config')"). A
+  verified portable Node 22.23.4 is in the session scratchpad `node22/`; `run-chunk.sh` there runs one
+  folder chunk (`--maxWorkers=2`, each chunk under 10 minutes). If the scratchpad is gone: download
+  `node-v22.23.4-win-x64.zip` from nodejs.org, check it against `SHASUMS256.txt`, unzip, put it first on PATH.
+- Baseline on untouched upstream `main` with Node 22.23.4 (measured 2026-11-22): `npm run check` has 14
+  pre-existing errors; `npm test` fails 14 Windows-only files (list in the Decisions log). Timing-sensitive
+  tests (`lib/files/delete-paths`, the PDF `*-template-preset` ones) can time out at 5 s on the first run
+  after `prisma generate` or under load; rerun them alone.
+- After switching branches, re-run `sed -i 's/\r$//' prisma/schema/*.prisma`: checkout rewrites changed
+  schema files with CRLF, and `test:db`, `features/ai/workshop-columns` and `lib/files/references` parse the
+  schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
 **M1, in progress (started early on branch `fork/M1-schema-extensions`, cut from the M0 tip; merge
@@ -117,8 +130,17 @@ Environment (local, Windows):
   the round-trip test splits the schema on `\n` and a CRLF checkout leaves every field unparsed.
 - [ ] Windows: `scripts/generate-tenancy-schema.ts` writes the file then fails to spawn `npx`; run
   `npx biome format --write src/lib/backup/tenancy-schema.ts` after it.
-- [ ] DoD: Biome done (14 = baseline); `test:db` done; **full `npm test` and `tsc` were stopped by Claude Code
-  for low system memory and must not be restarted unasked (B12)**. Then the migration-reviewer, then merge.
+- [x] DoD (2026-11-22, B12 resolved by the `/autopilot` rerun):
+  - `npx tsc --noEmit` exit 0 (at 9c325829).
+  - `npm run check` (LF worktree at 9c325829): 14 errors = upstream baseline.
+  - `npm test` on Node 22.23.4, all 775 files in 7 chunks (lib 144, api/app/components/… 100, features
+    96 + 106 + 119 + 119 + 91): failing files = the same 14 that fail on untouched `main` (rerun there with the
+    same Node), plus `lib/files/delete-paths` timing out on a cold first run (passes at 5 s warm: 3.05 s on
+    M1, 3.0–3.1 s on `main`). Four upstream schema-coverage tests failed on M1's columns and were fixed
+    (ca0ed928): `lib/files/references`, `features/backup/part-restore-fields`,
+    `features/backup/restore-map-fields`, `features/ai/workshop-columns` (Decisions log).
+  - `npm run test:db`: 13 files, 81 tests pass (after the fixes).
+- [ ] migration-reviewer until "ready for PR", then merge into `fork/integration` (`--no-ff`) and push.
 
 **A1 drafts** (keys.server, withPublicApi, pagination, etag, idempotency, rateLimit, clientIp, errors,
 openapi, settings resource, apiKeyActions, ApiKeysSettings component, apiKeys.en.json) are in the session
@@ -154,7 +176,8 @@ M0 acceptance:
 | B9 | All | **Licensing:** hosting this fork for BlueLabel as a third party is the licensor's call under ELv2 (FORK.md). Needs a decision from Torqvoice's licensor before production hosting. Not a code task. | 2026-11-22 |
 | B10 | M5 (T3) | **Previous owners' orders.** When a Shopmonkey order's customer differs from the vehicle's current owner, the importer sets `ServiceRecord.customerId` (MAPPING §6.1), so invoices bill the right person. Side effect (upstream behaviour, `docs/fork/spikes/RESULTS.md` T3): the vehicle's **current owner sees those jobs listed in the customer portal, with the previous owner's name and address** on the sheet. Default taken: keep MAPPING (set `customerId`). Alternative if that's not acceptable: split such vehicles into one vehicle per owner period. | 2026-11-22 |
 | B11 | All | **Confirm the committed Claude Code config.** The `.claude/` kit (settings.json with the Stop hook `keep-going.sh`, the autopilot and milestone commands, the reviewer agent) and the autopilot section of `docs/fork/README.md` were in the working tree, untracked, when this run started, newer than `bluelabel-fork-kit.zip`; M0 committed them as found. The Stop hook runs in **every** Claude Code session in this repo, not only `/autopilot`: it refuses to stop while a milestone is `todo` or `in_progress` (escape: `touch .claude/STOP`). Confirm that's wanted, or scope it. | 2026-11-22 |
-| B12 | M1 (and everything after it) | **Re-run M1's checks.** Claude Code stopped the background `npm test` + `tsc` run because the machine was critically low on memory, and said not to restart it unasked. Close other memory-heavy programs, then rerun `/autopilot` (it picks up at M1's checks, review and merge) or run the commands in the Summary yourself. | 2026-11-22 |
+| B12 | M1 (and everything after it) | ~~Re-run M1's checks.~~ **Resolved 2026-11-22:** rerunning `/autopilot` was the go-ahead; the checks ran one at a time in the foreground with two test workers, and pass (Current step). | 2026-11-22 |
+| B13 | All (not blocking) | **Upgrade Node on this machine to 22.23.4** (what CI, the Dockerfile and the devcontainer pin), or at least ≥22.19. With the installed 22.14, `npm test` silently runs only 141 of 775 test files: `jsdom` 30 pulls `undici` 8, which needs `zlib.createZstdDecompress`, and the other 634 files' workers crash on start without counting as failures. The build carries on with a checksum-verified portable Node 22.23.4 in the session scratchpad, so nothing waits on this. | 2026-11-22 |
 
 ## Re-verify with real Shopmonkey data
 
@@ -201,4 +224,8 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-22 | `SourceRecord.connectionId` must not be a required FK to `IntegrationConnection` (for M1). | Spike T6: connections and links are excluded from backups by design; a backed-up `SourceRecord` would fail to restore. |
 | 2026-11-22 | M1: `ApiKey` and `ApiIdempotencyKey` are **excluded** from backups (manifest `EXCLUDED_MODELS`) instead of backing up `ApiKey` with `keyHash` redacted; M1 brief task 5 and its acceptance item updated. | A key's service user and membership are never in a backup, so a restored key would fail its foreign key; excluding it keeps the install's own keys, which is what the brief wanted. |
 | 2026-11-22 | M1: `SourceRecord` and `DeletedRecord` travel under the existing "Audit Logs" export option; `WorkJob` nests under both `ServiceRecord` and `Quote`; the fork's restore lives in `src/lib/backup/fork-restore.ts`, called from `import.ts` by one-line `// fork:` hooks; the manifest test reads both files. | No new export checkbox (UI change); smallest upstream diff in a file upstream edits often. |
-| 2026-11-22 | M1: five upstream backup tests had their expectations extended (new dataset keys; `ServicePart`'s second owner path through its job; `WorkJob`'s one-parent columns), each marked `// fork:`. | The schema really changed; the checks stay exact. | Spike T6: connections and links are excluded from backups by design; a backed-up `SourceRecord` would fail to restore. |
+| 2026-11-22 | M1: five upstream backup tests had their expectations extended (new dataset keys; `ServicePart`'s second owner path through its job; `WorkJob`'s one-parent columns), each marked `// fork:`. | The schema really changed; the checks stay exact. |
+| 2026-11-22 | **Test runner, correcting the baseline row above:** Vitest runs on Node 22.23.4 (CI's pin) from an upper-case `C:` path. The earlier "11–13 failing files" baseline was measured on the machine's Node 22.14, where 634 of 775 files never start (B13), so it covered only the 141 node-environment files. Re-measured on untouched `main` (03619f67) with Node 22.23.4, the Windows-only failures are 14 files: `api/health`, `api/photo-handoff`, `api/portal-upload`, `features/equipment/equipment-gates`, `features/meters/meters-gates`, `features/portal/portal-file-route`, `lib/backup/engine`, `lib/backup/restic`, `lib/files/manager`, `lib/files/only-the-manager-deletes`, `lib/safe-path`, `lib/status-colors`, `lib/upload-root`, `lib/viewer-access` (path separators, restic spawning). | Without it the definition of done would pass while most of the suite never ran. The portable Node lives in the session scratchpad; nothing is installed system-wide. |
+| 2026-11-22 | M1: `SourceRecord.payload`, the four lines' `sourceExtra` and `ApiIdempotencyKey.responseBody` are listed in `lib/files/references.test.ts`'s `NOT_FILES` (never a Torqvoice file). | Their URLs, if any, point at Shopmonkey or are a 24-hour response replay; the file manager must not count them as uses. |
+| 2026-11-22 | M1: upstream's `part-restore-fields` and `restore-map-fields` tests read the import through `src/__tests__/stubs/fork-import-source.ts`, which inlines the `fork-restore.ts` spreads and appends that file. | They read `import.ts` as text and couldn't see the fork's restore. With the helper they check the fork's maps as strictly as upstream's: dropping `note` from the part map or `label` from contacts fails both (mutation run). |
+| 2026-11-22 | M1: the AI workshop chat lists the lines' new columns (`jobId`, `lineKind`, `discountAmount`, `note` on parts; job, kind, technician, completion, cost hours/rate, discount on labor) and hides `sourceExtra` (`HIDDEN_COLUMNS`). | Upstream's `workshop-columns` test requires every column to be listed or hidden. The line facts sit beside cost and markup columns the chat already shows, under the same permissions; `sourceExtra` is raw Shopmonkey data, reachable through the API. |
