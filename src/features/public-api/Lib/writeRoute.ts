@@ -14,6 +14,7 @@ import {
   InvalidMeterReadingError,
   MeterNotOnJobError,
 } from '@/features/meters/Lib/jobMeterReading.server'
+import { AddPartError } from '@/features/vehicles/Lib/addPart'
 import { type AuditEvent, logAudit } from '@/lib/audit'
 import { RestoreInProgressError } from '@/lib/backup/freeze'
 import { DocumentLockedError } from '@/lib/document-lock'
@@ -76,6 +77,7 @@ export function domainErrorResponse(err: unknown): Response | null {
     })
   }
   if (err instanceof RestoreInProgressError) return publicApiError(409, 'conflict', err.message)
+  if (err instanceof AddPartError) return publicApiError(404, 'not_found', err.message)
   if (
     err instanceof CustomFieldsRefusedError ||
     err instanceof InvalidMeterReadingError ||

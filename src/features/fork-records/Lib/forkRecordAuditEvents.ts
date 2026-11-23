@@ -18,7 +18,7 @@ export function contactEvent(
 
 export function jobEvent(
   action: 'create' | 'update' | 'delete',
-  job: { id: string; serviceRecordId: string }
+  job: { id: string; serviceRecordId: string | null }
 ): AuditEvent {
   return {
     action: `job.${action}`,

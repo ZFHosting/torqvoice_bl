@@ -5,8 +5,13 @@
  * `attachments` on their own, with an attachment's file at `.../attachments/{attachmentId}/content`.
  */
 import { z } from 'zod'
+import { createJobSchema, updateJobSchema } from '@/features/fork-records/Schema/forkRecordSchemas'
+import { createLineSchema, updateLineSchema } from '@/features/fork-records/Schema/lineSchemas'
+import { createPaymentSchema } from '@/features/payments/Schema/paymentSchema'
+import { createServiceSchema, updateServiceSchema } from '@/features/vehicles/Schema/serviceSchema'
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
+import { deletedSchema, patchBody, writeEndpoints } from '../Lib/writeSpec'
 import { customFieldValueSchema, jobSchema, lineSchema } from './common'
 import { paymentSchema } from './records'
 import { timeEntrySchema } from './schedule'
@@ -167,8 +172,52 @@ const child = (name: string, summary: string, response: z.ZodType): EndpointSpec
   response,
 })
 
+const write = (
+  method: EndpointSpec['method'],
+  path: string,
+  summary: string,
+  response: z.ZodType,
+  body?: z.ZodType,
+  status?: number
+): EndpointSpec => ({ method, path, summary, tag: 'Work orders', response, body, status })
+
 export const workOrderEndpoints: EndpointSpec[] = [
   ...readEndpoints(workOrdersSpec),
+  ...writeEndpoints({
+    ...workOrdersSpec,
+    create: createServiceSchema,
+    update: patchBody(updateServiceSchema),
+    remove: true,
+  }),
+  write(
+    'post',
+    '/work-orders/{id}/status',
+    'Move a work order to a status (the work board’s own rules)',
+    workOrderSchema,
+    z.object({ status: z.string(), customStatusId: z.string().nullable().optional() })
+  ),
+  write('post', '/work-orders/{id}/lines', 'Add a line', lineSchema, createLineSchema, 201),
+  write('patch', '/work-orders/{id}/lines/{lineId}', 'Change a line', lineSchema, updateLineSchema),
+  write('delete', '/work-orders/{id}/lines/{lineId}', 'Remove a line', deletedSchema),
+  write(
+    'post',
+    '/work-orders/{id}/jobs',
+    'Add a job (line group)',
+    jobSchema,
+    createJobSchema,
+    201
+  ),
+  write('patch', '/work-orders/{id}/jobs/{jobId}', 'Change a job', jobSchema, updateJobSchema),
+  write('delete', '/work-orders/{id}/jobs/{jobId}', 'Remove a job (its lines stay)', deletedSchema),
+  write(
+    'post',
+    '/work-orders/{id}/payments',
+    'Record a payment (issues the invoice, as the app does)',
+    paymentSchema,
+    createPaymentSchema.omit({ serviceRecordId: true }),
+    201
+  ),
+  write('delete', '/work-orders/{id}/payments/{paymentId}', 'Remove a payment', deletedSchema),
   child('jobs', 'A work order’s jobs (line groups)', z.array(jobSchema)),
   child('lines', 'A work order’s labor and part lines', z.array(lineSchema)),
   child('payments', 'A work order’s payments', z.array(paymentSchema)),
