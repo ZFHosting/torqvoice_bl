@@ -29,6 +29,13 @@ export interface LoadContext {
   warnings: Warning[]
   /** Records that failed to load, by table and id, with the error's name: never its message (it may quote data). */
   failures: { table: string; remoteId: string; error: string }[]
+  /**
+   * Records this run left out, with why (M6): written to `SourceRecord.loadSkip` once the run is over, so the
+   * reconciliation accounts for each without repeating the load's rules.
+   */
+  skips: { table: string; remoteId: string; reason: string }[]
+  /** Orders created before it are left out (the connection's `historyFrom`, as the extract reads it). */
+  historyFrom: string | null
   /** ImportBatch ids of this run, by entity, created on first use. */
   batches: Partial<Record<'customers' | 'vehicles' | 'services' | 'inspections', string>>
   /** Invoiced work orders to issue once committed (MAPPING §6.1). */
@@ -68,6 +75,7 @@ export function createLoadContext(input: {
   technicianMap?: Record<string, string | 'create'>
   now?: Date
   label?: Labeler
+  historyFrom?: string | null
 }): LoadContext {
   return {
     scope: input.scope,
@@ -85,6 +93,8 @@ export function createLoadContext(input: {
     counts: {},
     warnings: [],
     failures: [],
+    skips: [],
+    historyFrom: input.historyFrom ?? null,
     batches: {},
     toIssue: [],
     placedFiles: [],
@@ -134,6 +144,7 @@ export async function loadOne(
   } catch (err) {
     counts.failed++
     lc.failures.push({ table, remoteId, error: err instanceof Error ? err.name : 'Error' })
+    markSkip(lc, table, remoteId, 'failed')
     return false
   }
 }
@@ -186,4 +197,33 @@ export async function closeBatches(
       })
     }
   }
+}
+
+/** Notes why a record is left out, for `SourceRecord.loadSkip` (M6). Counting it is the caller's. */
+export function markSkip(lc: LoadContext, table: string, remoteId: string, reason: string): void {
+  lc.skips.push({ table, remoteId, reason })
+}
+
+/**
+ * Why a transform gave no rows for a record: deleted in Shopmonkey, or the warning it gave for that record (the
+ * MAPPING §6.6 code), or `not_imported` when it said nothing.
+ */
+export function skipReason(
+  lc: LoadContext,
+  table: string,
+  remoteId: string,
+  payload: Record<string, unknown>
+): string {
+  if (payload.deleted === true) return 'deleted'
+  for (let i = lc.warnings.length - 1; i >= 0; i--) {
+    const w = lc.warnings[i]
+    if (w.table === table && w.remoteId === remoteId) return w.code
+  }
+  return 'not_imported'
+}
+
+/** Counts a record as skipped and notes why. */
+export function skipRecord(lc: LoadContext, table: string, remoteId: string, reason: string): void {
+  countsFor(lc, table).skipped++
+  markSkip(lc, table, remoteId, reason)
 }

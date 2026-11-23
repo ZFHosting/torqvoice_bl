@@ -11,7 +11,7 @@ import { transformUser, transformWorkflowStatuses } from '../transform/staff'
 import { currentOwner, transformVehicle } from '../transform/vehicle'
 import type { Row } from '../transform/types'
 import { payloadHash } from '../extract/stage'
-import { clientOf, countsFor, type LoadContext, loadOne, type Tx } from './context'
+import { clientOf, type LoadContext, loadOne, type Tx, skipReason, skipRecord } from './context'
 import { findLoaded, foreignKeys, markLoaded } from './links'
 import { upsertLinked } from './upsert'
 
@@ -145,7 +145,8 @@ export async function loadTechnicians(lc: LoadContext): Promise<void> {
   for (const user of await stagedAll(lc, 'user')) {
     const choice = map[user.remoteId]
     if (!named.has(user.remoteId) && choice !== 'create' && !choice) {
-      countsFor(lc, 'user').skipped++
+      // Nobody's technician: no order, timesheet or appointment names them, and the operator didn't ask for them.
+      skipRecord(lc, 'user', user.remoteId, 'user_not_referenced')
       continue
     }
     await loadOne(lc, 'user', user.remoteId, async (tx) => {
@@ -298,7 +299,12 @@ export async function loadCustomers(lc: LoadContext): Promise<number> {
     lc.warnings.push(...result.warnings)
     const rows = result.rows
     if (!rows) {
-      countsFor(lc, 'customer').skipped++
+      skipRecord(
+        lc,
+        'customer',
+        record.remoteId,
+        skipReason(lc, 'customer', record.remoteId, record.payload)
+      )
       continue
     }
     let createdHere = false
@@ -395,7 +401,12 @@ export async function loadVehicles(
     lc.warnings.push(...result.warnings)
     const rows = result.rows
     if (!rows) {
-      countsFor(lc, 'vehicle').skipped++
+      skipRecord(
+        lc,
+        'vehicle',
+        record.remoteId,
+        skipReason(lc, 'vehicle', record.remoteId, record.payload)
+      )
       continue
     }
     if (record === oldest) mileageUnit = rows.mileageUnit

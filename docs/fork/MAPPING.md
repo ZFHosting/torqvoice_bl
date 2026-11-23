@@ -70,7 +70,9 @@ All three adapters write the same thing: one `SourceRecord` row per Shopmonkey o
 - Location: records whose `locationId` (or `locationIds`) names another location are left out, checked on
   every record because GET lists were reported to ignore `where`.
 - Messages are archived whatever `includeMessages` says; the setting decides whether M5 loads them (B4).
-- Orders created before `historyFrom` are staged, but their services, payments, files and PDFs aren't fetched.
+- Orders created before `historyFrom` are staged, but their services, payments, files and PDFs aren't fetched, and
+  the load leaves them out (M6): they stay in the archive, with `SourceRecord.loadSkip = history`, and so do any of
+  their payments and files staged before the setting was set. One rule decides both (`createdBeforeHistory`).
 - A child no longer returned by its parent (a service removed from an order) keeps its row, with
   `remoteDeletedAt` set.
 

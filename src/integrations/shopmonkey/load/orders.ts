@@ -13,7 +13,16 @@ import { transformOrder } from '../transform/order'
 import { type PaymentRow, refundWarnings, transformPayment } from '../transform/payment'
 import { userName } from '../transform/staff'
 import type { Row } from '../transform/types'
-import { clientOf, countsFor, type LoadContext, loadOne, type Tx } from './context'
+import { createdBeforeHistory } from '../extract/engine'
+import {
+  clientOf,
+  type LoadContext,
+  loadOne,
+  markSkip,
+  skipReason,
+  skipRecord,
+  type Tx,
+} from './context'
 import { attachOrderFiles, indexOrderFiles } from './files'
 import { findLoaded, foreignKeys, linkedRow, markLoaded } from './links'
 import { staged, stagedAll, writeCustomFields } from './people'
@@ -151,7 +160,22 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
   )
   let createdServiceRecords = 0
 
+  /** An order that isn't a work order here keeps its payments and files in the archive: said so (M6). */
+  const notOnWorkOrder = (orderId: string) => {
+    for (const p of index.payments.get(orderId) ?? [])
+      markSkip(lc, 'payment', p.remoteId, 'payment_order_not_loaded')
+    for (const f of fileIndex.get(orderId) ?? [])
+      markSkip(lc, 'order_file', f, 'files_not_on_work_order')
+    markSkip(lc, 'invoice_pdf', orderId, 'files_not_on_work_order')
+  }
+
   for (const order of orders) {
+    // Created before `historyFrom`: staged without its children, and kept in the archive only (M6).
+    if (createdBeforeHistory(order.payload, lc.historyFrom)) {
+      skipRecord(lc, 'order', order.remoteId, 'history')
+      notOnWorkOrder(order.remoteId)
+      continue
+    }
     const children = (map: ChildIndex['services']) =>
       (map.get(order.remoteId) ?? []).sort((a, b) => (a.remoteId < b.remoteId ? -1 : 1))
     const vehicleRemote =
@@ -178,7 +202,13 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
     lc.warnings.push(...result.warnings)
     const rows = result.rows
     if (!rows) {
-      countsFor(lc, 'order').skipped++
+      skipRecord(
+        lc,
+        'order',
+        order.remoteId,
+        skipReason(lc, 'order', order.remoteId, order.payload)
+      )
+      notOnWorkOrder(order.remoteId)
       continue
     }
     // Everything the rows depend on: the order, its children, the vehicle's owner, its status's stage, and the
@@ -355,7 +385,18 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
       for (const p of paymentRows) {
         const payment = transformPayment(p, lc.transform)
         lc.warnings.push(...payment.warnings)
-        if (!payment.rows) continue
+        if (!payment.rows) {
+          const id = String(p.id)
+          markSkip(
+            lc,
+            'payment',
+            id,
+            p.status !== 'Succeeded'
+              ? 'payment_not_succeeded'
+              : skipReason(lc, 'payment', id, p as Record<string, unknown>)
+          )
+          continue
+        }
         kept.push(payment.rows.externalId)
         written.push(payment.rows)
         await tx.payment.upsert({
@@ -433,6 +474,7 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
       await writeCustomFields(tx, lc, localId, rows.customFields)
       return outcome
     })
+    if (rows.kind === 'quote') notOnWorkOrder(order.remoteId)
     if (committed) {
       lc.placedFiles.push(...pending)
       if (invoiceId) lc.toIssue.push(invoiceId)

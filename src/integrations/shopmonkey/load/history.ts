@@ -6,7 +6,7 @@ import { payloadHash, SOURCE } from '../extract/stage'
 import { transformInspection, transformInspectionTemplate } from '../transform/inspection'
 import { transformAppointment, transformTimesheet } from '../transform/time'
 import type { Row } from '../transform/types'
-import { countsFor, type LoadContext, loadOne } from './context'
+import { type LoadContext, loadOne, skipReason, skipRecord } from './context'
 import { placeFile, stagedFile } from './files'
 import { stagedAll } from './people'
 import { foreignKeys, linkedRow, markLoaded, unlink } from './links'
@@ -18,7 +18,12 @@ export async function loadAppointments(lc: LoadContext): Promise<void> {
     lc.warnings.push(...result.warnings)
     const rows = result.rows
     if (!rows) {
-      countsFor(lc, 'appointment').skipped++
+      skipRecord(
+        lc,
+        'appointment',
+        record.remoteId,
+        skipReason(lc, 'appointment', record.remoteId, record.payload)
+      )
       continue
     }
     // The work order it was booked for, as loaded: part of the hash, so a work order loaded late gets its start.
@@ -68,7 +73,12 @@ export async function loadInspectionTemplates(lc: LoadContext): Promise<void> {
     const result = transformInspectionTemplate(record.payload, lc.transform)
     const rows = result.rows
     if (!rows) {
-      countsFor(lc, 'inspection_template').skipped++
+      skipRecord(
+        lc,
+        'inspection_template',
+        record.remoteId,
+        skipReason(lc, 'inspection_template', record.remoteId, record.payload)
+      )
       continue
     }
     await loadOne(lc, 'inspection_template', record.remoteId, async (tx) => {
@@ -138,7 +148,12 @@ export async function loadInspections(lc: LoadContext): Promise<number> {
     lc.warnings.push(...result.warnings)
     const rows = result.rows
     if (!rows) {
-      countsFor(lc, 'inspection').skipped++
+      skipRecord(
+        lc,
+        'inspection',
+        record.remoteId,
+        skipReason(lc, 'inspection', record.remoteId, record.payload)
+      )
       continue
     }
     const pending: string[] = []
@@ -247,7 +262,12 @@ export async function loadTime(lc: LoadContext): Promise<void> {
     lc.warnings.push(...result.warnings)
     const rows = result.rows
     if (!rows) {
-      countsFor(lc, 'timesheet').skipped++
+      skipRecord(
+        lc,
+        'timesheet',
+        record.remoteId,
+        skipReason(lc, 'timesheet', record.remoteId, record.payload)
+      )
       continue
     }
     await loadOne(lc, 'timesheet', record.remoteId, async (tx) => {

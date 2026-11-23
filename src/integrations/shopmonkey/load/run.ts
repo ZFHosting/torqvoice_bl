@@ -8,6 +8,7 @@ import { SETTING_KEYS } from '@/features/settings/Schema/settingsSchema'
 import type { Stage } from '@/features/work-order-statuses/Lib/stages'
 import { db } from '@/lib/db'
 import { workshopTimeZone } from '@/lib/workshop-timezone'
+import { extractSettings } from '../extract/engine'
 import { defaultStages } from '../transform/staff'
 import type { Warning } from '../transform/types'
 import {
@@ -21,6 +22,7 @@ import {
 } from './context'
 import { loadInventory, loadPresets } from './catalog'
 import { removePlaced } from './files'
+import { recordSkips, saveLastLoad } from './outcome'
 import {
   assertNoInvoiceListeners,
   connectionsHearingInvoices,
@@ -125,7 +127,7 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
       organizationId: scope.organizationId,
       connectorId: 'shopmonkey',
     },
-    select: { id: true },
+    select: { id: true, settings: true },
   })
   if (!connection)
     throw new LoadRefused([], 'That is not a Shopmonkey connection of this workshop.')
@@ -154,11 +156,15 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
       remoteId,
       message: `Its ${model} was deleted in Torqvoice and is created again.`,
     })
+  const timeZone = options.timeZone ?? (await workshopTimeZone(scope.organizationId))
   const lc = createLoadContext({
     scope: { ...scope, onRecreate: warnRecreated },
     runUserId: options.runUserId,
     resolver,
-    timeZone: options.timeZone ?? (await workshopTimeZone(scope.organizationId)),
+    timeZone,
+    // The extract's own reading of the setting: an order it staged without children is one the load leaves out.
+    historyFrom: extractSettings((connection.settings as Record<string, unknown>) ?? {}, timeZone)
+      .historyFrom,
     countryCode: options.countryCode ?? (country?.value || 'US'),
     statusStageMap,
     technicianMap: options.technicianMap,
@@ -188,6 +194,8 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
     }
   } else {
     ;({ mileageUnit } = await stages(lc))
+    // Why each record left out was left out, for the reconciliation (M6).
+    await recordSkips(lc)
     // The staged copies of files that loaded: uploads has them now.
     await removePlaced(lc.placedFiles)
     proposals = await propose(clientOf(lc))
@@ -224,6 +232,12 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
       issued: issue.issued,
       issueFailed: issue.failed,
       applied,
+    })
+    await saveLastLoad(scope, lc, {
+      runId: scope.runId,
+      issued: issue.issued,
+      issueFailed: issue.failed,
+      now: options.now,
     })
   }
   return {
