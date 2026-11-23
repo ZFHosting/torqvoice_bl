@@ -1775,6 +1775,8 @@
         "gallery": "Galerie"
       }
     },
+    "optSourceArchive": "Import-Archiv",
+    "optSourceArchiveDesc": "Bei einem Import aus einem anderen System übernommene Datensätze, unverändert aufbewahrt",
     "scheduledBackups": {
       "title": "Geplante Sicherungen",
       "description": "Automatische Sicherungen in Ihren eigenen Speicher, nach einem Zeitplan Ihrer Wahl.",

@@ -1775,6 +1775,8 @@
         "gallery": "Galerija"
       }
     },
+    "optSourceArchive": "Importo archyvas",
+    "optSourceArchiveDesc": "Importuojant iš kitos sistemos perkelti įrašai, išsaugoti nepakeisti",
     "scheduledBackups": {
       "title": "Suplanuotos atsarginės kopijos",
       "description": "Automatinės atsarginės kopijos į jums priklausančią saugyklą pagal jūsų pasirinktą grafiką.",

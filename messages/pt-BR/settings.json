@@ -1775,6 +1775,8 @@
         "gallery": "Galeria"
       }
     },
+    "optSourceArchive": "Arquivo de importação",
+    "optSourceArchiveDesc": "Registros trazidos de outro sistema por uma importação, guardados como estavam",
     "scheduledBackups": {
       "title": "Backups agendados",
       "description": "Backups automáticos para um armazenamento seu, na frequência que você escolher.",

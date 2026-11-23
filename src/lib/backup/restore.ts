@@ -26,6 +26,8 @@ import {
   takeSafetySnapshot,
 } from './engine'
 import { closeRestorePoints } from './explore'
+// fork: the import archive's own file
+import { SOURCE_ARCHIVE_FILE } from './fork-archive'
 import { freezeOrganization, renewFreeze, unfreezeOrganization } from './freeze'
 import { restoreFromDisk } from './import'
 import { RESTORE_DISK_HEADROOM_BYTES, maxDataFileBytes } from './limits'
@@ -182,8 +184,10 @@ export async function queueRestore(
 export async function locateRestored(
   root: string,
   organizationId: string
-): Promise<{ dataFile: string | null; filesDir: string | null }> {
+): Promise<{ dataFile: string | null; filesDir: string | null; archiveFile?: string }> {
   let dataFile: string | null = null
+  // fork: the import archive, written beside data.json (lib/backup/fork-archive.ts)
+  let archiveFile: string | null = null
   const uploadDirs: string[] = []
   const walk = async (dir: string, depth: number) => {
     if (depth > MAX_DEPTH) return
@@ -191,6 +195,7 @@ export async function locateRestored(
       const full = path.join(dir, entry.name)
       if (entry.isFile()) {
         if (entry.name === 'data.json' && !dataFile) dataFile = full
+        if (entry.name === SOURCE_ARCHIVE_FILE && !archiveFile) archiveFile = full // fork
         continue
       }
       if (!entry.isDirectory()) continue
@@ -204,7 +209,11 @@ export async function locateRestored(
   await walk(root, 0)
   uploadDirs.sort()
   const own = uploadDirs.find((d) => path.basename(d) === organizationId)
-  return { dataFile, filesDir: own ?? uploadDirs[0] ?? null }
+  return {
+    dataFile,
+    filesDir: own ?? uploadDirs[0] ?? null,
+    ...(archiveFile ? { archiveFile } : {}), // fork
+  }
 }
 
 /**
@@ -297,7 +306,12 @@ export async function runRestore(runId: string): Promise<BackupRunView> {
 
     const result = await restoreFromDisk(
       { organizationId, userId },
-      { dataFile: found.dataFile, filesDir }
+      // fork: and the import archive beside it, when the snapshot has one
+      {
+        dataFile: found.dataFile,
+        filesDir,
+        ...(found.archiveFile ? { archiveFile: found.archiveFile } : {}),
+      }
     )
 
     await target.log('info', 'Backup restored', {

@@ -27,6 +27,13 @@ import {
   restoreTechnicianShifts,
   restoreWorkJobs,
 } from '@/lib/backup/fork-restore'
+// fork: the import archive's own file
+import {
+  archiveFile,
+  restoreSourceArchive,
+  type SourceArchive,
+  settleArchiveKey,
+} from '@/lib/backup/fork-archive'
 import { toSafeDate } from '@/lib/invoice-utils'
 import { taxComponentsForCopy } from '@/features/settings/Lib/workshopTax'
 import { warrantyFromUntyped } from '@/lib/warranty'
@@ -620,10 +627,13 @@ async function restoreFiles(files: BackupFileSource, organizationId: string) {
 export async function restoreBackup(
   ctx: RestoreActor,
   backup: BackupData,
-  files: BackupFileSource | null
+  files: BackupFileSource | null,
+  // fork: the import archive's own file, when the backup has one (lib/backup/fork-archive.ts)
+  archive: SourceArchive | null = null
 ): Promise<{ redactedSettings: string[] }> {
   assertSupportedBackup(backup)
   const data = backup.data
+  settleArchiveKey(data, archive) // fork
 
   // Secret keys a "Data only" backup left out, which the workshop re-enters.
   let redactedSettings: string[] = []
@@ -2485,6 +2495,7 @@ export async function restoreBackup(
 
         // fork: archived source payloads and delete tombstones
         await restoreForkArchive(tx, data, ctx.organizationId, memberUserIds)
+        if (archive) await restoreSourceArchive(tx, archive, ctx.organizationId)
 
         // 12. Insert SMS messages
         if (data.smsMessages?.length) {
@@ -3168,10 +3179,11 @@ export async function restoreBackup(
  */
 export async function restoreFromDisk(
   ctx: RestoreActor,
-  input: { dataFile: string; filesDir: string | null }
+  // fork: archiveFile, the import archive beside data.json
+  input: { dataFile: string; filesDir: string | null; archiveFile?: string | null }
 ): Promise<{ redactedSettings: string[] }> {
   const backup = await readJsonFile<unknown>(input.dataFile)
   assertSupportedBackup(backup)
   const files = input.filesDir ? await directoryFileSource(input.filesDir) : null
-  return restoreBackup(ctx, backup, files)
+  return restoreBackup(ctx, backup, files, input.archiveFile ? archiveFile(input.archiveFile) : null)
 }

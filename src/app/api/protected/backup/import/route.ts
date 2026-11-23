@@ -7,6 +7,8 @@ import { isDemoMode } from '@/lib/demo'
 import { canRestoreBackups } from '@/features/integrations/Lib/backup'
 import { backupLockHolder } from '@/lib/backup/engine'
 import { RestoreRefusedError, restoreLockHolder } from '@/lib/backup/tenancy'
+// fork: the import archive's own file
+import { archiveInZip } from '@/lib/backup/fork-archive'
 import {
   type BackupData,
   assertSupportedBackup,
@@ -133,7 +135,8 @@ export async function POST(request: NextRequest) {
     const { redactedSettings } = await restoreBackup(
       ctx,
       backup,
-      zipFiles ? zipFileSource(zipFiles) : null
+      zipFiles ? zipFileSource(zipFiles) : null,
+      archiveInZip(zipFiles) // fork: the import archive's own file
     )
     return NextResponse.json({ success: true, redactedSettings })
   } catch (error) {

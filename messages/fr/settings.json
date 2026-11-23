@@ -1775,6 +1775,8 @@
         "gallery": "Galerie"
       }
     },
+    "optSourceArchive": "Archive d'importation",
+    "optSourceArchiveDesc": "Enregistrements repris d'un autre système lors d'une importation, conservés tels quels",
     "scheduledBackups": {
       "title": "Sauvegardes planifiées",
       "description": "Des sauvegardes automatiques vers un stockage qui vous appartient, selon le calendrier de votre choix.",

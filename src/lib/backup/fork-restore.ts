@@ -212,6 +212,38 @@ export async function restoreTechnicianShifts(
   })
 }
 
+/** One archived source payload (X1) as the restoring workshop's row, or null when it isn't one. */
+export function sourceRecordRow(
+  r: Row,
+  organizationId: string
+): Prisma.SourceRecordCreateManyInput | null {
+  if (
+    typeof r.id !== 'string' ||
+    typeof r.connectionId !== 'string' ||
+    typeof r.table !== 'string' ||
+    typeof r.remoteId !== 'string' ||
+    typeof r.payloadHash !== 'string' ||
+    json(r.payload) === undefined
+  ) {
+    return null
+  }
+  return {
+    id: r.id,
+    organizationId,
+    connectionId: r.connectionId,
+    source: text(r.source) ?? 'shopmonkey',
+    table: r.table,
+    remoteId: r.remoteId,
+    payload: json(r.payload) as Prisma.InputJsonValue,
+    payloadHash: r.payloadHash,
+    remoteUpdatedAt: date(r.remoteUpdatedAt),
+    fetchedAt: date(r.fetchedAt) ?? undefined,
+    remoteDeletedAt: date(r.remoteDeletedAt),
+    childrenHash: text(r.childrenHash),
+    ...stamps(r),
+  }
+}
+
 /**
  * The archive of imported source payloads (X1) and the delete tombstones API clients sync from.
  * Both stand alone: a source record names its connection by id only, because connections (and their
@@ -223,34 +255,11 @@ export async function restoreForkArchive(
   organizationId: string,
   memberUserIds: ReadonlySet<string>
 ) {
-  const sources = rowsOf(data.sourceRecords).filter(
-    (r) =>
-      typeof r.id === 'string' &&
-      typeof r.connectionId === 'string' &&
-      typeof r.table === 'string' &&
-      typeof r.remoteId === 'string' &&
-      typeof r.payloadHash === 'string' &&
-      json(r.payload) !== undefined
-  )
-  if (sources.length > 0) {
-    await tx.sourceRecord.createMany({
-      data: sources.map((r) => ({
-        id: r.id as string,
-        organizationId,
-        connectionId: r.connectionId as string,
-        source: text(r.source) ?? 'shopmonkey',
-        table: r.table as string,
-        remoteId: r.remoteId as string,
-        payload: json(r.payload) as Prisma.InputJsonValue,
-        payloadHash: r.payloadHash as string,
-        remoteUpdatedAt: date(r.remoteUpdatedAt),
-        fetchedAt: date(r.fetchedAt) ?? undefined,
-        remoteDeletedAt: date(r.remoteDeletedAt),
-        childrenHash: text(r.childrenHash),
-        ...stamps(r),
-      })),
-    })
-  }
+  // Backups since M3 carry the archive in its own file (fork-archive.ts); older ones carry it here.
+  const sources = rowsOf(data.sourceRecords)
+    .map((r) => sourceRecordRow(r, organizationId))
+    .filter((r): r is Prisma.SourceRecordCreateManyInput => r !== null)
+  if (sources.length > 0) await tx.sourceRecord.createMany({ data: sources })
 
   const tombstones = rowsOf(data.deletedRecords).filter(
     (r) =>

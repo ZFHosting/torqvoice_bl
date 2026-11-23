@@ -1775,6 +1775,8 @@
         "gallery": "Galeri"
       }
     },
+    "optSourceArchive": "İçe aktarma arşivi",
+    "optSourceArchiveDesc": "Bir içe aktarmayla başka bir sistemden alınan kayıtlar, olduğu gibi saklanır",
     "scheduledBackups": {
       "title": "Zamanlanmış yedeklemeler",
       "description": "Size ait depolamaya, seçtiğiniz zamanlamayla otomatik yedeklemeler.",

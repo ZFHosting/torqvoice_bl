@@ -14,6 +14,8 @@ import { readdir, stat } from 'fs/promises'
 import path from 'path'
 import { PassThrough, Readable } from 'stream'
 import { uploadsRoot } from '@/lib/upload-root'
+// fork: the import archive's own file
+import { SOURCE_ARCHIVE_FILE, writeSourceArchive } from '@/lib/backup/fork-archive'
 
 export const maxDuration = 300
 
@@ -108,6 +110,15 @@ export async function POST(request: NextRequest) {
     try {
       await writeBackupData(organizationId, options, json)
       json.end()
+      // fork: the import archive in its own file, so a restore never holds it in memory
+      if (options.sourceArchive) {
+        const { out } = await writeSourceArchive(organizationId, () => {
+          const lines = new PassThrough()
+          archive.append(lines, { name: SOURCE_ARCHIVE_FILE })
+          return lines
+        })
+        out?.end()
+      }
       if (options.files) await appendUploads(archive, organizationId)
       await archive.finalize()
     } catch (error) {
