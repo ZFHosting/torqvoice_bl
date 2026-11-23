@@ -7,6 +7,7 @@
 import { centsToAmount } from '../money'
 import type { CustomFieldValueRow } from './customer'
 import { date, entries, type FieldSpec, num, records, str, unmappedFields, warn } from './fields'
+import { transformTaxConfig } from './catalog'
 import { type JobRows, type LineKind, transformService } from './lines'
 import type { Row, Stage, TransformContext, TransformResult, Warning } from './types'
 
@@ -134,7 +135,8 @@ export type OrderRows =
       }
       meta: {
         sourceStatus: string | null
-        serviceWriterUserId: string | null
+        /** A local user id; the importer creates no logins, so always null (the name is kept). */
+        serviceWriterUserId: null
         serviceWriterName: string | null
         mileageOut: number | null
         labels: string[]
@@ -213,7 +215,8 @@ function money(order: Row, jobs: JobRows[], taxConfig: Row | null, warnings: War
   const discountCents = cents(order.discountCents)
   const taxCents = cents(order.taxCents)
   const totalCents = cents(order.totalCostCents)
-  // PROVISIONAL(M0:S5): the order-level discount comes off after tax.
+  // PROVISIONAL(M0:S5): subtotal − discount + tax = total, as Shopmonkey stores them (the identity holds
+  // whether the discount was taken before or after tax).
   if (theirSubtotal - discountCents + taxCents !== totalCents) {
     warnings.push(
       warn(
@@ -241,7 +244,8 @@ function money(order: Row, jobs: JobRows[], taxConfig: Row | null, warnings: War
   const percent = order.appliedDiscountValueType === 'Percent'
   return {
     subtotal: centsToAmount(subtotalCents),
-    taxRate: num(taxConfig?.taxPercent) ?? 0,
+    // The tax config's rate (US `taxPercent`, or the Canadian components'), RESULTS S6.
+    taxRate: taxConfig ? transformTaxConfig(taxConfig).rate : 0,
     taxAmount: centsToAmount(taxCents),
     taxComponents: components.length > 1 ? components : null,
     discountType: discountCents ? (percent ? 'percent' : 'fixed') : null,
@@ -287,6 +291,7 @@ export function transformOrder(
   const warnings: Warning[] = []
   const unmapped = unmappedFields(order, ORDER_FIELDS)
   if (order.deleted === true) return { rows: null, warnings, unmapped }
+  const leftOut = new Set(unmapped)
 
   const tax = inputs.taxConfig
   const jobs = [...inputs.services]
@@ -299,6 +304,7 @@ export function transformOrder(
         tax?.shopSuppliesTaxable === true
       )
       warnings.push(...result.warnings)
+      for (const field of result.unmapped) leftOut.add(field)
       return result.rows
     })
   const totals = money(order, jobs, tax, warnings)
@@ -352,7 +358,7 @@ export function transformOrder(
         customFields: orderCustomFields(order, 'quote'),
       },
       warnings,
-      unmapped,
+      unmapped: [...leftOut].sort(),
     }
   }
 
@@ -394,6 +400,30 @@ export function transformOrder(
     !vehicleRemote || (customerRemote !== null && customerRemote !== inputs.vehicleOwnerRemoteId)
   const mileageIn = num(order.mileageIn)
   const mileageOut = num(order.mileageOut)
+  const serviceDate =
+    date(order.repairOrderDate) ?? date(order.orderCreatedDate) ?? date(order.createdDate)
+  if (!serviceDate) {
+    warnings.push(
+      warn(
+        'order',
+        remoteId,
+        'order_missing_date',
+        'No order date: the run date is used',
+        'createdDate'
+      )
+    )
+  }
+  if (isInvoice && !invoiced) {
+    warnings.push(
+      warn(
+        'order',
+        remoteId,
+        'invoice_not_issued',
+        'An invoice with no invoice date is left unissued',
+        'invoicedDate'
+      )
+    )
+  }
   return {
     rows: {
       kind: 'serviceRecord',
@@ -406,11 +436,7 @@ export function transformOrder(
         status,
         customStatusId: workflowStatus ? ctx.resolve('workflow_status', workflowStatus) : null,
         customStatusSince: date(order.workflowStatusDate),
-        serviceDate:
-          date(order.repairOrderDate) ??
-          date(order.orderCreatedDate) ??
-          date(order.createdDate) ??
-          now,
+        serviceDate: serviceDate ?? now,
         createdAt: date(order.createdDate) ?? undefined,
         invoiceDate: isInvoice ? invoiced : null,
         sentAt: isInvoice ? invoiced : null,
@@ -425,7 +451,7 @@ export function transformOrder(
       },
       meta: {
         sourceStatus: str(order.status),
-        serviceWriterUserId: writer,
+        serviceWriterUserId: null,
         serviceWriterName: writer ? (inputs.userNames[writer] ?? null) : null,
         mileageOut: mileageOut === null ? null : Math.round(mileageOut),
         // PROVISIONAL(M0:S4): `labels` read as `{ id: name }`.
@@ -439,12 +465,13 @@ export function transformOrder(
         organizationId: ctx.organizationId,
       },
       concern: str(order.complaint),
-      helperTechnicianIds: [...new Set(technicians.slice(1))],
+      // `technicians.prisma`: the technician is never also a helper.
+      helperTechnicianIds: [...new Set(technicians.slice(1))].filter((id) => id !== technicians[0]),
       jobs,
       customFields: orderCustomFields(order, 'service_record'),
       issueAsInvoice: isInvoice && invoiced !== null,
     },
     warnings,
-    unmapped,
+    unmapped: [...leftOut].sort(),
   }
 }

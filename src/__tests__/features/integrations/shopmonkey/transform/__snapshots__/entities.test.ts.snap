@@ -85,7 +85,15 @@ US",
     "preferredLanguage",
     "updatedDate",
   ],
-  "warnings": [],
+  "warnings": [
+    {
+      "code": "customer_referral_unresolved",
+      "field": "referralSourceId",
+      "message": "Its referral source is not in the archive",
+      "remoteId": "syn_cus_1",
+      "table": "customer",
+    },
+  ],
 }
 `;
 
@@ -682,6 +690,139 @@ exports[`vehicles > normalise the plate, lowercase the colour, leave fuel unset 
     "locationId",
     "locationIds",
     "updatedDate",
+  ],
+  "warnings": [],
+}
+`;
+
+exports[`what the review asked for > matches the snapshots of timesheets and tires 1`] = `
+[
+  {
+    "rows": {
+      "kind": "timeEntry",
+      "row": {
+        "durationMinutes": 90,
+        "endedAt": 2025-03-10T19:30:00.000Z,
+        "note": null,
+        "organizationId": "org-1",
+        "serviceRecordId": "local:order:syn_ord_1003",
+        "source": "shopmonkey",
+        "startedAt": 2025-03-10T18:00:00.000Z,
+        "technicianId": "local:user:syn_usr_1",
+      },
+    },
+    "unmapped": [
+      "companyId",
+      "createdDate",
+      "duration",
+      "flatRate",
+      "inProgress",
+      "laborId",
+      "locationId",
+      "number",
+      "serviceId",
+      "type",
+      "updatedDate",
+    ],
+    "warnings": [],
+  },
+  {
+    "rows": {
+      "kind": "shift",
+      "row": {
+        "clockIn": 2025-03-10T13:00:00.000Z,
+        "clockOut": 2025-03-10T21:30:00.000Z,
+        "durationMinutes": 510,
+        "note": "Opening shift",
+        "organizationId": "org-1",
+        "source": "shopmonkey",
+        "sourceRemoteId": "syn_tsh_2",
+        "technicianId": "local:user:syn_usr_2",
+      },
+    },
+    "unmapped": [
+      "companyId",
+      "createdDate",
+      "duration",
+      "flatRate",
+      "inProgress",
+      "locationId",
+      "number",
+      "type",
+      "updatedDate",
+    ],
+    "warnings": [],
+  },
+  {
+    "rows": {
+      "kind": "shift",
+      "row": {
+        "clockIn": 2025-03-11T13:00:00.000Z,
+        "clockOut": null,
+        "durationMinutes": null,
+        "note": null,
+        "organizationId": "org-1",
+        "source": "shopmonkey",
+        "sourceRemoteId": "syn_tsh_3",
+        "technicianId": "local:user:syn_usr_1",
+      },
+    },
+    "unmapped": [
+      "companyId",
+      "createdDate",
+      "flatRate",
+      "inProgress",
+      "locationId",
+      "number",
+      "type",
+      "updatedDate",
+    ],
+    "warnings": [],
+  },
+]
+`;
+
+exports[`what the review asked for > matches the snapshots of timesheets and tires 2`] = `
+{
+  "rows": {
+    "movement": {
+      "delta": 8,
+      "note": "Imported from Shopmonkey",
+      "quantityAfter": 8,
+      "reason": "import",
+    },
+    "part": {
+      "barcodeCandidate": "AS2254517",
+      "category": "Tires",
+      "description": "Size 225/45R17",
+      "location": null,
+      "minQuantity": 4,
+      "name": "All-season 225/45R17",
+      "organizationId": "org-1",
+      "partNumber": "AS-2254517",
+      "quantity": 8,
+      "sellPrice": 135,
+      "supplier": null,
+      "supplierEmail": null,
+      "supplierPhone": null,
+      "supplierUrl": null,
+      "unitCost": 90,
+      "userId": "user-run",
+    },
+  },
+  "unmapped": [
+    "availableQuantity",
+    "companyId",
+    "createdDate",
+    "discountCents",
+    "federalExciseTaxCents",
+    "locationId",
+    "reservedQuantity",
+    "sizeFormat",
+    "taxable",
+    "tireModelId",
+    "updatedDate",
+    "wasteTireFeeCents",
   ],
   "warnings": [],
 }

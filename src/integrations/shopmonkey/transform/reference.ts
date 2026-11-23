@@ -155,6 +155,17 @@ export const REFERENCE_FIELDS: Record<string, FieldSpec> = {
 }
 
 /**
+ * What the workshop could take from Shopmonkey's company and location (§3, one location per install): its
+ * name and time zone. M5 and the M8 screen offer them; nothing changes the workshop without the operator.
+ */
+export function transformWorkshop(company: Row | null, location: Row | null) {
+  return {
+    name: str(location?.name) ?? str(company?.name) ?? null,
+    timeZone: str(location?.timezone) ?? null,
+  }
+}
+
+/**
  * The workshop's default labor rate (§3): the tax config's `rateId` when it names one, else the oldest
  * rate that isn't an employee's. PROVISIONAL(M0:S6): what `rateId` on the tax config means is a reading
  * of the schema. Others are archive only.

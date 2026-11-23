@@ -83,6 +83,29 @@ export function transformInspectionTemplate(
   }
 }
 
+/** An item nested in a template, and one in an inspection, and a photo on an item (MAPPING §8). */
+export const TEMPLATE_ITEM_FIELDS: FieldSpec = {
+  mapped: ['id', 'name', 'message', 'ordinal'],
+  archive: ['createdDate', 'inspectionTemplateId', 'recommendedCannedServiceIds', 'status'],
+}
+export const INSPECTION_ITEM_FIELDS: FieldSpec = {
+  mapped: ['id', 'name', 'message', 'ordinal', 'status', 'statusDetails', 'files'],
+  archive: [
+    'createdDate',
+    'inspectionDate',
+    'inspectionId',
+    'inspectorUserId',
+    'publicId',
+    'recommendedCannedServiceIds',
+    'reviewStatus',
+  ],
+}
+/** A file entry (an order's `files[]`, an item's): staged as its own record (M3), loaded by M5. */
+export const FILE_FIELDS: FieldSpec = {
+  mapped: ['id', 'fileName', 'fileSize', 'fileType', 'url'],
+  archive: ['thumbnailUrl'],
+}
+
 export const INSPECTION_FIELDS: FieldSpec = {
   mapped: [
     'id',

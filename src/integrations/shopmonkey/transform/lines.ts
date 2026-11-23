@@ -6,7 +6,7 @@
  * numbers, never a correction.
  */
 import { centsToAmount } from '../money'
-import { type FieldSpec, num, records, str, warn } from './fields'
+import { date, type FieldSpec, num, records, str, unmappedFields, warn } from './fields'
 import type { Row, TransformContext, Warning } from './types'
 
 export type LineKind = 'labor' | 'fee' | 'epa' | 'shopSupplies' | 'part' | 'tire' | 'subcontract'
@@ -177,10 +177,28 @@ export function lineCents(kind: 'labor' | 'part' | 'tire' | 'subcontract', line:
 
 const EPA_LIKE = /\b(epa|environmental|shop\s*suppl)/i
 
-function pick(line: Row, keys: string[]): Row | null {
-  const out: Row = {}
+/**
+ * A line's `sourceExtra` (MAPPING X3, `schema/sourceExtra.ts`): where it came from, and what it had that the
+ * Torqvoice row has no column for.
+ */
+function extra(line: Row, serviceId: string, keys: string[]): Row {
+  const out: Row = { source: 'shopmonkey', remoteId: String(line.id), remoteServiceId: serviceId }
   for (const key of keys) if (line[key] !== undefined && line[key] !== null) out[key] = line[key]
-  return Object.keys(out).length ? out : null
+  return out
+}
+
+/**
+ * A fee's amount in cents. PROVISIONAL(M0:S5): Shopmonkey's own `amountCents` when the fee carries one (a
+ * percent fee's computed amount too); else `percent` of its `subtotalCents` (the line it applies to); else
+ * `percent` of the service's line base.
+ */
+export function feeCents(fee: Row, serviceLineBase: number): number {
+  if (typeof fee.amountCents === 'number' && Number.isFinite(fee.amountCents)) {
+    return Math.round(fee.amountCents)
+  }
+  const percent = num(fee.percent) ?? 0
+  const base = typeof fee.subtotalCents === 'number' ? fee.subtotalCents : serviceLineBase
+  return Math.round((base * percent) / 100)
 }
 
 export function transformService(
@@ -188,9 +206,16 @@ export function transformService(
   ctx: TransformContext,
   epaTaxable: boolean,
   shopSuppliesTaxable: boolean
-): { rows: JobRows; warnings: Warning[] } {
+): { rows: JobRows; warnings: Warning[]; unmapped: string[] } {
   const remoteId = String(service.id)
   const warnings: Warning[] = []
+  // The fields left out, of the service and of each kind of line, for the M6 report.
+  const unmapped = new Set(unmappedFields(service, SERVICE_FIELDS).map((f) => `order_service.${f}`))
+  for (const kind of Object.keys(LINE_FIELDS)) {
+    for (const line of records(service[kind])) {
+      for (const f of unmappedFields(line, LINE_FIELDS[kind])) unmapped.add(`${kind}.${f}`)
+    }
+  }
   const technician = (userId: unknown) => {
     const id = str(userId)
     return id ? ctx.resolve('user', id) : null
@@ -226,7 +251,7 @@ export function transformService(
       costHours: num(l.costHours),
       costRate: num(l.costRateCents) === null ? null : centsToAmount(cents(l.costRateCents)),
       discountAmount: cents(l.discountCents) ? centsToAmount(cents(l.discountCents)) : null,
-      sourceExtra: pick(l, [
+      sourceExtra: extra(l, remoteId, [
         'multiplier',
         'multiplierType',
         'rateId',
@@ -239,14 +264,14 @@ export function transformService(
     })
   }
 
-  const partLine = (p: Row, kind: 'part' | 'tire' | 'subcontract', extra: string[]): PartLine => {
+  const partLine = (p: Row, kind: 'part' | 'tire' | 'subcontract', keys: string[]): PartLine => {
     const c = lineCents(kind, p)
     total[kind] += c
     const inventoryId = str(kind === 'tire' ? p.inventoryTireId : p.inventoryPartId)
     return {
       remoteId: String(p.id),
       lineKind: kind,
-      name: str(kind === 'tire' ? (p.calculatedName ?? p.name) : p.name) ?? kind,
+      name: (kind === 'tire' ? (str(p.calculatedName) ?? str(p.name)) : str(p.name)) ?? kind,
       partNumber: str(p.partNumber),
       quantity: kind === 'subcontract' ? 1 : (num(p.quantity) ?? 0),
       unitPrice: centsToAmount(cents(p.retailCostCents)),
@@ -259,7 +284,7 @@ export function transformService(
         : null,
       discountAmount: cents(p.discountCents) ? centsToAmount(cents(p.discountCents)) : null,
       note: str(p.note),
-      sourceExtra: pick(p, extra),
+      sourceExtra: extra(p, remoteId, keys),
       sortOrder: order++,
     }
   }
@@ -292,14 +317,14 @@ export function transformService(
     parts.push(partLine(s, 'subcontract', ['vendorId', 'costCents']))
 
   const lineBase = total.labor + total.part + total.tire + total.subcontract
+  // §6.2: only a service that also carries EPA or shop supplies can count one twice.
+  const hasEpa =
+    cents(service.calculatedEpaCents) !== 0 || cents(service.calculatedShopSuppliesCents) !== 0
   for (const f of records(service.fees)) {
-    const c =
-      f.feeType === 'FixedCents'
-        ? cents(f.amountCents)
-        : Math.round((lineBase * (num(f.percent) ?? 0)) / 100)
+    const c = feeCents(f, lineBase)
     total.fee += c
     const name = str(f.name) ?? 'Fee'
-    if (EPA_LIKE.test(name)) {
+    if (hasEpa && EPA_LIKE.test(name)) {
       warnings.push(
         warn(
           'order_service',
@@ -325,10 +350,11 @@ export function transformService(
       costHours: null,
       costRate: null,
       discountAmount: null,
-      sourceExtra: pick(f, [
+      sourceExtra: extra(f, remoteId, [
         'feeType',
         'percent',
         'amountCents',
+        'subtotalCents',
         'lineItemEntity',
         'inventoryFeeId',
       ]),
@@ -356,7 +382,7 @@ export function transformService(
       costHours: null,
       costRate: null,
       discountAmount: null,
-      sourceExtra: null,
+      sourceExtra: { source: 'shopmonkey', remoteServiceId: remoteId },
       sortOrder: order++,
     })
   }
@@ -385,7 +411,7 @@ export function transformService(
     }
   }
 
-  const deferredDate = str(service.deferredDate)
+  const deferredDate = date(service.deferredDate)
   const name = str(service.name) ?? 'Service'
   const note = str(service.note)
   const reason = str(service.deferredReason)
@@ -401,7 +427,7 @@ export function transformService(
         hidden: service.hidden === true,
         lumpSum: service.lumpSum === true,
         fixedPrice: service.lumpSum === true ? centsToAmount(cents(service.fixedPriceCents)) : null,
-        deferredDate: deferredDate ? new Date(deferredDate) : null,
+        deferredDate,
         deferredReason: reason,
         totalAmount: centsToAmount(cents(service.totalCents)),
         discountAmount: centsToAmount(cents(service.calculatedDiscountCents)),
@@ -420,6 +446,7 @@ export function transformService(
       revivesRemoteId: str(service.revivedFromId),
     },
     warnings,
+    unmapped: [...unmapped].sort(),
   }
 }
 

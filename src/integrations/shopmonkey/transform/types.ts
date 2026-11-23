@@ -17,12 +17,24 @@ export interface TransformContext {
   timeZone: string
   /** ISO 3166-1 alpha-2, for phone numbers. */
   countryCode: string
-  /** The local id of a staged Shopmonkey record (from IntegrationLink), or null when it isn't loaded. */
+  /**
+   * The local id a staged Shopmonkey record was loaded as, by Shopmonkey table and id (M5 keeps the link), or
+   * null when it isn't loaded. `order` resolves to a work order (`ServiceRecord`) only: an estimate loads as a
+   * quote and resolves under `quote`, so a payment or timesheet on an estimate finds no work order. `user`
+   * resolves to a technician, `workflow_status` to a `WorkOrderStatus`, `inventory_part` and `inventory_tire`
+   * to an `InventoryPart`, `inspection_template` to an `InspectionTemplate`.
+   */
   resolve: (table: string, remoteId: string) => string | null
   settings: {
-    /** Workflow status id → stage, from the M8 mapping panel; absent ids take the default (RESULTS S9). */
+    /**
+     * Every workflow status id → its stage: the operator's choices (M8) over `defaultStages` (RESULTS S9). M5
+     * builds it complete; an order whose status is missing warns `order_status_unmapped`.
+     */
     statusStageMap: Record<string, Stage>
-    /** Shopmonkey user id → local technician id, or 'create'. */
+    /**
+     * Shopmonkey user id → local technician id, or 'create' (M8's staff panel). The transforms resolve
+     * technicians through `resolve('user', …)`; M5 uses this map to decide which to create or reuse.
+     */
     technicianMap: Record<string, string | 'create'>
   }
 }

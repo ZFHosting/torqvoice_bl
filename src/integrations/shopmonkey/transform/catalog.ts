@@ -7,7 +7,7 @@
 import { centsToAmount } from '../money'
 import { joinName } from '@/features/import/Lib/normalize'
 import { type FieldSpec, num, records, str, unmappedFields, warn } from './fields'
-import { lineCents } from './lines'
+import { feeCents, lineCents } from './lines'
 import type { Row, TransformContext, TransformResult, Warning } from './types'
 
 const cents = (value: unknown) => Math.round(num(value) ?? 0)
@@ -172,8 +172,9 @@ export function transformCannedService(
   ctx: TransformContext
 ): TransformResult<PresetRows | null> {
   const remoteId = String(service.id)
+  const warnings: Warning[] = []
   const unmapped = unmappedFields(service, CANNED_SERVICE_FIELDS)
-  if (service.deleted === true) return { rows: null, warnings: [], unmapped }
+  if (service.deleted === true) return { rows: null, warnings, unmapped }
   let order = 0
   const items: PresetRows['items'] = []
   const parts: PresetRows['parts'] = []
@@ -186,12 +187,25 @@ export function transformCannedService(
       sortOrder: order++,
     })
   }
-  const lineBase = records(service.labors).reduce((a, l) => a + lineCents('labor', l), 0)
+  // The base a percent fee applies to, as on an order (lines.ts): every line of the service.
+  const lineBase =
+    records(service.labors).reduce((a, l) => a + lineCents('labor', l), 0) +
+    records(service.parts).reduce((a, p) => a + lineCents('part', p), 0) +
+    records(service.tires).reduce((a, p) => a + lineCents('tire', p), 0) +
+    records(service.subcontracts).reduce((a, p) => a + lineCents('subcontract', p), 0)
   for (const f of records(service.fees)) {
-    const amount =
-      f.feeType === 'FixedCents'
-        ? cents(f.amountCents)
-        : Math.round((lineBase * (num(f.percent) ?? 0)) / 100)
+    const amount = feeCents(f, lineBase)
+    if (f.feeType !== 'FixedCents' && typeof f.amountCents !== 'number') {
+      warnings.push(
+        warn(
+          'canned_service',
+          remoteId,
+          'preset_percent_fee',
+          `A ${num(f.percent) ?? 0}% fee: the preset carries today's amount`,
+          'fees'
+        )
+      )
+    }
     items.push({
       description: str(f.name) ?? 'Fee',
       hours: 1,
@@ -227,9 +241,49 @@ export function transformCannedService(
       items,
       parts,
     },
-    warnings: [],
+    warnings,
     unmapped,
   }
+}
+
+/** The lines nested in a canned service: only what `transformCannedService` reads is mapped. */
+export const CANNED_LINE_FIELDS: Record<string, FieldSpec> = {
+  labors: {
+    mapped: ['id', 'name', 'hours', 'rateCents', 'multiplier', 'discountCents'],
+    archive: ['cannedServiceId', 'note', 'ordinal', 'taxable'],
+  },
+  parts: {
+    mapped: [
+      'id',
+      'name',
+      'partNumber',
+      'quantity',
+      'retailCostCents',
+      'discountCents',
+      'inventoryPartId',
+    ],
+    archive: ['cannedServiceId', 'note', 'ordinal', 'taxable', 'wholesaleCostCents'],
+  },
+  tires: {
+    mapped: [
+      'id',
+      'name',
+      'partNumber',
+      'quantity',
+      'retailCostCents',
+      'discountCents',
+      'inventoryTireId',
+    ],
+    archive: ['cannedServiceId', 'note', 'ordinal', 'taxable', 'wholesaleCostCents'],
+  },
+  subcontracts: {
+    mapped: ['id', 'name', 'retailCostCents', 'discountCents'],
+    archive: ['cannedServiceId', 'costCents', 'note', 'ordinal', 'taxable', 'vendorId'],
+  },
+  fees: {
+    mapped: ['id', 'name', 'feeType', 'amountCents', 'percent', 'subtotalCents'],
+    archive: ['cannedServiceId', 'ordinal'],
+  },
 }
 
 export const CATALOG_LINE_FIELDS: FieldSpec = {

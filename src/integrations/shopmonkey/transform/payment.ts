@@ -70,6 +70,27 @@ export function transformPayment(
   const warnings: Warning[] = []
   const unmapped = unmappedFields(payment, PAYMENT_FIELDS)
   if (payment.status !== 'Succeeded') return { rows: null, warnings, unmapped }
+  // §6.5 covers charges and refunds. Anything else (a dispute, a transfer) isn't money in or out of the
+  // order the way a payment is: kept in the archive, and said so.
+  if (payment.transactionType !== 'Charge' && payment.transactionType !== 'Refund') {
+    warnings.push(
+      warn(
+        'payment',
+        remoteId,
+        'payment_type_unsupported',
+        `A ${String(payment.transactionType)} is kept in the archive only`,
+        'transactionType'
+      )
+    )
+    return { rows: null, warnings, unmapped }
+  }
+  const paidOn = date(payment.recordedDate) ?? date(payment.createdDate)
+  if (!paidOn) {
+    warnings.push(
+      warn('payment', remoteId, 'payment_missing_date', 'No payment date', 'recordedDate')
+    )
+    return { rows: null, warnings, unmapped }
+  }
   const orderId = str(payment.orderId)
   const serviceRecordId = orderId ? ctx.resolve('order', orderId) : null
   if (!serviceRecordId) {
@@ -103,7 +124,7 @@ export function transformPayment(
   return {
     rows: {
       amount,
-      date: date(payment.recordedDate) ?? date(payment.createdDate) ?? new Date(0),
+      date: paidOn,
       method: paymentMethod(type),
       note: parts.join(' · '),
       provider: 'shopmonkey',

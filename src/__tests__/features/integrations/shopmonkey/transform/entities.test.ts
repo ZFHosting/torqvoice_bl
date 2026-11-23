@@ -328,3 +328,139 @@ describe('inspections', () => {
     expect(result).toMatchSnapshot()
   })
 })
+
+describe('what the review asked for', () => {
+  const lookups = {
+    referralSources: Object.fromEntries(fixtures.referral_source.map((r) => [String(r.id), r])),
+    labels: Object.fromEntries(fixtures.label.map((l) => [String(l.id), l])),
+  }
+
+  it('names a customer’s referral source, and warns when it isn’t in the archive', () => {
+    const named = transformCustomer(fixture('customer', 'syn_cus_1'), context(), lookups)
+    const source = fixtures.referral_source[0]
+    expect(named.rows?.customFields).toContainEqual({
+      entityType: 'customer',
+      name: 'Referral source',
+      value: source.name,
+    })
+    const unnamed = transformCustomer(fixture('customer', 'syn_cus_1'), context())
+    expect(unnamed.warnings.map((w) => w.code)).toContain('customer_referral_unresolved')
+  })
+
+  it('takes the first email with a value as the primary, and keeps a phone’s extension off the customer', () => {
+    const record = fixture('customer', 'syn_cus_1')
+    const emails = record.emails as Record<string, unknown>[]
+    emails[0].email = '  '
+    const phones = record.phoneNumbers as Record<string, unknown>[]
+    phones[0].extension = '12'
+    const result = transformCustomer(record, context())
+    expect(result.rows?.customer.email).toBe('dana.work@example.test')
+    expect(result.rows?.customer.phone).toBe('+12025550101')
+    expect(result.rows?.contacts.find((c) => c.kind === 'phone' && c.isPrimary)?.value).toBe(
+      '+12025550101 ext. 12'
+    )
+  })
+
+  it('keeps a dispute or a transfer out of the payments, and a payment with no date', () => {
+    const dispute = { ...fixture('payment', 'syn_pay_1003_2'), transactionType: 'Dispute' }
+    expect(transformPayment(dispute, context())).toMatchObject({
+      rows: null,
+      warnings: [expect.objectContaining({ code: 'payment_type_unsupported' })],
+    })
+    const undated = {
+      ...fixture('payment', 'syn_pay_1003_2'),
+      recordedDate: null,
+      createdDate: null,
+    }
+    expect(transformPayment(undated, context()).warnings.map((w) => w.code)).toEqual([
+      'payment_missing_date',
+    ])
+    const elsewhere = transformPayment(
+      fixture('payment', 'syn_pay_1003_2'),
+      context({ notLoaded: ['order:syn_ord_1003'] })
+    )
+    expect(elsewhere.warnings.map((w) => w.code)).toEqual(['payment_order_not_loaded'])
+  })
+
+  it('says what it fell back on, for each kind of record', () => {
+    const nameless = transformCustomer(
+      { id: 'c9', emails: [{ id: 'e', email: 'not-an-email', primary: true }] },
+      context()
+    )
+    expect(nameless.warnings.map((w) => w.code)).toEqual([
+      'customer_missing_name',
+      'customer_invalid_email',
+    ])
+
+    const orphan = transformVehicle(
+      fixture('vehicle', 'syn_veh_1'),
+      ownersOf('syn_veh_1'),
+      context({ notLoaded: ['customer:syn_cus_1'] })
+    )
+    expect(orphan.warnings.map((w) => w.code)).toEqual(['vehicle_owner_unresolved'])
+
+    expect(
+      transformTimesheet({ id: 't9', technicianId: 'syn_usr_1' }, context()).warnings.map(
+        (w) => w.code
+      )
+    ).toEqual(['timesheet_missing_clock_in'])
+    expect(
+      transformTimesheet(
+        fixture('timesheet', 'syn_tsh_2'),
+        context({ notLoaded: ['user:syn_usr_2'] })
+      ).warnings.map((w) => w.code)
+    ).toEqual(['timesheet_technician_unresolved'])
+
+    expect(
+      transformAppointment({ id: 'a9', name: 'x' }, context()).warnings.map((w) => w.code)
+    ).toEqual(['appointment_missing_start'])
+    const open = transformAppointment(
+      { id: 'a8', startDate: '2025-01-01T10:00:00.000Z' },
+      context()
+    )
+    expect(open.warnings.map((w) => w.code)).toEqual(['appointment_end_assumed'])
+    expect(open.rows?.appointment.endAt).toEqual(new Date('2025-01-01T11:00:00.000Z'))
+
+    const order = fixture('order', 'syn_ord_1003')
+    expect(
+      transformInspection(
+        fixture('inspection', 'syn_ins_1'),
+        order,
+        context({ notLoaded: ['vehicle:syn_veh_1'] })
+      ).warnings.map((w) => w.code)
+    ).toEqual(['inspection_vehicle_unresolved'])
+    expect(
+      transformInspection(
+        fixture('inspection', 'syn_ins_1'),
+        order,
+        context({ notLoaded: ['inspection_template:syn_itp_1'] })
+      ).warnings.map((w) => w.code)
+    ).toEqual(['inspection_template_unresolved'])
+
+    const percentFee = { id: 'f9', name: 'Hazmat', feeType: 'PercentService', percent: 5 }
+    expect(transformCatalogLine(percentFee, 'fee', context()).warnings.map((w) => w.code)).toEqual([
+      'preset_percent_fee',
+    ])
+  })
+
+  it('offers the workshop the location’s name and time zone', async () => {
+    const { transformWorkshop } = await import('@/integrations/shopmonkey/transform/reference')
+    expect(transformWorkshop(fixtures.company[0], fixtures.location[0])).toEqual({
+      name: fixtures.location[0].name,
+      timeZone: fixtures.location[0].timezone,
+    })
+  })
+
+  it('matches the snapshots of timesheets and tires', () => {
+    expect(
+      fixtures.timesheet.map((t) => transformTimesheet(structuredClone(t), context()))
+    ).toMatchSnapshot()
+    const tireLookups = {
+      categories: Object.fromEntries(fixtures.inventory_category.map((c) => [String(c.id), c])),
+      vendors: Object.fromEntries(fixtures.vendor.map((v) => [String(v.id), v])),
+    }
+    expect(
+      transformInventoryItem(fixture('inventory_tire', 'syn_itr_1'), 'tire', tireLookups, context())
+    ).toMatchSnapshot()
+  })
+})

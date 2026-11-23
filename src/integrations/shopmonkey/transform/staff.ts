@@ -56,6 +56,7 @@ const COLOR_HEX: Record<string, string> = {
   grey: '#6b7280',
   brown: '#92400e',
   black: '#111827',
+  aqua: '#22d3ee',
 }
 
 export function technicianColor(value: unknown): string | undefined {

@@ -110,9 +110,26 @@ export function composeAddress(record: Row): string | null {
   return lines.length ? lines.join('\n') : null
 }
 
+/** The emails and phone numbers embedded in a customer (RESULTS S4). */
+export const EMAIL_FIELDS: FieldSpec = {
+  mapped: ['id', 'email', 'primary', 'marketingOptIn', 'subscribed', 'createdDate'],
+  archive: ['companyId', 'customerId', 'locationId', 'metadata', 'updatedDate'],
+}
+export const PHONE_FIELDS: FieldSpec = {
+  mapped: ['id', 'number', 'type', 'userDefinedType', 'primary', 'extension', 'createdDate'],
+  archive: ['companyId', 'country', 'customerId', 'locationId', 'metadata', 'updatedDate'],
+}
+
+/** The tables a customer's references are named in: referral sources and labels, by id. */
+export interface CustomerLookups {
+  referralSources?: Record<string, Row>
+  labels?: Record<string, Row>
+}
+
 export function transformCustomer(
   record: Row,
-  ctx: TransformContext
+  ctx: TransformContext,
+  lookups: CustomerLookups = {}
 ): TransformResult<CustomerRows | null> {
   const remoteId = String(record.id)
   const warnings: Warning[] = []
@@ -132,6 +149,8 @@ export function transformCustomer(
   const emails = records(record.emails).sort(byPrimaryThenAge)
   const phones = records(record.phoneNumbers).sort(byPrimaryThenAge)
   const contacts: CustomerContactRow[] = []
+  // The primary is the first one with a value (primary first, then the oldest), not whatever sorted first.
+  let emailIndex = 0
   for (const [i, e] of emails.entries()) {
     const { value, valid } = normalizeEmail(str(e.email))
     if (!value) continue
@@ -151,27 +170,31 @@ export function transformCustomer(
       kind: 'email',
       value,
       label: null,
-      isPrimary: i === 0,
+      isPrimary: emailIndex++ === 0,
       marketingOptIn: typeof e.marketingOptIn === 'boolean' ? e.marketingOptIn : null,
       subscribed: typeof e.subscribed === 'boolean' ? e.subscribed : null,
     })
   }
+  let phoneIndex = 0
+  let primaryPhoneNumber: string | null = null
   for (const [i, p] of phones.entries()) {
     const value = normalizePhone(str(p.number), ctx.countryCode)
     if (!value) continue
     const extension = str(p.extension)
+    const isPrimary = phoneIndex++ === 0
+    // The customer's own phone is the number alone (texts go to it); the contact keeps the extension.
+    if (isPrimary) primaryPhoneNumber = value
     contacts.push({
       remoteId: String(p.id ?? `${remoteId}:phone:${i}`),
       kind: 'phone',
       value: extension ? `${value} ext. ${extension}` : value,
       label: str(p.userDefinedType) ?? str(p.type),
-      isPrimary: i === 0,
+      isPrimary,
       marketingOptIn: null,
       subscribed: null,
     })
   }
   const primaryEmail = contacts.find((c) => c.kind === 'email' && c.isPrimary)
-  const primaryPhone = contacts.find((c) => c.kind === 'phone' && c.isPrimary)
 
   const customFields: CustomFieldValueRow[] = []
   if (str(record.customerType) === 'Fleet') {
@@ -183,14 +206,31 @@ export function transformCustomer(
     const text = value === null || value === undefined ? null : String(value).trim()
     if (text) customFields.push({ entityType: 'customer', name: field, value: text })
   }
+  // A label's value is its name; an id alone is looked up in the label table.
   const labels = entries(record.labels)
-    .map(([, label]) => str(label))
+    .map(([id, label]) => str(label) ?? str(lookups.labels?.[id]?.name))
     .filter((label): label is string => !!label)
   if (labels.length)
     customFields.push({ entityType: 'customer', name: 'Labels', value: labels.join(', ') })
-  const referral = str(record.referralSourceId)
-  if (referral) {
-    customFields.push({ entityType: 'customer', name: 'Referral source', value: referral })
+  const referralId = str(record.referralSourceId)
+  if (referralId) {
+    const referral = str(lookups.referralSources?.[referralId]?.name)
+    if (!referral) {
+      warnings.push(
+        warn(
+          'customer',
+          remoteId,
+          'customer_referral_unresolved',
+          'Its referral source is not in the archive',
+          'referralSourceId'
+        )
+      )
+    }
+    customFields.push({
+      entityType: 'customer',
+      name: 'Referral source',
+      value: referral ?? referralId,
+    })
   }
 
   const publicId = str(record.publicId)
@@ -200,14 +240,14 @@ export function transformCustomer(
         name,
         company: person && companyName ? companyName : null,
         email: primaryEmail?.value ?? null,
-        phone: primaryPhone?.value ?? null,
+        phone: primaryPhoneNumber,
         address: composeAddress(record),
         notes: cleanText(typeof record.note === 'string' ? record.note : null),
         taxExempt: [record.taxExempt, record.gstExempt, record.hstExempt, record.pstExempt].some(
           (flag) => flag === true
         ),
         // PROVISIONAL(M0:S4): only an explicit unsubscribe on the primary email opts out.
-        reminderOptOut: emails[0]?.subscribed === false,
+        reminderOptOut: primaryEmail?.subscribed === false,
         createdAt: date(record.createdDate) ?? undefined,
         userId: ctx.runUserId,
         organizationId: ctx.organizationId,

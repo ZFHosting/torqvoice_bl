@@ -177,3 +177,216 @@ describe('totals that don’t add up', () => {
     expect(asRecord(result.rows).record.totalAmount).toBe((order.totalCostCents as number) / 100)
   })
 })
+
+describe('services that don’t count toward the totals', () => {
+  const services1003 = () =>
+    fixtures.order_service
+      .filter((s) => s.orderId === 'syn_ord_1003')
+      .map((s) => structuredClone(s) as Record<string, unknown>)
+  const transform1003 = (services: Record<string, unknown>[]) =>
+    transformOrder(
+      fixture('order', 'syn_ord_1003'),
+      { services, vehicleOwnerRemoteId: 'syn_cus_1', taxConfig, userNames, authorizations: [] },
+      context(),
+      NOW
+    )
+
+  it('leave out a service declined but not deferred', () => {
+    const services = services1003()
+    const coolant = services.find((s) => s.id === 'syn_svc_1003_4') as Record<string, unknown>
+    coolant.deferredDate = null
+    coolant.deferredReason = null
+    const result = transform1003(services)
+    const rows = asRecord(result.rows)
+    expect(rows.jobs.find((j) => j.remoteId === 'syn_svc_1003_4')?.counts).toBe(false)
+    expect(rows.record.subtotal).toBe(1088.09)
+    expect(result.warnings.filter((w) => w.code === 'money_mismatch')).toEqual([])
+  })
+
+  it('leave out a service deferred but not declined, and make it a finding', () => {
+    const services = services1003()
+    const coolant = services.find((s) => s.id === 'syn_svc_1003_4') as Record<string, unknown>
+    coolant.authorizationStatus = 'Pending'
+    coolant.deferredReason = 'InvoicedNotAuthorized'
+    const result = transform1003(services)
+    const rows = asRecord(result.rows)
+    const job = rows.jobs.find((j) => j.remoteId === 'syn_svc_1003_4')
+    expect(job?.counts).toBe(false)
+    expect(job?.deferred?.notes).toMatch(/Deferred \(InvoicedNotAuthorized\)/)
+    expect(rows.record.subtotal).toBe(1088.09)
+    expect(result.warnings.filter((w) => w.code === 'money_mismatch')).toEqual([])
+  })
+
+  it('would be counted (and mismatch Shopmonkey’s totals) if the rule were dropped', () => {
+    const services = services1003()
+    const coolant = services.find((s) => s.id === 'syn_svc_1003_4') as Record<string, unknown>
+    coolant.authorizationStatus = 'Authorized'
+    coolant.deferredDate = null
+    const result = transform1003(services)
+    expect(result.warnings.some((w) => w.code === 'money_mismatch' && w.field === 'subtotal')).toBe(
+      true
+    )
+  })
+})
+
+describe('EPA, shop supplies and fees', () => {
+  it('make EPA a shopFee line, taxed as the tax config says (order 1002)', () => {
+    const rows = asRecord(run('syn_ord_1002', { owner: 'syn_cus_2' }).rows)
+    const epa = rows.jobs.flatMap((j) => j.labor).find((l) => l.lineKind === 'epa')
+    expect(epa).toMatchObject({
+      pricingType: 'shopFee',
+      hours: 1,
+      taxable: taxConfig.epaTaxable === true,
+    })
+    expect(epa?.rate).toBe(epa?.total)
+    expect(epa?.sourceExtra).toMatchObject({
+      source: 'shopmonkey',
+      remoteServiceId: expect.any(String),
+    })
+  })
+
+  it('warn epa_also_fee only on a service that also carries EPA or shop supplies', async () => {
+    const { transformService } = await import('@/integrations/shopmonkey/transform/lines')
+    const fee = { id: 'f1', name: 'EPA disposal', feeType: 'FixedCents', amountCents: 300 }
+    const withEpa = transformService(
+      { id: 's1', calculatedEpaCents: 500, fees: [fee] },
+      context(),
+      false,
+      false
+    )
+    const without = transformService({ id: 's2', fees: [fee] }, context(), false, false)
+    expect(withEpa.warnings.map((w) => w.code)).toContain('epa_also_fee')
+    expect(without.warnings.map((w) => w.code)).not.toContain('epa_also_fee')
+  })
+
+  it('take a percent fee’s amount from Shopmonkey, then its own line’s subtotal, then the service', async () => {
+    const { feeCents } = await import('@/integrations/shopmonkey/transform/lines')
+    expect(feeCents({ feeType: 'PercentLineItem', percent: 10, amountCents: 500 }, 15_000)).toBe(
+      500
+    )
+    expect(
+      feeCents({ feeType: 'PercentLineItem', percent: 10, subtotalCents: 5_000 }, 15_000)
+    ).toBe(500)
+    expect(feeCents({ feeType: 'PercentService', percent: 10 }, 15_000)).toBe(1_500)
+    expect(feeCents({ feeType: 'FixedCents', amountCents: 450 }, 15_000)).toBe(450)
+  })
+
+  it('write sourceExtra the M1 schema reads', async () => {
+    const { laborSourceExtraSchema, partSourceExtraSchema } = await import(
+      '@/integrations/shopmonkey/schema/sourceExtra'
+    )
+    const rows = asRecord(run('syn_ord_1003', { owner: 'syn_cus_1' }).rows)
+    for (const line of rows.jobs.flatMap((j) => j.labor)) {
+      expect(laborSourceExtraSchema.safeParse(line.sourceExtra).success, line.remoteId).toBe(true)
+    }
+    for (const line of rows.jobs.flatMap((j) => j.parts)) {
+      expect(partSourceExtraSchema.safeParse(line.sourceExtra).success, line.remoteId).toBe(true)
+      expect(line.sourceExtra).toMatchObject({ source: 'shopmonkey', remoteId: line.remoteId })
+    }
+  })
+})
+
+describe('order details', () => {
+  const servicesOf = (orderId: string) =>
+    fixtures.order_service.filter((s) => s.orderId === orderId).map((s) => structuredClone(s))
+
+  it('take the tax rate from the tax config, Canadian components too', () => {
+    const hst = {
+      ...taxConfig,
+      taxSystem: 'CA',
+      taxPercent: null,
+      gstPercent: 0,
+      pstPercent: 0,
+      hstPercent: 13,
+    }
+    const result = transformOrder(
+      fixture('order', 'syn_ord_1004'),
+      {
+        services: servicesOf('syn_ord_1004'),
+        vehicleOwnerRemoteId: 'syn_cus_4',
+        taxConfig: hst,
+        userNames,
+        authorizations: [],
+      },
+      context(),
+      NOW
+    )
+    expect(asRecord(result.rows).record.taxRate).toBe(13)
+  })
+
+  it('never make the job’s technician one of its helpers, and keep no Shopmonkey id as a user', () => {
+    const order = fixture('order', 'syn_ord_1002')
+    order.assignedTechnicianIds = ['syn_usr_1', 'syn_usr_2', 'syn_usr_1']
+    const rows = asRecord(
+      transformOrder(
+        order,
+        {
+          services: servicesOf('syn_ord_1002'),
+          vehicleOwnerRemoteId: 'syn_cus_2',
+          taxConfig,
+          userNames,
+          authorizations: [],
+        },
+        context(),
+        NOW
+      ).rows
+    )
+    expect(rows.record.technicianId).toBe(local('user', 'syn_usr_1'))
+    expect(rows.helperTechnicianIds).toEqual([local('user', 'syn_usr_2')])
+    expect(rows.meta.serviceWriterUserId).toBeNull()
+    expect(rows.meta.serviceWriterName).not.toBeNull()
+  })
+
+  it('warn about what it can’t resolve or date', () => {
+    const order = fixture('order', 'syn_ord_1003')
+    delete order.createdDate
+    delete order.orderCreatedDate
+    delete order.repairOrderDate
+    order.invoicedDate = null
+    const result = transformOrder(
+      order,
+      {
+        services: servicesOf('syn_ord_1003'),
+        vehicleOwnerRemoteId: 'syn_cus_1',
+        taxConfig,
+        userNames,
+        authorizations: [],
+      },
+      context({ notLoaded: ['vehicle:syn_veh_1', 'customer:syn_cus_1'] }),
+      NOW
+    )
+    expect(result.warnings.map((w) => w.code)).toEqual(
+      expect.arrayContaining([
+        'order_missing_date',
+        'invoice_not_issued',
+        'order_vehicle_unresolved',
+        'order_customer_unresolved',
+      ])
+    )
+    expect(asRecord(result.rows).issueAsInvoice).toBe(false)
+  })
+
+  it('warn when a repair order’s status has no stage', () => {
+    const result = transformOrder(
+      fixture('order', 'syn_ord_1002'),
+      {
+        services: servicesOf('syn_ord_1002'),
+        vehicleOwnerRemoteId: 'syn_cus_2',
+        taxConfig,
+        userNames,
+        authorizations: [],
+      },
+      context(),
+      NOW
+    )
+    expect(result.warnings.map((w) => w.code)).toContain('order_status_unmapped')
+    expect(asRecord(result.rows).record.status).toBe('in-progress')
+  })
+
+  it('report the service and line fields it leaves out', () => {
+    const result = run('syn_ord_1003', { owner: 'syn_cus_1' })
+    expect(result.unmapped).toEqual(
+      expect.arrayContaining(['order_service.taxPercent', 'labors.costTotalCents'])
+    )
+  })
+})

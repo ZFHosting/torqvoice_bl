@@ -56,5 +56,5 @@ export const records = (value: unknown): Row[] =>
 /** A Shopmonkey `{ id: value }` object (custom fields, labels) as entries, in key order. */
 export const entries = (value: unknown): [string, unknown][] =>
   value && typeof value === 'object' && !Array.isArray(value)
-    ? Object.entries(value as Row).sort(([a], [b]) => a.localeCompare(b))
+    ? Object.entries(value as Row).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     : []
