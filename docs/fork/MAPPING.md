@@ -284,6 +284,29 @@ set `resolvedServiceRecordId` to that later order.
 Open balances survive: Torqvoice works out paid or unpaid from payments, so an unpaid Shopmonkey invoice
 arrives unpaid. This is the main difference from the spreadsheet importer, which marks history as paid.
 
+### 6.6 Fallbacks and warnings (M4)
+
+The transforms never invent data silently: where Torqvoice needs a value Shopmonkey didn't give, they use the
+fallback below and return a warning (code in brackets) for the M6 report.
+
+- Customer with no name or company: "Shopmonkey customer <publicId or id>" [`customer_missing_name`]. An email
+  that doesn't look like one is kept [`customer_invalid_email`].
+- Vehicle with no year, make or model: §5's Unknown/Unknown/0 [`vehicle_missing_ymm`]; more than one owner row
+  [`vehicle_multiple_owners`]; an owner that wasn't imported [`vehicle_owner_unresolved`].
+- Order lines that don't add up to a service's `calculated*Cents`, or an order whose subtotal, discount and tax
+  don't give `totalCostCents` [`money_mismatch`, with both numbers]; a fee named like EPA or shop supplies
+  [`epa_also_fee`]; a RepairOrder whose workflow status has no stage [`order_status_unmapped`, `in-progress`]; a
+  vehicle or customer that wasn't imported [`order_vehicle_unresolved`, `order_customer_unresolved`].
+- Payment on an order that isn't a loaded work order [`payment_order_not_loaded`, not imported]; refunds that bring
+  the net paid to zero or below [`refund_net_nonpositive`].
+- Timesheet on an order that isn't a work order: kept as a shift [`timesheet_order_not_loaded`]; with no clock-in or
+  an unimported technician: not imported [`timesheet_missing_clock_in`, `timesheet_technician_unresolved`].
+- Appointment with no usable end: an hour long [`appointment_end_assumed`]; with no start: not imported.
+- Inspection whose order's vehicle, or whose template, wasn't imported: not imported (Torqvoice needs both)
+  [`inspection_vehicle_unresolved`, `inspection_template_unresolved`].
+- A percent catalog fee becomes a preset item with rate 0 [`preset_percent_fee`]: a preset holds no percentage.
+- A user's colour name maps to hex (`blue` → `#3b82f6`); an unknown one keeps Torqvoice's default.
+
 ## 7. Inventory
 
 | Shopmonkey Inventory Part | `InventoryPart` |
@@ -347,3 +370,46 @@ in RESULTS T1.
   columns (job, kind, technician, completion, cost, discount, note, source fields): upstream saves lines by
   deleting and recreating them from what the form sends, and the form doesn't carry those columns (M1
   review). M5 task 12 keeps them; until then, imported documents are read-only in practice.
+
+---
+
+## 11. Fields kept in the archive only
+
+Every source field the transforms (M4, `src/integrations/shopmonkey/transform/`) leave out of the Torqvoice
+rows, per table, as their field specs list them. `transform/fields.test.ts` fails on a fixture field that is
+neither mapped nor listed here, and `transform/mapping-doc.test.ts` fails when this table and the specs disagree.
+They stay in `SourceRecord` and are served by `/api/v1/source-records`. Fields read only to find a related record
+(`companyId`, `locationId`) are listed too. **[provisional: S4]**: built from the synthetic fixtures, which carry
+the fields the importer reads plus a few around them; recorded fixtures will add more.
+
+| Shopmonkey table | Archive only |
+| --- | --- |
+| `customer` | `companyId`, `deletedDate`, `deletedReason`, `discountPercent`, `externalId`, `fleetId`, `locationId`, `locationIds`, `metadata`, `preferredContactMethod`, `preferredLanguage`, `updatedDate`, `website` |
+| `vehicle` | `companyId`, `deletedDate`, `hin`, `licensePlateCountry`, `locationId`, `locationIds`, `metadata`, `name`, `updatedDate` |
+| `user` | `assignedServiceWriter`, `assignedTechnician`, `canTrackTime`, `companyIds`, `customFields`, `laborRateId`, `locationIds`, `phone`, `roleIds`, `updatedDate` |
+| `workflow_status` | `archiveWhenInactive`, `archiveWhenPaid`, `companyId`, `daysToArchive`, `inactiveOrderWarningThreshold`, `locationId`, `metadata`, `updatedDate` |
+| `order` | `archived`, `companyId`, `deletedDate`, `deletedReason`, `files`, `hasPayments`, `invoiceLockState`, `invoiced`, `locationId`, `metadata`, `paid`, `paidCostCents`, `publicId`, `remainingCostCents`, `taxConfigId`, `updatedDate`, `workflowStatusPosition` |
+| `order_service` | `calculatedDiscountPercent`, `calculatedGSTCents`, `calculatedHSTCents`, `calculatedPSTCents`, `categoryId`, `companyId`, `createdDate`, `discountCents`, `discountPercent`, `discountValueType`, `epaCents`, `epaPercent`, `epaValueType`, `excludedFromDeferred`, `gstCents`, `gstPercent`, `gstValueType`, `hideLineItemPricing`, `hstCents`, `hstPercent`, `hstValueType`, `lineItemInventoryStatus`, `lineItemOrder`, `locationId`, `metadata`, `pricing`, `pstCents`, `pstPercent`, `pstValueType`, `revived`, `shopSuppliesApplied`, `shopSuppliesCents`, `shopSuppliesPercent`, `shopSuppliesValueType`, `sourceServiceId`, `taxCents`, `taxPercent`, `taxValueType`, `updatedDate` |
+| `order_service.labors[]` | `cannedServiceId`, `categoryId`, `companyId`, `completedDate`, `costTotalCents`, `createdDate`, `labels`, `locationId`, `metadata`, `orderId`, `ordinal`, `serviceId`, `showHours`, `showNote`, `updatedDate` |
+| `order_service.parts[]` | `cannedServiceId`, `categoryId`, `companyId`, `createdDate`, `discountPercent`, `discountValueType`, `labels`, `locationId`, `metadata`, `orderId`, `ordinal`, `reduceInventoryCount`, `serviceId`, `showCostAndQuantity`, `showNote`, `showPartNumber`, `updatedDate` |
+| `order_service.tires[]` | `binLocation`, `cannedServiceId`, `categoryId`, `companyId`, `createdDate`, `discountPercent`, `discountValueType`, `generatedBrandName`, `generatedModelName`, `inventoryStatus`, `labels`, `locationId`, `metadata`, `orderId`, `ordinal`, `purchaseStatus`, `reduceInventoryCount`, `reserved`, `serviceId`, `showNote`, `showPartNumber`, `showPriceAndQuantity`, `updatedDate` |
+| `order_service.subcontracts[]` | `cannedServiceId`, `categoryId`, `companyId`, `createdDate`, `discountPercent`, `discountValueType`, `labels`, `locationId`, `metadata`, `orderId`, `ordinal`, `serviceId`, `showNote`, `updatedDate` |
+| `order_service.fees[]` | `cannedServiceId`, `categoryId`, `companyId`, `createdDate`, `labels`, `laborId`, `locationId`, `metadata`, `orderId`, `ordinal`, `partId`, `serviceId`, `showNote`, `subcontractId`, `subtotalCents`, `tireId`, `updatedDate` |
+| `payment` | `bulkPaymentId`, `companyId`, `locationId`, `metadata`, `paymentMode`, `provider`, `receiptNumber`, `refunded`, `refundedAmountCents`, `statementId`, `updatedDate` |
+| `timesheet` | `companyId`, `createdDate`, `duration`, `flatRate`, `inProgress`, `laborId`, `locationId`, `metadata`, `number`, `rateCents`, `serviceId`, `type`, `updatedDate` |
+| `appointment` | `allDay`, `color`, `companyId`, `confirmationStatus`, `locationId`, `metadata`, `origin`, `publicId`, `recurring`, `sendConfirmation`, `sendReminder`, `updatedDate`, `useEmail`, `useSMS` |
+| `inventory_part, inventory_tire` | `availableQuantity`, `companyId`, `createdDate`, `discountCents`, `federalExciseTaxCents`, `locationId`, `maxCriticalQuantity`, `metadata`, `reservedQuantity`, `sizeFormat`, `taxable`, `tireModelId`, `updatedDate`, `wasteTireFeeCents` |
+| `canned_service` | `bookable`, `companyId`, `createdDate`, `locationId`, `lumpSum`, `metadata`, `pricing`, `publicId`, `recommended`, `updatedDate` |
+| `inventory_labor, inventory_fee` | `categoryId`, `companyId`, `costHours`, `costRateCents`, `createdDate`, `discountCents`, `discountPercent`, `discountValueType`, `locationId`, `metadata`, `multiplier`, `multiplierType`, `rateId`, `taxable`, `taxableGST`, `taxableHST`, `taxablePST`, `updatedDate` |
+| `inspection_template` | `companyId`, `locationId`, `metadata`, `updatedDate` |
+| `inspection` | `checklistStage`, `companyId`, `createdById`, `locationId`, `metadata`, `ordinal`, `recommended`, `updatedDate` |
+| `company` | `createdDate` |
+| `location` | `address1`, `address2`, `archived`, `city`, `companyId`, `country`, `createdDate`, `deleted`, `email`, `latitude`, `locationId`, `longitude`, `metadata`, `phone`, `postalCode`, `state`, `updatedDate`, `website` |
+| `tax_config` | `applyServiceDiscountToTaxableItemsFirst`, `companyId`, `createdDate`, `epaPercent`, `hash`, `includeEpaOnLabor`, `includeEpaOnParts`, `laborShopSupplies`, `locationId`, `metadata`, `partShopSupplies`, `priceCalculatorVersion`, `shopSuppliesConfig`, `shopSuppliesMaxCapCents`, `subcontractTaxable`, `updatedDate`, `version` |
+| `labor_rate` | `companyId`, `flatRate`, `locationId`, `metadata`, `updatedDate` |
+| `vendor` | `accountNumber`, `address1`, `city`, `companyId`, `contactFirstName`, `contactLastName`, `country`, `createdDate`, `deleted`, `locationId`, `metadata`, `postalCode`, `state`, `updatedDate` |
+| `inventory_category` | `companyId`, `createdDate`, `deleted`, `locationId`, `metadata`, `parentId`, `parentName`, `updatedDate` |
+| `label` | `color`, `companyId`, `createdDate`, `entity`, `locationId`, `metadata`, `saved`, `updatedDate` |
+| `referral_source` | `companyId`, `createdDate`, `editable`, `locationId`, `metadata`, `reserved`, `updatedDate` |
+| `authorization` | `authorizedCostCents`, `companyId`, `customerId`, `locationId`, `metadata`, `method`, `note`, `serviceAuthorizationReset`, `serviceWriterId`, `services`, `updatedDate` |
+| `vehicle_owner` | `companyId`, `metadata`, `updatedDate` |
