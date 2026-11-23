@@ -23,8 +23,8 @@ resolved.
 | M0 | provisional | fork/M0-setup-and-spikes | Merged 249e3dd3. S1–S12 from docs only and synthetic fixtures: re-verify with a key (B1). Reviewer: ready for PR after 3 passes. |
 | M1 | done | fork/M1-schema-extensions | Merged 5605175e. Reviewer: ready for PR after 2 passes. DoD evidence in the Decisions log (2026-11-22, M1). |
 | A1 | done | fork/A1-api-foundation | Merged 1c81e08e. Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (A1 done). |
-| A2 | in_progress | fork/A2-domain-services | |
-| M2 | todo | | |
+| A2 | done | fork/A2-domain-services | Merged c7f16d90. Reviewer: ready for PR after 2 passes. Upstream techName bug recorded as an A4 prerequisite. |
+| M2 | in_progress | fork/M2-connector-and-client | |
 | M3 | todo | | |
 | M4 | todo | | |
 | M5 | todo | | |
@@ -65,54 +65,19 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**A2 (domain services), in progress** on `fork/A2-domain-services` (from `fork/integration` at the A1 merge).
-Method: `scratchpad/a2-final/extract_service.py` moves each write action's withAuth callback body, verbatim,
-into `src/features/<domain>/Lib/<domain>Service.server.ts` as `<action>Service(ctx: ServiceCtx, <same
-params>)`, with the helpers it uses; the action keeps its name, input, permissions and audit option and calls
-the service. Audit builders move to `<domain>AuditEvents.ts` so the API logs the same event. Deletes also
-write a `DeletedRecord`. Per domain: extractor → Biome (unsafe fix drops unused imports) → that domain's
-existing tests unchanged → a service test → `tsc` → commit. Order (brief):
-1. [x] customers (80787391): `customerService.server.ts`, `customerAuditEvents.ts`; test
-   `features/customers/customer-service.test.ts`; customer-related tests unchanged and passing (49 files).
-   Contacts (X4) move to A4 (nothing to extract; brief updated).
-2. [x] vehicles + notes + archive (349f3bdc): `vehicleService`, `vehicleArchiveService`, `noteService`,
-   `vehicleAuditEvents.ts`; test `features/vehicles/vehicle-service.test.ts`; vehicle-related folders pass
-   (only the Windows baseline file tests fail); `tsc` exit 0.
-3. [x] service records (a2e14f31, b0ccb678): `serviceRecordService` (create, update incl. lines, status,
-   internal notes, title, manually paid, delete, attachment delete, public link), `draftServiceRecordService`,
-   `serviceAttachmentService`, `serviceRecordAuditEvents.ts`; test `vehicles/service-record-service.test.ts`;
-   `meters-gates`, `equipment-gates` and `service-concerns` now read the service file (same assertions).
-   `addPartToServiceRecord` already calls a library helper. Jobs (X2) have no action to extract: their service
-   comes with their endpoints in A4, like contacts. Board scheduling and assignment writes go with
-   appointments (6). Folders pass except Windows baseline tests (checked by test name); `tsc` exit 0.
-4. [x] payments (86ade5b7): `paymentService`, `paymentAuditEvents.ts`, test `payments/payment-service.test.ts`;
-   payment-related folders pass (Fiken load timeout only); `tsc` exit 0.
-5. [x] quotes (4c2d804c): create, update, status, delete, convert in `quoteService`, `quoteAuditEvents.ts`; test
-   `quotes/quote-service.test.ts`; equipment-gates allows the service file. `addQuoteToServiceRecord` (validates
-   before withAuth) left for A4 to decide on. Folders pass except Windows baseline (by test name); `tsc` exit 0.
-6. [x] appointments (7518cc93): `bookingService` (createBookingOnce, updateBooking, deleteAppointment,
-   bookAppointment), `bookingAuditEvents.ts`; test `calendar/booking-service.test.ts`; booking-token db test passes.
-7. [x] technicians, time entries (587245dd): `technicianService`, `timeEntryService` (+ the timesheet schemas),
-   audit events; tests `time-tracking/time-entry-service.test.ts`, `workboard/technician-service.test.ts`.
-   Shifts (X6): nothing to extract, A4.
-8. [x] inventory + stock adjust, labor presets (2912c2ad): `inventoryService`, `laborPresetService`, audit
-   events; test `inventory/inventory-service.test.ts`. `applyMarkupToAll` stays.
-9. [x] findings (4e8a7e76): `findingService`, `findingAuditEvents.ts`.
-10. [x] webhooks (4e8a7e76): `webhookService`, `webhookAuditEvents.ts`; test `webhooks/webhook-service.test.ts`.
-11. [x] DoD (2026-11-23, at the A2 tip): `tsc` exit 0; Biome 14 (baseline); `npm test` all 808 files in 7 chunks
-    on Node 22.23.4, failing = the 14 Windows-only baseline files (checked by test name where a file also holds
-    fork-relevant checks: meters-gates and equipment-gates fail only their path-separator test) plus
-    environment-only `backup-manifest` / `workshop-columns` (CRLF copies; pass after LF, 26/26) and the
-    `fiken` pure-computation timeout; `test:db` 16 files / 102 tests on `torqvoice_fork_test`.
-12. [x] Reviewer pass 1: **needs changes** (acceptance 3, the move, PASS by its own AST check: 63 bodies, 423
-    bindings, every export and option). Fixed: cascaded tombstones (payments, time entries, findings,
-    inspections) via `public-api/Lib/tombstones.server.ts` in the work order and both vehicle deletes, tested in
-    `vehicle-service.test.ts` / `service-record-service.test.ts`, and on Postgres by `test:db` (16/102);
-    `workboard/technician-service.test.ts` (6). Should-fix: demo-guard scans services; A4 brief notes; decisions.
-13. [x] Reviewer pass 2 (2026-11-23): **ready for PR**, on condition the merge records an upstream cross-workshop
-    write found in a moved body (`updateTechnicianService`'s `techName` sync): recorded in the merge commit,
-    the Decisions log and as an A4 prerequisite. Its notes taken: workshop filters on the cascade reads, the
-    vehicle test checks the reads come before the delete, A5 task 7 lists the deletes A2 didn't reach.
+**M2 (Shopmonkey connector and client), in progress** on `fork/M2-connector-and-client` (from `fork/integration`
+at the A2 merge). Staged in the session scratchpad `m2-final/`: `client.ts` (read-only allowlist, pacing from the
+rate-limit headers, Retry-After, jittered 5xx backoff, paging, logs without queries or bodies), `money.ts`,
+`manifest.ts`, `server.ts` (test, identify, remoteOptions.locations, `shouldRetry: () => false`), tests, and
+`i18n_shopmonkey.py` (connectors.shopmonkey + capabilities.import.shopmonkey in 14 locales). Plan:
+1. [ ] Copy in client, money, manifest, server; register in `src/integrations/registry.ts`; a generic logo
+   `public/images/integrations/shopmonkey.svg` (not Shopmonkey's).
+2. [ ] Strings in every locale; the registry test passes.
+3. [ ] Tests: allowlist, 429 + Retry-After, slowing at low remaining, paging to the end, redacted logs, money.
+4. [ ] DoD, reviewer, merge.
+Notes for M3 (found while staging): `runJob` requeues only when `rescheduleInSeconds` is truthy, so a page
+job must return 1, not the brief's 0; the invoice PDF is binary, so the client needs a byte download.
+Staged M3 drafts: `scratchpad/m3-final/` (stage.ts, tables.ts).
 
 M0 acceptance:
 - [x] NOTICE-FORK.md, README link, CLAUDE.md import, docs/fork/UPSTREAM.md (commit 0c7ec939).
@@ -217,6 +182,7 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | A2: upstream tests whose hand-written database mock lacks `deletedRecord` get it added (`// fork:`), expectations untouched. | A delete now writes a tombstone in its transaction (the brief's "deletes also write DeletedRecord"). |
 | 2026-11-23 | A2: a service takes the action's own parameters (raw input included) and validates inside, exactly as the action body did, instead of the brief's "action parses, service takes parsed input". | The body moves verbatim (no behaviour change, the brief's acceptance 3), and the API gets the very same validation, including the messages an action words through next-intl (the vehicle fleet number, in the caller's locale from cookie or Accept-Language). |
 | 2026-11-23 | A2: one branch with a commit per domain, not one PR per domain. | Autopilot merges per milestone; each domain's commit stands alone (tests, `tsc`), so the history reads as the brief's PRs would. Playwright runs in CI's shards on the merged branch. |
+| 2026-11-23 | **A2 done.** DoD at 3329b5c4 plus review fixes: `tsc` exit 0; Biome 14 (baseline); `npm test` 808 files, failures = Windows baseline + CRLF/timeout environment cases; `test:db` 16/102. Reviewer pass 2: ready for PR. Merged at c7f16d90. | Evidence for the definition of done and acceptance. |
 | 2026-11-23 | **Upstream bug found in A2's move, not fixed in A2:** `updateTechnicianService` (formerly `updateTechnician`) renames `techName` on work orders matched by technician id alone, after a workshop-scoped update whose count it never checks, so another workshop's technician id renames that workshop's jobs. Present on upstream `main`. | The A2 brief: bugs found while moving code are noted in the PR and fixed separately. It becomes reachable by API keys with A4's `PATCH /technicians/{id}`, so it is an A4 prerequisite (A4 brief). Worth reporting upstream too. |
 | 2026-11-23 | A2 review, accepted: tombstones after a non-transactional delete (a note, a finding, a webhook, a payment, an appointment, an attachment, an inventory part, a labor preset, a time entry) are written right after it, not in one transaction; a few bulk paths tombstone every pre-checked id once `count > 0`. | Wrapping them would change bodies A2 promised to move verbatim and upstream's mocks; a crash between the two writes loses one tombstone, and a race can tombstone a row deleted by someone else a moment earlier, both rare and harmless to tenancy (every id is checked to be the workshop's). A6's security review lists it. |
 | 2026-11-23 | A2 review: `demo-guard-coverage` also scans `*Service.server.ts`, where the moved bodies (and their `demoGuard()` calls) now live. | Otherwise a send added to a service later wouldn't be caught. |
