@@ -28,7 +28,7 @@ resolved.
 | M3 | provisional | fork/M3-extract-and-stage | Merged c79858fb. Built on documented shapes and synthetic fixtures: re-verify with a key (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M3 provisional). |
 | M4 | provisional | fork/M4-transform | Merged 634a6785. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M4 provisional). |
 | M5 | provisional | fork/M5-load | Merged 40e49b36. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 4 passes. Evidence in the Decisions log (M5 provisional). |
-| A3 | todo | | |
+| A3 | in_progress | fork/A3-read-endpoints | |
 | A4 | todo | | |
 | M6 | todo | | |
 | M7 | todo | | |
@@ -69,10 +69,28 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**Next: A3 (read endpoints)**, from `fork/integration`. The plan goes here when it starts. Drafts of the simpler
-read resources (customers, vehicles, technicians, statuses, presets, inventory, appointments, payments, time
-entries, shifts, findings, webhooks) are in the session scratchpad `a3-final/` (one `Resources/` file each); split
-them into `Schema/` and `Serializers/` as API.md §6 and the brief lay out.
+**A3 (read endpoints), in progress** on `fork/A3-read-endpoints` (from `fork/integration` at 6f7fb226). The upstream
+merge at the start conflicted (B15) and was aborted; A3 carries on without it. Plan:
+1. [ ] `Lib/readResource.ts`: a resource declares its path, tag, READ permission, workshop `scope` (on every query,
+   lookups by id included), filters, includes, Prisma `select` and serializer; `listRoute` / `getRoute` build the
+   handlers (paged over `(updatedAt, id)`, `updatedSince`, `?include=` checked against an allowlist, `ETag` on a
+   get, another workshop's id = 404) and `readEndpoints` the OpenAPI entries. `Lib/serializeContext.ts`: currency
+   and time zone once per request, `money()` (2 decimals as printed), `iso()`, `day()` (workshop calendar date).
+   From the scratchpad drafts (`a3-final/`).
+2. [ ] Per resource: `Schema/<r>.ts` (response + filter zod, endpoints), `Serializers/<r>.ts` (select + field by
+   field serializer, never a spread row), `Resources/<r>.ts` (the declaration; API.md §6 gains the folder).
+   Routes `src/app/api/v1/<r>/route.ts` and `[id]/route.ts`, thin. Resources: customers (+contacts,
+   customFields), vehicles (+customFields, notes), work-orders (+jobs, lines, concerns, payments, attachments,
+   timeEntries, meta, customFields), quotes (+jobs, lines), appointments, technicians, time-entries, shifts,
+   inventory-parts, labor-presets, inspections (+items), findings, work-order-statuses, payments, webhooks; nested
+   reads `customers/{id}/contacts`, `work-orders/{id}/jobs|lines|payments|attachments`; the attachment download
+   `work-orders/{id}/attachments/{attachmentId}/content` (the protected files route's checks).
+3. [ ] The carry-over: `sourceExtra` readers lenient per key before lines are served.
+4. [ ] Tests: a table-driven tenant isolation test over every list and get (db); paging 500 records, each once,
+   with updates during the walk (db); `updatedSince` (db); every response parses with its schema and
+   `openapi.json` lists every endpoint (the A1 openapi test covers routes); a grep test for spreads in
+   `Serializers/`; permissions (403 without READ).
+5. [ ] DoD, reviewer, merge.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
@@ -129,6 +147,7 @@ M0 acceptance:
 | B11 | All | **Confirm the committed Claude Code config.** The `.claude/` kit (settings.json with the Stop hook `keep-going.sh`, the autopilot and milestone commands, the reviewer agent) and the autopilot section of `docs/fork/README.md` were in the working tree, untracked, when this run started, newer than `bluelabel-fork-kit.zip`; M0 committed them as found. The Stop hook runs in **every** Claude Code session in this repo, not only `/autopilot`: it refuses to stop while a milestone is `todo` or `in_progress` (escape: `touch .claude/STOP`). Confirm that's wanted, or scope it. | 2026-11-22 |
 | B12 | M1 (and everything after it) | ~~Re-run M1's checks.~~ **Resolved 2026-11-22:** rerunning `/autopilot` was the go-ahead; the checks ran one at a time in the foreground with two test workers, and pass (Current step). | 2026-11-22 |
 | B13 | All (not blocking) | **Upgrade Node on this machine to 22.23.4** (what CI, the Dockerfile and the devcontainer pin), or at least ≥22.19. With the installed 22.14, `npm test` silently runs only 141 of 775 test files: `jsdom` 30 pulls `undici` 8, which needs `zlib.createZstdDecompress`, and the other 634 files' workers crash on start without counting as failures. The build carries on with a checksum-verified portable Node 22.23.4 in the session scratchpad, so nothing waits on this. | 2026-11-22 |
+| B15 | All (not blocking) | **Upstream merge conflict.** `git merge upstream/main` at the start of A3 (upstream f620cbda, "Refuse an uploaded backup whose record ids cannot sit in a link", #672) conflicts in `src/app/api/protected/backup/import/route.ts`, where M3 marked its archive edits. Aborted, per the rules; the fork carries on without it. The conflict is small (an import line and one `assertUrlSafeIds(backup.data)` call next to the fork's archive lines): merge it by hand, or tell me to resolve conflicts that are this mechanical. | 2026-11-23 |
 | B14 | None (local housekeeping) | **Reset or drop the old local databases** `torqvoice` (what `.env`'s `DATABASE_URL` points at) and `torqvoice_test` in the `torqvoice-bl-db` container: they hold the pre-review version of M1's migration, so `prisma migrate dev` against them now wants a reset, and Prisma refuses `migrate reset` from an AI agent without your explicit consent. Either run `npx prisma migrate reset` against each yourself, or tell me to, or point `.env` at `torqvoice_fork_test`. Tests already use `torqvoice_fork_test`, so nothing waits on this. | 2026-11-22 |
 
 ## Re-verify with real Shopmonkey data
