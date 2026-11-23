@@ -64,6 +64,39 @@ describe('the Shopmonkey connector', () => {
     expect(await connector.identify?.(ctx)).toEqual({ id: 'co-1', name: 'Example Auto' })
   })
 
+  it('takes the company from company.id when there is no companyId', async () => {
+    const { ctx } = ctxWith({
+      '/v3/user/me': json(200, { success: true, data: { company: { id: 'co-2' } } }),
+    })
+    expect(await connector.identify?.(ctx)).toEqual({ id: 'co-2', name: 'co-2' })
+  })
+
+  it('refuses to name a connection when Shopmonkey doesn’t say which company the key is for', async () => {
+    const { ctx } = ctxWith({ '/v3/user/me': json(200, { success: true, data: {} }) })
+    await expect(connector.identify?.(ctx)).rejects.toThrow('which company')
+  })
+
+  it('gives up at once on a long rate limit while someone waits on the connect check', async () => {
+    const { ctx, fetch } = ctxWith({
+      '/v3/auth/api_key/status': new Response(
+        JSON.stringify({ success: false, message: 'Too many requests' }),
+        { status: 429, headers: { 'retry-after': '60' } }
+      ),
+    })
+    expect(await connector.test(ctx)).toEqual({ ok: false, message: 'Too many requests' })
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('lists locations from the location list, a page of up to 100', async () => {
+    const { ctx, fetch } = ctxWith({
+      '/v3/location': json(200, { success: true, data: [{ id: 'loc-1', name: 'Main street' }] }),
+    })
+    expect(await connector.remoteOptions?.locations(ctx)).toEqual([
+      { value: 'loc-1', label: 'Main street' },
+    ])
+    expect(new URL(fetch.mock.calls[0][0]).searchParams.get('limit')).toBe('100')
+  })
+
   it('lists locations, falling back to the key’s own user when the list endpoint is gone', async () => {
     const { ctx } = ctxWith({
       '/v3/location': json(404, { success: false, message: 'Not found' }),

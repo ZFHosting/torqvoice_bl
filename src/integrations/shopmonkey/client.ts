@@ -1,16 +1,18 @@
 /**
  * Shopmonkey's REST API v3, read-only by construction (docs/fork/FORK.md, "Shopmonkey is read-only to
- * us"). Every call is a GET, or a POST to one of the read-only search paths in SEARCH_ALLOWLIST;
- * anything else throws before a request leaves the process.
+ * us"). Every call is a GET, or a POST to one of the read-only search paths in SEARCH_ALLOWLIST, on
+ * Shopmonkey's own origin under `/v3/`; anything else throws before a request leaves the process.
  *
  * Built on the connection's `ctx.http` (credentials attached by the connector framework), but it does
  * its own retrying: the server module's `shouldRetry` answers false, so the framework neither retries
- * nor logs response bodies, and this client logs only method, path, status, duration and Shopmonkey's
- * request id. Never a query string (a `where` can hold an email or a phone number) and never a body.
+ * nor logs response bodies. This client logs failures and retries only, with method, path, status,
+ * duration and Shopmonkey's request id: never a query string (a `where` can hold an email or a phone
+ * number), never a body. Successful calls are counted in `stats` for a job to summarise.
  *
- * Pacing (RESULTS S3): every response carries `X-RateLimit-Limit-Minute` and
- * `X-RateLimit-Remaining-Minute` over a rolling minute; below 10% remaining the client spreads its
- * calls over the rest of the minute. A 429 waits `Retry-After`; a 5xx retries with jittered backoff.
+ * Pacing (RESULTS S3). PROVISIONAL(M0:S3): the docs show `X-RateLimit-Limit-Minute` and
+ * `X-RateLimit-Remaining-Minute` on a 429; this client assumes every response carries them, and only
+ * slows down when both are present. Below 10% remaining it spreads calls over the rest of the minute.
+ * A 429 waits `Retry-After` (seconds, PROVISIONAL(M0:S3)); a 5xx retries with jittered backoff.
  */
 
 export const SHOPMONKEY_BASE_URL = 'https://api.shopmonkey.cloud'
@@ -37,15 +39,29 @@ export const SEARCH_ALLOWLIST: ReadonlySet<string> = new Set([
   '/v3/timesheet/search',
 ])
 
+/**
+ * GETs never made, whatever asks: they decode a vehicle through a data provider and may be billed, and
+ * their paths would carry a VIN or a plate into the logs (RESULTS S4).
+ */
+const NEVER_CALLED = ['/v3/vehicle/vin/', '/v3/vehicle/license_plate/']
+
 /** The page size every list is read in. PROVISIONAL(M0:S2): no maximum is documented; clients use 100. */
 export const PAGE_SIZE = 100
-const MAX_ATTEMPTS = 5
-const MAX_RETRY_AFTER_S = 120
 const SLOW_BELOW = 0.1
+const REQUEST_TIMEOUT_MS = 30_000
+
+/** How hard to try. A backfill waits out a rate limit; a connect check, with someone watching, doesn't. */
+export interface RetryBudget {
+  attempts: number
+  /** The longest `Retry-After` honoured, in seconds; a longer one gives up rather than retry early. */
+  maxRetryAfterS: number
+}
+export const BACKFILL_BUDGET: RetryBudget = { attempts: 5, maxRetryAfterS: 120 }
+export const INTERACTIVE_BUDGET: RetryBudget = { attempts: 2, maxRetryAfterS: 5 }
 
 export class ReadOnlyViolation extends Error {
   constructor(method: string, pathName: string) {
-    super(`Refused ${method} ${pathName}: Shopmonkey is read-only to this app.`)
+    super(`Refused ${method} ${pathName.split('?')[0]}: Shopmonkey is read-only to this app.`)
     this.name = 'ReadOnlyViolation'
   }
 }
@@ -53,35 +69,76 @@ export class ReadOnlyViolation extends Error {
 export class ShopmonkeyError extends Error {
   constructor(
     readonly status: number,
-    /** Shopmonkey's own words (`message`), safe to show the workshop: they describe its key. */
+    /**
+     * Shopmonkey's own `message`. For the key and identity endpoints it describes the key and is fine
+     * to show the workshop; elsewhere it may echo request values, so don't log it wholesale.
+     */
     readonly shopmonkeyMessage: string | null,
     readonly code: string | null,
     readonly requestId: string | null
   ) {
     super(
-      `Shopmonkey answered ${status}${code ? ` (${code})` : ''}${shopmonkeyMessage ? `: ${shopmonkeyMessage}` : ''}`
+      `Shopmonkey answered ${status}${code ? ` (${code})` : ''}${requestId ? ` [request ${requestId}]` : ''}`
     )
     this.name = 'ShopmonkeyError'
   }
 }
 
+/** A list whose pages stopped bringing anything new: a skip Shopmonkey ignores, not the end. */
+export class PagingStalled extends Error {
+  constructor(pathName: string, skip: number) {
+    super(`Paging ${pathName} stalled at skip ${skip}: a full page brought no new records.`)
+    this.name = 'PagingStalled'
+  }
+}
+
 export function assertReadOnly(method: string, pathName: string): void {
   const m = method.toUpperCase()
+  if (!pathName.startsWith('/v3/') || /[?#]|\/\.\.?(\/|$)/.test(pathName)) {
+    throw new ReadOnlyViolation(m, pathName)
+  }
+  if (NEVER_CALLED.some((prefix) => pathName.startsWith(prefix))) {
+    throw new ReadOnlyViolation(m, pathName)
+  }
   if (m === 'GET') return
   if (m === 'POST' && SEARCH_ALLOWLIST.has(pathName)) return
   throw new ReadOnlyViolation(m, pathName)
 }
 
-/** A `where` in Shopmonkey's Prisma-style syntax (RESULTS S2): `{ updatedDate: { gte: ISO } }`. */
+/**
+ * A `where` in Shopmonkey's Prisma-style syntax (RESULTS S2). PROVISIONAL(M0:S2): the operators
+ * (`equals`, `in`, `gte`) are from the timesheet and appointment search docs.
+ */
 export type Where = Record<string, unknown>
+
+function mergeWhere(target: Where, source: Where): Where {
+  const out: Where = { ...target }
+  for (const [field, condition] of Object.entries(source)) {
+    const existing = out[field]
+    if (existing === undefined) {
+      out[field] = condition
+      continue
+    }
+    if (!existing || !condition || typeof existing !== 'object' || typeof condition !== 'object') {
+      throw new Error(`Two conditions on ${field} can't be combined`)
+    }
+    for (const op of Object.keys(condition as Where)) {
+      if (op in (existing as Where)) throw new Error(`${field}.${op} is given twice`)
+    }
+    out[field] = { ...(existing as Where), ...(condition as Where) }
+  }
+  return out
+}
 
 export const where = {
   equals: (field: string, value: unknown): Where => ({ [field]: { equals: value } }),
   in: (field: string, values: unknown[]): Where => ({ [field]: { in: values } }),
   updatedSince: (iso: string): Where => ({ updatedDate: { gte: iso } }),
-  and: (...parts: Where[]): Where => Object.assign({}, ...parts),
+  /** Every condition at once; two on one field merge (`gte` and `lte`), the same operator twice throws. */
+  and: (...parts: Where[]): Where => parts.reduce(mergeWhere, {}),
 }
 
+/** PROVISIONAL(M0:S2): `{ success, data, meta: { hasMore, total } }` for lists, from the docs. */
 export interface Envelope<T> {
   success: boolean
   data: T
@@ -101,7 +158,7 @@ export interface ShopmonkeyClientOptions {
   /** `ctx.http.fetch` in the app; anything fetch-shaped in tests. */
   fetch: Fetch
   log: Log
-  baseUrl?: string
+  budget?: RetryBudget
   sleep?: (ms: number) => Promise<void>
   random?: () => number
   now?: () => number
@@ -111,6 +168,7 @@ export interface Query {
   [key: string]: string | number | boolean | Where | undefined
 }
 
+/** PROVISIONAL(M0:S2): `where` goes as URL-encoded JSON; the docs don't say how a GET takes it. */
 function toSearch(query: Query | undefined): string {
   if (!query) return ''
   const params = new URLSearchParams()
@@ -123,15 +181,19 @@ function toSearch(query: Query | undefined): string {
 }
 
 export function createShopmonkeyClient(options: ShopmonkeyClientOptions) {
-  const base = (options.baseUrl ?? SHOPMONKEY_BASE_URL).replace(/\/$/, '')
+  const budget = options.budget ?? BACKFILL_BUDGET
   const sleep = options.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)))
   const random = options.random ?? Math.random
   const now = options.now ?? Date.now
+  const stats = { calls: 0, retries: 0, failures: 0 }
 
-  /** How long to wait before the next call, from the last response's rate-limit headers. */
+  /** How long to wait before the next call, from a response's rate-limit headers; 0 without both. */
   function paceFrom(response: Response): number {
-    const limit = Number(response.headers.get('x-ratelimit-limit-minute'))
-    const remaining = Number(response.headers.get('x-ratelimit-remaining-minute'))
+    const limitHeader = response.headers.get('x-ratelimit-limit-minute')
+    const remainingHeader = response.headers.get('x-ratelimit-remaining-minute')
+    if (limitHeader === null || remainingHeader === null) return 0
+    const limit = Number(limitHeader)
+    const remaining = Number(remainingHeader)
     if (!Number.isFinite(limit) || !Number.isFinite(remaining) || limit <= 0) return 0
     if (remaining >= limit * SLOW_BELOW) return 0
     // Spread what is left of the minute's budget over the minute.
@@ -139,86 +201,146 @@ export function createShopmonkeyClient(options: ShopmonkeyClientOptions) {
   }
   let nextDelay = 0
 
-  async function request<T>(
+  async function send(
     method: 'GET' | 'POST',
     pathName: string,
-    init: { query?: Query; body?: unknown } = {}
-  ): Promise<Envelope<T>> {
-    if (!pathName.startsWith('/v3/')) throw new ReadOnlyViolation(method, pathName)
+    init: { query?: Query; body?: unknown }
+  ) {
     assertReadOnly(method, pathName)
-    const url = `${base}${pathName}${toSearch(init.query)}`
+    const url = `${SHOPMONKEY_BASE_URL}${pathName}${toSearch(init.query)}`
     for (let attempt = 1; ; attempt++) {
       if (nextDelay > 0) await sleep(nextDelay)
+      nextDelay = 0
       const started = now()
       const response = await options.fetch(url, {
         method,
-        headers: { Accept: 'application/json' },
+        headers: {
+          Accept: 'application/json',
+          ...(init.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        },
         ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
         redirect: 'manual',
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
+      stats.calls++
       const requestId = response.headers.get('x-request-id')
-      await options.log(response.ok ? 'info' : 'warn', `${method} ${pathName} ${response.status}`, {
+      const details = {
         method,
         path: pathName,
         status: response.status,
         durationMs: now() - started,
         requestId,
-      })
-      nextDelay = paceFrom(response)
-
-      if (response.status === 429 && attempt < MAX_ATTEMPTS) {
-        const seconds = Number(response.headers.get('retry-after'))
-        await sleep(
-          (Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, MAX_RETRY_AFTER_S) : 30) *
-            1000
-        )
-        continue
       }
-      if (response.status >= 500 && attempt < MAX_ATTEMPTS) {
+      const pace = paceFrom(response)
+      const lastAttempt = attempt >= budget.attempts
+
+      if (response.status === 429 && !lastAttempt) {
+        const raw = response.headers.get('retry-after')
+        const header = raw === null || raw.trim() === '' ? Number.NaN : Number(raw)
+        const retryAfterS = Number.isFinite(header) && header >= 0 ? header : 30
+        if (retryAfterS <= budget.maxRetryAfterS) {
+          stats.retries++
+          await options.log('warn', `${method} ${pathName} 429, retrying`, { ...details, attempt })
+          // One wait, the longer of the two: Retry-After, or the pacing the headers ask for.
+          await sleep(Math.max(retryAfterS * 1000, pace))
+          continue
+        }
+      }
+      if (response.status >= 500 && !lastAttempt) {
+        stats.retries++
+        await options.log('warn', `${method} ${pathName} ${response.status}, retrying`, {
+          ...details,
+          attempt,
+        })
         const backoff = 1000 * 2 ** (attempt - 1)
         await sleep(backoff + Math.floor(random() * backoff))
         continue
       }
-      const text = await response.text()
-      const body = text
-        ? (JSON.parse(text) as Envelope<T>)
-        : ({ success: response.ok } as Envelope<T>)
-      if (!response.ok || body.success === false) {
-        throw new ShopmonkeyError(
-          response.status,
-          body.message ?? null,
-          body.code ?? null,
-          requestId
-        )
+      nextDelay = pace
+      return { response, requestId, details }
+    }
+  }
+
+  async function request<T>(
+    method: 'GET' | 'POST',
+    pathName: string,
+    init: { query?: Query; body?: unknown } = {}
+  ): Promise<Envelope<T>> {
+    const { response, requestId, details } = await send(method, pathName, init)
+    const text = await response.text()
+    let body: Envelope<T> | null = null
+    if (text) {
+      try {
+        body = JSON.parse(text) as Envelope<T>
+      } catch {
+        // Not JSON (an HTML error page, a proxy's text): never let its words into an error or a log.
+        body = null
       }
-      return body
+    }
+    if (!response.ok || !body || body.success === false) {
+      stats.failures++
+      await options.log('warn', `${method} ${pathName} ${response.status}`, details)
+      throw new ShopmonkeyError(
+        response.status,
+        typeof body?.message === 'string' ? body.message : null,
+        typeof body?.code === 'string' ? body.code : null,
+        requestId
+      )
+    }
+    return body
+  }
+
+  /**
+   * Every record of a list, page by page, each once. PROVISIONAL(M0:S2): sorted by `id` and
+   * de-duplicated, because plain GET lists were reported to come back in an unstable order. Ends on
+   * `hasMore === false`, or on a short page when `hasMore` isn't given; throws PagingStalled when a
+   * full page brings nothing new (a `skip` the server ignores), instead of paging forever.
+   */
+  async function* paged<T extends { id: string }>(
+    pathName: string,
+    fetchPage: (skip: number) => Promise<Envelope<T[]>>
+  ): AsyncGenerator<T[]> {
+    const seen = new Set<string>()
+    for (let skip = 0; ; ) {
+      const page = await fetchPage(skip)
+      const data = Array.isArray(page.data) ? page.data : []
+      const fresh = data.filter((row) => !seen.has(row.id))
+      for (const row of fresh) seen.add(row.id)
+      if (fresh.length) yield fresh
+      if (page.meta?.hasMore === false) return
+      if (page.meta?.hasMore !== true && data.length < PAGE_SIZE) return
+      if (data.length === 0) return
+      if (fresh.length === 0) throw new PagingStalled(pathName, skip)
+      skip += data.length
     }
   }
 
   return {
+    stats,
     get: <T>(pathName: string, query?: Query) => request<T>('GET', pathName, { query }),
     search: <T>(pathName: string, body: unknown) => request<T>('POST', pathName, { body }),
 
-    /**
-     * Every record of a list, page by page (`limit`/`skip`), each once. PROVISIONAL(M0:S2): sorted by
-     * `id` and de-duplicated, because plain GET lists were reported to come back in an unstable order;
-     * finishes on `hasMore === false` or a short page.
-     */
-    async *pages<T extends { id: string }>(
+    /** A GET list, every page. */
+    pages: <T extends { id: string }>(
       pathName: string,
       query: Omit<Query, 'limit' | 'skip'> = {}
-    ): AsyncGenerator<T[]> {
-      const seen = new Set<string>()
-      for (let skip = 0; ; skip += PAGE_SIZE) {
-        const page = await request<T[]>('GET', pathName, {
+    ) =>
+      paged<T>(pathName, (skip) =>
+        request<T[]>('GET', pathName, {
           query: { orderby: 'id asc', ...query, limit: PAGE_SIZE, skip },
         })
-        const rows = (page.data ?? []).filter((row) => !seen.has(row.id))
-        for (const row of rows) seen.add(row.id)
-        if (rows.length) yield rows
-        if (page.meta?.hasMore === false || (page.data ?? []).length < PAGE_SIZE) return
-      }
-    },
+      ),
+
+    /**
+     * A search, every page (customers and inventory have no GET list, RESULTS S4).
+     * PROVISIONAL(M0:S2): search bodies take `where`, `orderBy`, `limit`, `skip`.
+     */
+    searchPages: <T extends { id: string }>(pathName: string, filter: { where?: Where } = {}) =>
+      paged<T>(pathName, (skip) =>
+        request<T[]>('POST', pathName, {
+          body: { ...filter, orderBy: { id: 'asc' }, limit: PAGE_SIZE, skip },
+        })
+      ),
   }
 }
 

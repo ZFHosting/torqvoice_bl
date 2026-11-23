@@ -3,7 +3,13 @@ import type {
   ConnectorServer,
   SettingOption,
 } from '@/features/integrations/Lib/types'
-import { createShopmonkeyClient, ShopmonkeyError } from './client'
+import {
+  BACKFILL_BUDGET,
+  createShopmonkeyClient,
+  INTERACTIVE_BUDGET,
+  type RetryBudget,
+  ShopmonkeyError,
+} from './client'
 import { manifest } from './manifest'
 
 /**
@@ -11,8 +17,12 @@ import { manifest } from './manifest'
  * the company, lists its locations. Extracting, transforming and loading come in M3–M5 as jobs.
  */
 
-/** The client for a connection: its key on every request, its log for every call. */
-export function shopmonkeyClientFor(ctx: ConnectorContext) {
+/**
+ * The client for a connection: its key on every request, its log for failures and retries. A job
+ * takes the backfill budget (waits out a rate limit); a connect check, with someone watching, gives up
+ * fast.
+ */
+export function shopmonkeyClientFor(ctx: ConnectorContext, budget: RetryBudget = BACKFILL_BUDGET) {
   const apiKey = typeof ctx.credentials.apiKey === 'string' ? ctx.credentials.apiKey : ''
   return createShopmonkeyClient({
     fetch: (url, init) =>
@@ -24,14 +34,22 @@ export function shopmonkeyClientFor(ctx: ConnectorContext) {
         },
       }),
     log: (level, message, details) => ctx.log(level, message, details),
+    budget,
   })
 }
 
+/**
+ * PROVISIONAL(M0:S1): the shape of `GET /v3/user/me` is from Shopmonkey's docs, not a recorded
+ * response; `companyId` or `company.id`, and the locations the key can reach.
+ */
 interface UserMe {
   companyId?: string
   company?: { id?: string; name?: string }
   locations?: { id: string; name?: string }[]
 }
+
+type Location = { id: string; name?: string }
+const toOption = (l: Location): SettingOption => ({ value: l.id, label: l.name || l.id })
 
 export const connector: ConnectorServer = {
   manifest,
@@ -42,7 +60,7 @@ export const connector: ConnectorServer = {
   async test(ctx) {
     try {
       // PROVISIONAL(M0:S1): the status body isn't documented; 200 with success is a valid key.
-      await shopmonkeyClientFor(ctx).get('/v3/auth/api_key/status')
+      await shopmonkeyClientFor(ctx, INTERACTIVE_BUDGET).get('/v3/auth/api_key/status')
       return { ok: true }
     } catch (err) {
       if (err instanceof ShopmonkeyError) {
@@ -52,27 +70,28 @@ export const connector: ConnectorServer = {
     }
   },
 
+  // PROVISIONAL(M0:S1): the company comes from the key's own user; see UserMe.
   async identify(ctx) {
-    const me = await shopmonkeyClientFor(ctx).get<UserMe>('/v3/user/me')
-    const id = me.data.companyId ?? me.data.company?.id ?? ''
-    return { id, name: me.data.company?.name ?? id }
+    const me = await shopmonkeyClientFor(ctx, INTERACTIVE_BUDGET).get<UserMe>('/v3/user/me')
+    const id = me.data?.companyId ?? me.data?.company?.id
+    // The company id keys every import of this workshop's history; never store a connection without it.
+    if (!id) throw new Error('Shopmonkey did not say which company this key belongs to')
+    return { id, name: me.data?.company?.name || id }
   },
 
   remoteOptions: {
     async locations(ctx): Promise<SettingOption[]> {
-      const client = shopmonkeyClientFor(ctx)
+      const client = shopmonkeyClientFor(ctx, INTERACTIVE_BUDGET)
       // PROVISIONAL(M0:S1): GET /v3/location is only in archived docs; the key's own user lists the
       // locations it can reach either way.
       try {
-        const list = await client.get<{ id: string; name?: string }[]>('/v3/location')
-        if (Array.isArray(list.data) && list.data.length) {
-          return list.data.map((l) => ({ value: l.id, label: l.name || l.id }))
-        }
+        const list = await client.get<Location[]>('/v3/location', { limit: 100 })
+        if (Array.isArray(list.data) && list.data.length) return list.data.map(toOption)
       } catch (err) {
         if (!(err instanceof ShopmonkeyError)) throw err
       }
       const me = await client.get<UserMe>('/v3/user/me')
-      return (me.data.locations ?? []).map((l) => ({ value: l.id, label: l.name || l.id }))
+      return (me.data?.locations ?? []).map(toOption)
     },
   },
 

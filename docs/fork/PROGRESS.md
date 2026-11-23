@@ -79,7 +79,19 @@ rate-limit headers, Retry-After, jittered 5xx backoff, paging, logs without quer
    identify names the company, locations with fallback, shouldRetry off).
 4. [x] DoD: `tsc` exit 0; Biome 14 (baseline); integrations, i18n, app, components, settings, search folders:
    145 files, 2295 tests pass (only the Fiken load timeout fails); no migration or loader, so no `test:db`.
-5. [ ] Reviewer, merge. Provisional (B1): built on documented shapes only; see "Re-verify".
+5. [x] Reviewer pass 1: **needs changes** (paging could loop forever on a skip Shopmonkey ignores, and ended
+   early on a short page while `hasMore` was true; a non-JSON body leaked into error messages; missing
+   PROVISIONAL markers; a missing Remaining header read as 0 stalled every call). Fixed: `paged()` ends on
+   `hasMore === false` (or a short page when `hasMore` isn't given, or an empty page), skips by rows received,
+   throws `PagingStalled` when a full page brings nothing new; `JSON.parse` guarded, `ShopmonkeyError` never
+   carries body text; no pacing unless both headers are present; a 429 waits once (the longer of Retry-After
+   and pacing), gives up past `maxRetryAfterS`; bounded attempts (`BACKFILL_BUDGET` 5, `INTERACTIVE_BUDGET`
+   2 for connect checks); 30 s request timeout; `searchPages` for customers/inventory; path hygiene (`?`,
+   `#`, `.`/`..`) and the billed VIN/plate decoders refused; base URL pinned; `where.and` deep-merges;
+   only failures and retries are logged, with `stats`; `identify` refuses a key with no company id; docs
+   link `/docs/integrations`. Tests: `shopmonkey/client.test.ts` 31, `server.test.ts` 9; integrations
+   folders 55 files / 811 tests pass; `tsc` clean.
+6. [ ] Reviewer pass 2, merge. Provisional (B1): built on documented shapes only; see "Re-verify".
 Notes for M3 (found while staging): `runJob` requeues only when `rescheduleInSeconds` is truthy, so a page
 job must return 1, not the brief's 0; the invoice PDF is binary, so the client needs a byte download.
 Staged M3 drafts: `scratchpad/m3-final/` (stage.ts, tables.ts).
@@ -126,8 +138,8 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 
 | Spike | Assumption | Where |
 | --- | --- | --- |
-| S1 | Locations come from `GET /v3/location`, falling back to `user/me.locations`; `api_key/status` 200 + `success` means valid; `user/me` gives `companyId` and `company.name` | `src/integrations/shopmonkey/server.ts` (`test`, `identify`, `remoteOptions.locations`) |
-| S2/S3 | Page size 100 sorted `orderby=id asc`, de-duplicated; `where` sent as URL-encoded JSON; rate limit read from `X-RateLimit-Limit-Minute` / `-Remaining-Minute`, `Retry-After` in seconds | `src/integrations/shopmonkey/client.ts` (`PAGE_SIZE`, `pages`, `paceFrom`) |
+| S1 | Locations come from `GET /v3/location?limit=100`, falling back to `user/me.locations`; `api_key/status` 200 + `success` means valid; `user/me` gives `companyId` (or `company.id`) and `company.name` (`identify` refuses a key with neither id) | `src/integrations/shopmonkey/server.ts` (`UserMe`, `test`, `identify`, `remoteOptions.locations`) |
+| S2/S3 | Page size 100 sorted `orderby=id asc` (GET) or `orderBy: { id: 'asc' }` with `limit`/`skip` in the body (search), de-duplicated; lists answer `{ success, data, meta: { hasMore, total } }`; `where` sent on a GET as URL-encoded JSON, operators `equals`/`in`/`gte`; rate-limit headers `X-RateLimit-Limit-Minute` / `-Remaining-Minute` **documented only on a 429**, assumed on every response (the client only slows down when both are present); `Retry-After` in seconds | `src/integrations/shopmonkey/client.ts` (header comment, `PAGE_SIZE`, `Where`, `Envelope`, `toSearch`, `paceFrom`, `paged`, `searchPages`) |
 | S2 | The enumerated search allowlist (every `/search` route in the reference) is complete and every one only reads | `SEARCH_ALLOWLIST` in `scripts/shopmonkey/spike-client.ts` (and M2 `client.ts`) |
 | S2 | GET lists ignore `where` and are unstable without `orderby` on `id`; max useful `limit` is 100; incremental pulls fall back to re-list + `payloadHash` | MAPPING §1; RESULTS S2 (M3 extractor) |
 | S4 | Vehicle's current owner = the most recently created `vehicle_owner` row | `build-synthetic-fixtures.ts` (`vehicleOwner`); MAPPING §3 VehicleOwner |

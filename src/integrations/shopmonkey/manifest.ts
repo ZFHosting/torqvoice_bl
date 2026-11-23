@@ -12,7 +12,7 @@ export const manifest: ConnectorManifest = {
   category: 'other',
   countries: 'global',
   logo: '/images/integrations/shopmonkey.svg',
-  docs: '/docs/integrations/shopmonkey',
+  docs: '/docs/integrations',
   selfHostedOnly: true,
   auth: {
     type: 'api-key',
