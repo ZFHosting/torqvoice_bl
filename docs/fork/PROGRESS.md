@@ -29,7 +29,7 @@ resolved.
 | M4 | provisional | fork/M4-transform | Merged 634a6785. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M4 provisional). |
 | M5 | provisional | fork/M5-load | Merged 40e49b36. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 4 passes. Evidence in the Decisions log (M5 provisional). |
 | A3 | done | fork/A3-read-endpoints | Merged c7770ecc. Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (A3 done). |
-| A4 | in_progress | fork/A4-write-endpoints | |
+| A4 | done | fork/A4-write-endpoints | Merged c28b98d4. Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (A4 done). |
 | M6 | todo | | |
 | M7 | todo | | |
 | M8 | todo | | |
@@ -69,68 +69,10 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**A4 (write endpoints), in progress** on `fork/A4-write-endpoints` (from `fork/integration` at db3ae724; the upstream
-merge is still blocked by B15). Plan:
-0. [x] Prerequisite (6ddcbc98): `updateTechnicianService` refuses another workshop's technician id (count checked)
-   and scopes the `techName` sync by `organizationId` (`workboard/technician-service.test.ts`).
-1. [x] (868d7561) `Lib/writeRoute.ts`: withPublicApi + the permission + the raw body to the service (it validates) + `If-Match`
-   on PATCH/DELETE (412) + `Idempotency-Key` on POST + the action's own audit builder through `logAudit` (so
-   webhooks fire as from the UI) + errors: zod 400 with paths, document lock 409 `document_locked`, plan gate 403
-   with `details.gate`, a service's "… not found" 404, another plain `Error` (a refusal the action shows) 400,
-   a unique violation 409. The response is the record as A3 serializes it.
-2. [x] Partial PATCH (b3dd529f): the finding, inventory part and labor preset update services parse with
-   `parseSentFields` (the preset replaces its items or parts only when sent); the time entry update keeps a start,
-   end or note not sent (to the second); appointments and webhooks merge the stored record under the fields sent.
-   Evidence: `db/public-api-write-other.db.test.ts` (inventory rename keeps the count, preset rename keeps items and
-   parts, finding note keeps severity, time entry note keeps `01:02:03.456`, appointment title keeps times and
-   reminders, webhook rename keeps URL and events).
-3. [x] Phase 1 (868d7561, 7e4ed17d; `db/public-api-write-people.db.test.ts`): customers (+ contacts, a new service with tombstones; contacts, jobs and shifts services in `features/fork-records/`), vehicles (a customer id of another
-   workshop is a 404).
-4. [x] Phase 2 (9a73d88d; `db/public-api-write-orders.db.test.ts`, 9 passing): work orders (create, update, delete,
-   `POST /status`), one line at a time (`fork-records/Lib/lineService.server.ts`: the lock, `addPart` for parts,
-   stock reconciled, re-totalled; a line changed logs `service.update`), jobs, payments (create issues the invoice,
-   delete), quotes (+ `POST /convert`). Parity with `createServiceRecord`, `updateServiceRecord` (the form sends its
-   own totals; the API works them out), `createPayment`, `convertQuoteToServiceRecord`; 409 `document_locked` with
-   `details.reason: 'sent'`; 404 across workshops for the work order, its status, jobs, lines (another workshop's
-   technician, job or line too) and payments; 412 on a stale `If-Match`.
-5. [x] Phase 3 (b3dd529f; `db/public-api-write-other.db.test.ts`, 10 passing): technicians (a `userId` must be
-   the workshop's member; DELETE deactivates), appointments (the booking service, workshop wall clock: 09:30 on
-   1 Dec in Pacific/Auckland is `2026-11-30T20:30Z`), time entries (+ `/start`, `/{id}/stop`: one clock a
-   technician, a running one stops, the job moves to in progress), shifts, inventory parts (+ `/adjust`: a
-   `manual_adjustment` stock line), labor presets, findings (+ `/resolve`), webhooks (secret answered once), work
-   order attachments (multipart; stored name made here; replayed by Idempotency-Key across boundaries; refused
-   types and fake PDFs 400). `demoGuard()`: the webhook and booking services already call it where they send.
-6. [x] Tests. Parity: `public-api-write-people` (create customer) and `public-api-write-orders` (work order,
-   labor line with a technician, payment, quote conversion). 409 `document_locked` with `details.reason: 'sent'`:
-   `public-api-write-orders` "an issued invoice". Idempotent replay and conflict: `public-api-write-people`, and
-   the upload replay in `public-api-write-other`. 412: `public-api-write-people`, `public-api-write-orders`.
-   Tenant isolation over every write endpoint: `public-api-write-tenancy` (54 writes, the upload included, with workshop B's ids → 404,
-   nothing changed in either workshop; a check that the table names every write route served), plus 403 from
-   every write for a read-only key. All four files: 31 tests passing together on `torqvoice_fork_test`.
-7. [ ] API.md, DoD, reviewer, merge. Reviewer pass 1 (on 5d9dc7c8): needs changes, 6 must-fix, all fixed:
-   (1) time entries, shifts and the clock asked for `create`/`delete:time_tracking`, which no role can hold: now the
-   app's own (`update:time_tracking`; `update:services` to start a clock), and the test harness grants exactly
-   `permissionGroups`; (2) `inventoryPartId` in a line, a work order's or quote's `partItems` and a preset's parts is
-   checked against the workshop (`fork-records/Lib/ownInventoryParts.server.ts`, in the shared services); (3) a
-   required-meters refusal is a 400 with `details.meters` (it was a 500); (4) work order and quote totals are worked
-   out from their lines (`Writes/documentBody.ts`, `retotalServiceRecord`, new `fork-records/Lib/retotalQuote.server.ts`);
-   (5) success-path tests for work order change/move/delete, lines with stock, jobs, quotes, payment delete and the
-   meters refusal (`public-api-write-orders`, 15 tests); (6) API.md §3.1 rewritten to say what the code does.
-   Should-fix done: tombstones inside the delete's transaction (fork services, line deletes now leave
-   `work_order_line`); the stock adjust and its history line in one transaction; reads after a write scoped by
-   workshop; a fee line defaults to `service` pricing (not re-priced as the shop fee); a line PATCH refuses the other
-   kind's fields; contact email checked on PATCH, contact create strict; the technician `userId` membership check
-   moved into the service (with a unit test); `assertOwnUploads` on work order writes; photos and text checked by
-   their bytes; a refused upload's file removed (tested via a plan limit); child answers carry ETags; a replayed
-   webhook create answers `secret: null`; fork audit actions written as literals the label test sees; the status and
-   convert OpenAPI bodies are the handlers' strict schemas; FORK.md lists `src/features/fork-records/`.
-   Left, with reasons (Decisions log): audit `details` sentences for the fork's events (A5), replays without an
-   `ETag` (documented), streaming the upload size check (A6), concurrent stock adjustments (upstream's read-then-set).
-   Reviewer pass 2 (on 0fd77159): needs changes, 1 must-fix, fixed: the strict part check broke saving a document
-   whose inventory part had been deleted (see the Decisions log). Should-fix done: technician link kept for a former
-   member; API.md on whole-list line pricing (imported discounts: use `/lines`), on line tombstones (API deletes only;
-   sync lines by reading them whole) and on where permissions are listed; `// fork:` on the new upstream imports.
-   Next: DoD again, reviewer pass 3, merge.
+**Next: M6 (reconcile)**, from `fork/integration` after A4's merge. Its plan goes here when it starts. Found while
+A4 ran (read-only): the M5 load still loads orders created before `historyFrom` (staged without services,
+payments or files), as header-only work orders that would read unpaid; the setting's help text ("Leave empty to
+import everything") and M6's skip bucket say they aren't imported. M6 fixes that first.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
@@ -341,3 +283,4 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | A4 review pass 1: a work order's or quote's totals are worked out from its lines (each line quantity × price) after any API write that sends lines, discount or tax; sent totals are a 400. Not re-totalled on other changes, so an imported invoice keeps Shopmonkey's total. Quotes get a fork `retotalQuote` (the work order's arithmetic, offered lines only, no shop-fee re-pricing). | The app's editor sends totals it worked out in the browser; a client sending lines without them stored a total that disagreed with its lines. |
 | 2026-11-23 | A4 review passes 1-2, in the shared services (`// fork:`): a work order's, quote's or preset's part may not name another workshop's inventory part (an id that names no part, a part deleted since, is kept as before: lines have no foreign key and the forms send it back on every save); a line added through `/lines` must name an existing part of the workshop's; work order writes call `assertOwnUploads`; a technician's new `userId` must be a member (an existing link to someone who has left stays). | Upstream holes reachable by API keys. Pass 1's strict check refused every save of a document whose part had been deleted (pass 2 must-fix); now tested through the app's own actions (`public-api-write-orders` "a part deleted from the inventory"). Worth reporting upstream. |
 | 2026-11-23 | A4 review pass 1, left: audit `details` (sentences) for `contact.*`, `job.*`, `shift.*`, `time_entry.start` go with A5, which turns them into webhook events and needs their summaries in 14 locales; an idempotent replay carries no `ETag` (documented; A1's stored format holds the body only); a chunked upload without `Content-Length` is read before its size is checked, and two concurrent stock adjustments can lose one (upstream's read-then-set): both for A6. | Each is documented in API.md §3.1 or here; none is a wrong answer to a single request. |
+| 2026-11-23 | **A4 done.** DoD at b0f3a9db: `tsc` exit 0; Biome 14 (baseline, LF worktree); `test:db` 30 files / 195 tests on `torqvoice_fork_test`; `npm test` in chunks: 835 files at b0f3a9db; failing only the Windows baseline files (api/health, photo-handoff, portal-upload, equipment-gates, meters-gates, portal-file-route, lib/backup/engine, restic, files/manager, only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access), lib/backup-manifest and features/ai/workshop-columns (both pass alone: load, and the CRLF schema), and workorders/create-workorder (its Prisma mock lacked inventoryPart.count; fixed in 5f1f22ed, workorders 7 files / 108 passing). Reviewer: needs changes (pass 1, 6 must-fix; pass 2, 1 must-fix), ready for PR (pass 3; its one doc nit fixed after). Merged at c28b98d4. | Acceptance evidence: parity for create customer (`public-api-write-people` "makes the same customer…"), create work order, labor line with a technician, payment and quote conversion (`public-api-write-orders`); 409 `document_locked` with `details.reason` (orders "an issued invoice"); idempotent replay and conflict (people; the upload replay in `public-api-write-other`); stale `If-Match` 412 (people, orders); tenant isolation over every write endpoint, a vehicle moved to another workshop's customer included (`public-api-write-tenancy`: 58 writes with workshop B's ids → 404, nothing changed in either workshop, a check that the table names every write route, and 403 from every write for a read-only key). |
