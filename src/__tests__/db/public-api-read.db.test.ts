@@ -477,6 +477,19 @@ describe('filters and dates', () => {
     expect(await ids(quotes, A.ids.customer)).toEqual([A.ids.quote])
     // Another workshop's customer: nothing of ours, nothing of theirs.
     expect(await ids(workOrders, B.ids.customer)).toEqual([])
+    expect(await ids(quotes, B.ids.customer)).toEqual([])
+
+    // A counter sale: billed to the customer, on no vehicle. Listed for them too.
+    const sale = await db.serviceRecord.create({
+      data: { organizationId: A.org, title: 'Counter sale', customerId: A.ids.customer },
+    })
+    try {
+      expect((await ids(workOrders, A.ids.customer)).sort()).toEqual(
+        [A.ids.workOrder, sale.id].sort()
+      )
+    } finally {
+      await db.serviceRecord.delete({ where: { id: sale.id } })
+    }
   })
 
   it('gives calendar days on the workshop’s own clock, far from UTC', async () => {

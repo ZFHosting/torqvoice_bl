@@ -96,9 +96,14 @@ export const workOrderAttachmentsGET = childRoute(async (serviceRecordId) =>
   ).map((a) => serializeAttachment(serviceRecordId, a))
 )
 
-/** A stored type that is a plain `type/subtype`, or a generic one: never a header-breaking value. */
+/**
+ * A stored type that is a plain `type/subtype` (with `; name=value` parameters, a charset say), or a generic one:
+ * never a header-breaking value.
+ */
 function contentType(stored: string | null): string {
-  return stored && /^[\w.+-]+\/[\w.+-]+$/.test(stored) ? stored : 'application/octet-stream'
+  return stored && /^[\w.+-]+\/[\w.+-]+(\s*;\s*[\w.+-]+=[\w.+-]+)*$/.test(stored)
+    ? stored
+    : 'application/octet-stream'
 }
 
 /** A file name safe in a Content-Disposition header. */
@@ -142,7 +147,11 @@ export async function workOrderAttachmentContentGET(
           continue
         }
         const name = attachment.fileName || stored.name
-        if (stored.name.toLowerCase().endsWith('.svg')) {
+        // An SVG can carry script: always the download-only headers, whatever its name or stored type.
+        if (
+          stored.name.toLowerCase().endsWith('.svg') ||
+          contentType(attachment.fileType).startsWith('image/svg')
+        ) {
           return new Response(await readFile(target), {
             headers: svgDownloadHeaders('private, no-store'),
           })

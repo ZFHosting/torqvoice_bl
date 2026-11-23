@@ -101,7 +101,9 @@ merge at the start conflicted (B15) and was aborted; A3 carries on without it. P
    query parameters are a 400 (`.strict()`); API.md §3–4 list every filter, which date `from`/`to` use, that
    there's no `sort=`, that an included child's change doesn't move its parent's `updatedAt`, and how custom
    fields come back; the download streams and only passes a plain `type/subtype`; the jobs query carries the
-   workshop. Next: DoD, reviewer pass 2, merge.
+   workshop. DoD again at 1300da97: `tsc` 0, Biome 14, public-api unit tests 52, `test:db` 26 / 155. Reviewer pass 2: ready for
+   PR (its should-fixes taken: the quote half and the counter-sale branch of the customer filter tested, a
+   charset kept in a stored type, SVG headers by stored type too). Next: merge.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
