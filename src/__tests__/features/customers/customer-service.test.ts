@@ -16,7 +16,9 @@ vi.mock('@/lib/db', () => {
     if (name === 'findMany' || name === 'findFirst' || name === 'findUnique') {
       if (model === 'customer' && name === 'findMany') {
         const where = (args as { where?: { id?: { in?: string[] } } }).where
-        return where?.id?.in ? where.id.in.filter((id) => id !== 'theirs').map((id) => ({ id })) : []
+        return where?.id?.in
+          ? where.id.in.filter((id) => id !== 'theirs').map((id) => ({ id }))
+          : []
       }
       if (model === 'organizationMember') {
         return { role: 'owner', customRole: null, organizationId: 'org-a' }
@@ -111,9 +113,18 @@ describe('the customer service', () => {
 
   it('deletes, then leaves one tombstone per customer deleted', async () => {
     await service.deleteCustomerService(ctx, 'c-1')
-    expect(writes()).toEqual(['customer.deleteMany', 'customFieldValue.deleteMany', 'deletedRecord.create'])
+    expect(writes()).toEqual([
+      'customer.deleteMany',
+      'customFieldValue.deleteMany',
+      'deletedRecord.create',
+    ])
     expect(calls.list.at(-1)?.args).toEqual({
-      data: { organizationId: 'org-a', entityType: 'customer', entityId: 'c-1', actorUserId: 'user-1' },
+      data: {
+        organizationId: 'org-a',
+        entityType: 'customer',
+        entityId: 'c-1',
+        actorUserId: 'user-1',
+      },
     })
 
     calls.list = []
