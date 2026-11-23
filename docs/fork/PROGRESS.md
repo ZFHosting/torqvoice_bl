@@ -67,15 +67,17 @@ Environment (local, Windows):
 
 **M5 (load), in progress** on `fork/M5-load` (from `fork/integration` at 04075abc; upstream had nothing new).
 Provisional (B1). Plan:
-1. [ ] Migration `fork_source_local_link`: `SourceRecord.localEntity`, `localId`, `loadedHash` (task 13: a backed-up
+1. [x] Migration `fork_source_local_link`: `SourceRecord.localEntity`, `localId`, `loadedHash` (task 13: a backed-up
    remote ↔ local mapping, so a load after a restore or a reconnect re-links instead of creating rows again).
-2. [ ] `load/links.ts`: links written through the order's transaction (`tx.integrationLink`, scoped by `connectionId`;
+2. [x] `load/links.ts`: links written through the order's transaction (`tx.integrationLink`, scoped by `connectionId`;
    `ctx.links` writes with `db` outside any transaction), plus the SourceRecord mapping in the same transaction;
    lookup by remote id, falling back to the SourceRecord's `localId` (checked to still be this workshop's row), which
    rebuilds the link. Skip when the stored hash equals the source's (an order's hash covers its children).
-3. [ ] `load/context.ts`: `TransformContext.resolve` from the links (table → model per `transform/types.ts`; `order`
+3. [x] `load/resolver.ts` + `load/context.ts`: `TransformContext.resolve` from the links (table → model per `transform/types.ts`; `order`
    → work orders only), `statusStageMap` complete (operator over `defaultStages`).
-4. [ ] Loaders in plan order: technicians, workflow statuses, customers (+contacts, custom fields; numbers after
+4. [~] Loaders in plan order (done: technicians, statuses, customers, vehicles, orders: 342da595; db test
+   `db/shopmonkey-load.db.test.ts` dry run, twice, balances, one changed order; to do: inventory, presets,
+   appointments, templates, inspections, time): technicians, workflow statuses, customers (+contacts, custom fields; numbers after
    every numeric `publicId`), vehicles (+notes; `mileageUnit` from the oldest vehicle), inventory (+ one "import"
    `StockMovement`; barcode only if unique), presets, orders (one transaction each: ServiceRecord or Quote, jobs,
    lines with `jobId`/`lineKind`/X3 columns, quote lines `excluded = !counts`, concern, meta, helpers, payments
