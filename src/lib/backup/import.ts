@@ -3185,5 +3185,10 @@ export async function restoreFromDisk(
   const backup = await readJsonFile<unknown>(input.dataFile)
   assertSupportedBackup(backup)
   const files = input.filesDir ? await directoryFileSource(input.filesDir) : null
-  return restoreBackup(ctx, backup, files, input.archiveFile ? archiveFile(input.archiveFile) : null)
+  return restoreBackup(
+    ctx,
+    backup,
+    files,
+    input.archiveFile ? archiveFile(input.archiveFile) : null
+  )
 }
