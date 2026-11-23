@@ -116,6 +116,14 @@ describe('deleting a vehicle', () => {
     expect(writes().indexOf('deletedRecord.createMany')).toBeGreaterThan(
       writes().indexOf('vehicle.deleteMany')
     )
+    // What went with it was read before the delete, while it still existed.
+    const keys = calls.list.map((call) => call.key)
+    for (const read of ['payment', 'timeEntry', 'vehicleFinding', 'inspection']) {
+      expect(keys.indexOf(`${read}.findMany`), read).toBeGreaterThan(-1)
+      expect(keys.indexOf(`${read}.findMany`), read).toBeLessThan(
+        keys.indexOf('vehicle.deleteMany')
+      )
+    }
   })
 
   it('writes the same rows from the action as from the service', async () => {

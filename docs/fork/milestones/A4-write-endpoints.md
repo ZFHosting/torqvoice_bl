@@ -18,6 +18,13 @@ concurrency and locks.
    actions).
 
 ### From the A2 review
+- **Prerequisite, before `PATCH /technicians/{id}` ships:** fix an upstream cross-workshop write found in
+  the moved body of `updateTechnicianService` (`src/features/workboard/Lib/technicianService.server.ts`,
+  originally `technicianActions.ts`): the technician update is workshop-scoped but its count is not
+  checked, and the `techName` sync that follows is `serviceRecord.updateMany({ where: { technicianId: id }
+  })` with no workshop filter, so another workshop's technician id renames that workshop's jobs. Fix it in
+  its own commit (check the count, scope the sync by `organizationId`), and update
+  `workboard/technician-service.test.ts`, which asserts today's query.
 - Pass the **raw body** to the service (it validates itself, as the action did); parsing first would run a
   schema's transforms twice.
 - Services call `revalidatePath`, and `vehicleService` calls `getTranslations` (the caller's cookie or

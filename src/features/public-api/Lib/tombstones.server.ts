@@ -18,9 +18,9 @@ export interface Tombstone {
 }
 
 interface Cascade {
-  /** Work orders being deleted (already checked to be this workshop's). */
+  /** Work orders being deleted. Every read below is also scoped to the workshop. */
   workOrderIds?: string[]
-  /** A vehicle being deleted (already checked to be this workshop's). */
+  /** A vehicle being deleted. Every read below is also scoped to the workshop. */
   vehicleId?: string
 }
 
@@ -39,7 +39,10 @@ export async function cascadeTombstones(
   const [payments, timeEntries, findings, inspections] = await Promise.all([
     workOrderIds.length
       ? tx.payment.findMany({
-          where: { serviceRecordId: { in: workOrderIds } },
+          where: {
+            serviceRecordId: { in: workOrderIds },
+            serviceRecord: { organizationId: scope.organizationId },
+          },
           select: { id: true },
         })
       : [],
@@ -50,7 +53,10 @@ export async function cascadeTombstones(
         })
       : [],
     of.vehicleId
-      ? tx.vehicleFinding.findMany({ where: { vehicleId: of.vehicleId }, select: { id: true } })
+      ? tx.vehicleFinding.findMany({
+          where: { vehicleId: of.vehicleId, vehicle: { organizationId: scope.organizationId } },
+          select: { id: true },
+        })
       : [],
     of.vehicleId
       ? tx.inspection.findMany({
