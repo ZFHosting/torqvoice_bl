@@ -1,11 +1,13 @@
 /**
  * `/api/v1/payments` (across every work order, for accounting sync: `?from=&to=`, `?method=`), `/api/v1/findings`
  * (deferred or recommended work: `?vehicleId=`, `?status=`) and `/api/v1/webhooks` (the workshop's subscriptions;
- * their signing secrets are never returned) (docs/fork/API.md §4).
+ * their signing secrets are never returned, except once to the request that made one) (docs/fork/API.md §4).
  */
 import { z } from 'zod'
+import { createWebhookSchema, updateWebhookSchema } from '@/features/webhooks/Schema/webhookSchema'
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
+import { patchBody, writeEndpoints } from '../Lib/writeSpec'
 import { rangeFilters } from './common'
 
 export const paymentSchema = z
@@ -88,8 +90,79 @@ export const webhooksSpec: ReadSpec<WebhookOut> = {
   response: webhookSchema,
 }
 
+/* ---------- writes (A4) ---------- */
+
+const severity = z.enum(['needs_work', 'monitor', 'urgent'])
+
+/** A finding as the app records one; `workOrderId` is the job it was found on. */
+export const createFindingSchema = z
+  .object({
+    vehicleId: z.string().min(1),
+    description: z.string().min(1),
+    severity: severity.optional().describe('needs_work unless sent'),
+    notes: z.string().optional(),
+    workOrderId: z.string().min(1).optional(),
+    concernId: z.string().min(1).nullable().optional().describe('The customer concern it answers'),
+  })
+  .strict()
+
+export const updateFindingSchema = z
+  .object({
+    vehicleId: z.string().min(1).optional(),
+    description: z.string().min(1).optional(),
+    severity: severity.optional(),
+    notes: z.string().optional().describe('Empty clears it'),
+    workOrderId: z.string().min(1).optional(),
+    concernId: z.string().min(1).nullable().optional(),
+  })
+  .strict()
+
+export const resolveFindingSchema = z
+  .object({ workOrderId: z.string().min(1).optional().describe('The job that did the work') })
+  .strict()
+
+/** A new webhook, with its signing secret: shown this once, never in a read. */
+export const webhookCreatedSchema = webhookSchema
+  .extend({
+    secret: z
+      .string()
+      .nullable()
+      .describe(
+        'Signs every delivery; shown only here (null when the answer is an Idempotency-Key replay)'
+      ),
+  })
+  .meta({ id: 'WebhookCreated' })
+
 export const recordEndpoints: EndpointSpec[] = [
   ...readEndpoints(paymentsSpec),
   ...readEndpoints(findingsSpec),
+  ...writeEndpoints({
+    ...findingsSpec,
+    create: createFindingSchema,
+    update: updateFindingSchema,
+    remove: true,
+  }),
+  {
+    method: 'post',
+    path: '/findings/{id}/resolve',
+    summary: 'Mark a finding resolved, by the work order that did the work',
+    tag: findingsSpec.tag,
+    body: resolveFindingSchema,
+    response: findingSchema,
+  },
   ...readEndpoints(webhooksSpec),
+  {
+    method: 'post',
+    path: '/webhooks',
+    summary: 'Create a webhook (its secret is in this answer only)',
+    tag: webhooksSpec.tag,
+    body: createWebhookSchema,
+    response: webhookCreatedSchema,
+    status: 201,
+  },
+  ...writeEndpoints({
+    ...webhooksSpec,
+    update: patchBody(updateWebhookSchema),
+    remove: true,
+  }),
 ]

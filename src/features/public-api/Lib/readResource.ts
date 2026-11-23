@@ -127,3 +127,24 @@ export function getRoute<Row extends { id: string; updatedAt: Date }, Out>(
       { requiredPermissions: [resource.permission] }
     )
 }
+
+/** One record as its read endpoint serializes it, or null when it isn't the workshop's: what a write answers with. */
+export async function readOne<Row extends { id: string; updatedAt: Date }, Out>(
+  resource: ReadResource<Row, Out>,
+  organizationId: string,
+  id: string,
+  includes: ReadonlySet<string> = new Set()
+): Promise<{ data: Out; etag: string } | null> {
+  const row = await resource.findFirst({
+    where: { AND: [resource.scope(organizationId), { id }] },
+    select: resource.select(includes),
+  })
+  if (!row) return null
+  const [data] = await serializeAll(
+    resource,
+    [row],
+    await serializeContext(organizationId),
+    includes
+  )
+  return { data, etag: etagFor(row) }
+}

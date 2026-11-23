@@ -10,6 +10,15 @@ import { notificationBus } from '@/lib/notification-bus'
 import { createTechnicianSchema, updateTechnicianSchema } from '../Schema/workboardSchema'
 import type { ServiceCtx } from '@/lib/service-context'
 
+/**
+ * fork: the login a technician is linked to is a member of this workshop (A4). The app picks it from its own team;
+ * an id from a request can be anyone's, and another workshop's user would get this workshop's board.
+ */
+async function assertMember(organizationId: string, userId: string) {
+  const member = await db.organizationMember.count({ where: { organizationId, userId } })
+  if (!member) throw new Error('User not found')
+}
+
 export async function createTechnicianService(ctx: ServiceCtx, input: unknown) {
   const { organizationId } = ctx
   const data = createTechnicianSchema.parse(input)
@@ -20,6 +29,7 @@ export async function createTechnicianService(ctx: ServiceCtx, input: unknown) {
       where: { userId: data.userId, organizationId },
     })
     if (existing) return existing
+    await assertMember(organizationId, data.userId)
   }
 
   const maxOrder = await db.technician.aggregate({
@@ -63,17 +73,27 @@ export async function updateTechnicianService(ctx: ServiceCtx, input: unknown) {
     if (existing) {
       throw new Error(`This user is already linked to technician "${existing.name}"`)
     }
+    // fork: only a new link is checked: a technician keeps the login of someone who has since left the team (their
+    // dialog sends it back on every save)
+    const linked = await db.technician.findFirst({
+      where: { id, organizationId },
+      select: { userId: true },
+    })
+    if (linked?.userId !== updates.userId) await assertMember(organizationId, updates.userId)
   }
 
   const technician = await db.technician.updateMany({
     where: { id, organizationId },
     data: updates,
   })
+  // fork: another workshop's technician id changes nothing here, and goes no further (A4 prerequisite)
+  if (technician.count === 0) throw new Error('Technician not found')
 
   // Sync denormalized techName on related service records when name changes
   if (updates.name) {
     await db.serviceRecord.updateMany({
-      where: { technicianId: id },
+      // fork: this workshop's jobs only (A4 prerequisite)
+      where: { technicianId: id, organizationId },
       data: { techName: updates.name },
     })
   }

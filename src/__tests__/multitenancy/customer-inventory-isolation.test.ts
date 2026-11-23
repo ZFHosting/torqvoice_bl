@@ -94,6 +94,8 @@ vi.mock('@/lib/db', () => ({
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       createMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
+    // fork: a stock adjustment also writes its stock history line (A4); the expectations are unchanged.
+    stockMovement: { create: vi.fn() },
   },
 }))
 

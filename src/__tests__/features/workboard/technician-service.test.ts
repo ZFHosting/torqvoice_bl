@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
       update: vi.fn(),
     },
     serviceRecord: { updateMany: vi.fn() },
+    organizationMember: { count: vi.fn() },
   },
   emit: vi.fn(),
   revoke: vi.fn(async () => undefined),
@@ -78,6 +79,35 @@ describe('creating a technician', () => {
   })
 })
 
+describe('linking a login', () => {
+  it('links only a member of this workshop: another workshop’s user is not found', async () => {
+    db.technician.findFirst.mockResolvedValue(null)
+    db.organizationMember.count.mockResolvedValue(0)
+    await expect(
+      service.createTechnicianService(ctx, { name: 'Kari', userId: 'u-elsewhere' })
+    ).rejects.toThrow('User not found')
+    await expect(
+      service.updateTechnicianService(ctx, { id: 't-1', userId: 'u-elsewhere' })
+    ).rejects.toThrow('User not found')
+    expect(db.organizationMember.count).toHaveBeenCalledWith({
+      where: { organizationId: 'org-a', userId: 'u-elsewhere' },
+    })
+    expect(db.technician.create).not.toHaveBeenCalled()
+    expect(db.technician.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('keeps the link a technician already has, though that person has left the team', async () => {
+    db.technician.findFirst
+      .mockResolvedValueOnce(null) // nobody else is linked to them
+      .mockResolvedValueOnce({ userId: 'u-left' }) // this technician is
+    db.organizationMember.count.mockResolvedValue(0)
+    db.technician.updateMany.mockResolvedValue({ count: 1 })
+    await service.updateTechnicianService(ctx, { id: 't-1', name: 'Kari', userId: 'u-left' })
+    expect(db.organizationMember.count).not.toHaveBeenCalled()
+    expect(db.technician.updateMany).toHaveBeenCalled()
+  })
+})
+
 describe('updating a technician', () => {
   it('changes only this workshop’s technician and carries a new name onto their jobs', async () => {
     db.technician.updateMany.mockResolvedValue({ count: 1 })
@@ -87,13 +117,21 @@ describe('updating a technician', () => {
       data: { name: 'Kari N.' },
     })
     expect(db.serviceRecord.updateMany).toHaveBeenCalledWith({
-      where: { technicianId: 't-1' },
+      where: { technicianId: 't-1', organizationId: 'org-a' },
       data: { techName: 'Kari N.' },
     })
     expect(events.updateTechnicianEvent(result)).toMatchObject({
       action: 'technician.update',
       entityId: 't-1',
     })
+  })
+
+  it('changes nothing for another workshop’s technician id, not even the names on its jobs', async () => {
+    db.technician.updateMany.mockResolvedValue({ count: 0 })
+    await expect(
+      service.updateTechnicianService(ctx, { id: 't-other', name: 'Renamed' })
+    ).rejects.toThrow('Technician not found')
+    expect(db.serviceRecord.updateMany).not.toHaveBeenCalled()
   })
 
   it('refuses a member already linked to another technician', async () => {

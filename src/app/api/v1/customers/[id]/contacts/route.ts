@@ -5,6 +5,7 @@ import {
   CONTACT_SELECT,
   serializeContact,
 } from '@/features/public-api/Serializers/customers'
+import { createContactPOST } from '@/features/public-api/Writes/contacts'
 import { db } from '@/lib/db'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
 
@@ -38,3 +39,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }
   )
 }
+
+/** `POST /api/v1/customers/{id}/contacts` (docs/fork/API.md §4). */
+export const POST = createContactPOST

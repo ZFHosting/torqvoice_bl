@@ -5,8 +5,13 @@
  * `attachments` on their own, with an attachment's file at `.../attachments/{attachmentId}/content`.
  */
 import { z } from 'zod'
+import { createJobSchema, updateJobSchema } from '@/features/fork-records/Schema/forkRecordSchemas'
+import { createLineSchema, updateLineSchema } from '@/features/fork-records/Schema/lineSchemas'
+import { createPaymentSchema } from '@/features/payments/Schema/paymentSchema'
+import { createServiceSchema, updateServiceSchema } from '@/features/vehicles/Schema/serviceSchema'
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
+import { deletedSchema, documentBodySchema, patchBody, writeEndpoints } from '../Lib/writeSpec'
 import { customFieldValueSchema, jobSchema, lineSchema } from './common'
 import { paymentSchema } from './records'
 import { timeEntrySchema } from './schedule'
@@ -167,12 +172,91 @@ const child = (name: string, summary: string, response: z.ZodType): EndpointSpec
   response,
 })
 
+const write = (
+  method: EndpointSpec['method'],
+  path: string,
+  summary: string,
+  response: z.ZodType,
+  body?: z.ZodType,
+  status?: number
+): EndpointSpec => ({ method, path, summary, tag: 'Work orders', response, body, status })
+
+/** `POST /work-orders/{id}/status` (A4): a stage, or the workshop's own status. */
+export const workOrderStatusBodySchema = z
+  .object({ status: z.string().min(1), customStatusId: z.string().min(1).nullable().optional() })
+  .strict()
+
 export const workOrderEndpoints: EndpointSpec[] = [
   ...readEndpoints(workOrdersSpec),
+  ...writeEndpoints({
+    ...workOrdersSpec,
+    create: documentBodySchema(createServiceSchema),
+    update: patchBody(documentBodySchema(updateServiceSchema)),
+    remove: true,
+  }),
+  write(
+    'post',
+    '/work-orders/{id}/status',
+    'Move a work order to a status (the work board’s own rules)',
+    workOrderSchema,
+    workOrderStatusBodySchema
+  ),
+  write('post', '/work-orders/{id}/lines', 'Add a line', lineSchema, createLineSchema, 201),
+  write('patch', '/work-orders/{id}/lines/{lineId}', 'Change a line', lineSchema, updateLineSchema),
+  write('delete', '/work-orders/{id}/lines/{lineId}', 'Remove a line', deletedSchema),
+  write(
+    'post',
+    '/work-orders/{id}/jobs',
+    'Add a job (line group)',
+    jobSchema,
+    createJobSchema,
+    201
+  ),
+  write('patch', '/work-orders/{id}/jobs/{jobId}', 'Change a job', jobSchema, updateJobSchema),
+  write('delete', '/work-orders/{id}/jobs/{jobId}', 'Remove a job (its lines stay)', deletedSchema),
+  write(
+    'post',
+    '/work-orders/{id}/payments',
+    'Record a payment (issues the invoice, as the app does)',
+    paymentSchema,
+    createPaymentSchema.omit({ serviceRecordId: true }),
+    201
+  ),
+  write('delete', '/work-orders/{id}/payments/{paymentId}', 'Remove a payment', deletedSchema),
   child('jobs', 'A work order’s jobs (line groups)', z.array(jobSchema)),
   child('lines', 'A work order’s labor and part lines', z.array(lineSchema)),
   child('payments', 'A work order’s payments', z.array(paymentSchema)),
   child('attachments', 'A work order’s attachments (metadata)', z.array(attachmentSchema)),
+  {
+    method: 'post',
+    path: '/work-orders/{id}/attachments',
+    summary:
+      'Attach a file: a photo (JPEG, PNG, WebP, HEIC, 60 MB), a PDF, text or CSV (25 MB) or a video (MP4, MOV, WebM, 250 MB)',
+    tag: 'Work orders',
+    body: z.object({
+      file: z.string().meta({ format: 'binary' }).describe('The file, with its own Content-Type'),
+      category: z
+        .enum(['image', 'diagnostic', 'document', 'dropoff'])
+        .optional()
+        .describe(
+          'image for a photo, document for a PDF or text, unless sent; a video is always video'
+        ),
+      description: z.string().max(500).optional(),
+      includeInInvoice: z
+        .enum(['true', 'false'])
+        .optional()
+        .describe('true unless sent, false for dropoff'),
+    }),
+    bodyContentType: 'multipart/form-data',
+    response: attachmentSchema,
+    status: 201,
+  },
+  write(
+    'delete',
+    '/work-orders/{id}/attachments/{attachmentId}',
+    'Remove an attachment (and its file, unless something else uses it)',
+    deletedSchema
+  ),
   {
     method: 'get',
     path: '/work-orders/{id}/attachments/{attachmentId}/content',

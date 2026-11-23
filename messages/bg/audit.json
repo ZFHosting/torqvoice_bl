@@ -237,6 +237,16 @@
     "shopmonkey_extract": "Извлечено от Shopmonkey",
     "shopmonkey_import": "Импортирано от Shopmonkey",
     "shopmonkey_import_undo": "Импортът от Shopmonkey е отменен",
+    "contact_create": "Добавен контакт",
+    "contact_update": "Променен контакт",
+    "contact_delete": "Премахнат контакт",
+    "job_create": "Добавена задача",
+    "job_update": "Променена задача",
+    "job_delete": "Премахната задача",
+    "shift_create": "Добавена смяна",
+    "shift_update": "Променена смяна",
+    "shift_delete": "Премахната смяна",
+    "time_entry_start": "Часовникът е пуснат",
     "platform_revokeSuperAdmin": "Премахнат супер администратор"
   },
   "summary": {

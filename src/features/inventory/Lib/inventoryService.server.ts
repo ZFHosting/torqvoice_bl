@@ -17,6 +17,7 @@ import { releaseFiles } from '@/lib/files/manager'
 import { inventoryPartFileUrls } from '@/lib/files/collect'
 import { normalizeBarcode, withBarcodeConflictMessage } from '../Lib/barcode'
 import { normalizePartTags } from '../Lib/partTags'
+import { parseSentFields } from '@/lib/parse-sent-fields'
 import type { ServiceCtx } from '@/lib/service-context'
 
 export async function createInventoryPartService(ctx: ServiceCtx, input: unknown) {
@@ -67,7 +68,9 @@ export async function createInventoryPartService(ctx: ServiceCtx, input: unknown
 
 export async function updateInventoryPartService(ctx: ServiceCtx, input: unknown) {
   const { userId, organizationId } = ctx
-  const data = updateInventoryPartSchema.parse(input)
+  // fork: only the fields sent; the schema's defaults (a quantity of 0) would reset the rest (A4). The form sends
+  // them all.
+  const data = parseSentFields(updateInventoryPartSchema, input)
   assertOwnUploads(data, organizationId)
   const { id, gallery: galleryData, ...updateData } = data
 
@@ -218,6 +221,12 @@ export async function deleteInventoryPartsService(ctx: ServiceCtx, partIds: stri
   return { deleted: result.count }
 }
 
+/** fork: the note an adjustment was given (the API's; the scan dialog sends none), for its stock history line. */
+function adjustNote(input: unknown): string | null {
+  const note = (input as { note?: unknown } | null)?.note
+  return typeof note === 'string' && note.trim() ? note.trim().slice(0, 500) : null
+}
+
 export async function adjustInventoryStockService(ctx: ServiceCtx, input: unknown) {
   const { userId, organizationId } = ctx
   const { id, adjustment } = adjustStockSchema.parse(input)
@@ -232,11 +241,26 @@ export async function adjustInventoryStockService(ctx: ServiceCtx, input: unknow
 
   // Tracking is checked again in the write itself: switched off between
   // the read above and here, the part must stay at zero.
-  const written = await db.inventoryPart.updateMany({
-    where: { id, organizationId, trackStock: true },
-    data: { quantity: newQuantity },
+  // fork: the count and its line in the part's stock history together, like every other change of its count (A4,
+  // docs/fork/API.md §4 adjust): the line is never missing, nor there for a change that didn't happen.
+  await db.$transaction(async (tx) => {
+    const written = await tx.inventoryPart.updateMany({
+      where: { id, organizationId, trackStock: true },
+      data: { quantity: newQuantity },
+    })
+    if (written.count === 0) throw new Error('This part does not track stock')
+    await tx.stockMovement.create({
+      data: {
+        inventoryPartId: id,
+        organizationId,
+        delta: adjustment,
+        quantityAfter: newQuantity,
+        reason: 'manual_adjustment',
+        userId,
+        note: adjustNote(input),
+      },
+    })
   })
-  if (written.count === 0) throw new Error('This part does not track stock')
   await onInventoryChanged(organizationId)
-  return { quantity: newQuantity }
+  return { quantity: newQuantity, partId: id }
 }

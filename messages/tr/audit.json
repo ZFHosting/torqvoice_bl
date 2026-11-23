@@ -237,6 +237,16 @@
     "shopmonkey_extract": "Shopmonkey'den alındı",
     "shopmonkey_import": "Shopmonkey'den içe aktarıldı",
     "shopmonkey_import_undo": "Shopmonkey içe aktarımı geri alındı",
+    "contact_create": "Kişi eklendi",
+    "contact_update": "Kişi değiştirildi",
+    "contact_delete": "Kişi kaldırıldı",
+    "job_create": "İş eklendi",
+    "job_update": "İş değiştirildi",
+    "job_delete": "İş kaldırıldı",
+    "shift_create": "Vardiya eklendi",
+    "shift_update": "Vardiya değiştirildi",
+    "shift_delete": "Vardiya kaldırıldı",
+    "time_entry_start": "Saat başlatıldı",
     "platform_revokeSuperAdmin": "Süper yönetici yetkisi kaldırıldı"
   },
   "summary": {

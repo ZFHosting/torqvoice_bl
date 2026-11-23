@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { workshopTimeZone } from '@/lib/workshop-timezone'
 import { parseWorkshopDateTime } from '@/lib/workshop-datetime'
-import { createManualEntry, deleteEntry, updateEntry } from '../Lib/timeEntries'
+import { createManualEntry, deleteEntry, TimeEntryError, updateEntry } from '../Lib/timeEntries'
 import { toSheetEntries } from '../Lib/serialize'
 import type { ServiceCtx } from '@/lib/service-context'
 
@@ -40,21 +40,40 @@ export async function createTimeEntryService(ctx: ServiceCtx, input: z.input<typ
 
 export const updateSchema = z.object({
   id: z.string().min(1),
-  startedAt: wallClock,
+  // fork: each of these left out keeps what the entry has (the public API's PATCH, A4). The timesheet sends all three.
+  startedAt: wallClock.optional(),
   /** Null keeps a running clock running. */
-  endedAt: wallClock.nullable(),
+  endedAt: wallClock.nullable().optional(),
   note: z.string().max(500).optional().nullable(),
 })
 
 export async function updateTimeEntryService(ctx: ServiceCtx, input: z.input<typeof updateSchema>) {
   const args = updateSchema.parse(input)
   const timeZone = await workshopTimeZone(ctx.organizationId)
+  // fork: what wasn't sent, as the entry has it (to the second, where a wall clock is to the minute)
+  const sentAll =
+    args.startedAt !== undefined && args.endedAt !== undefined && args.note !== undefined
+  const kept = sentAll
+    ? null
+    : await db.timeEntry.findFirst({
+        where: { id: args.id, organizationId: ctx.organizationId },
+        select: { startedAt: true, endedAt: true, note: true },
+      })
+  if (!sentAll && !kept) throw new TimeEntryError('job_not_found', 'That entry no longer exists.')
   const entry = await updateEntry({
     organizationId: ctx.organizationId,
     id: args.id,
-    startedAt: parseWorkshopDateTime(args.startedAt, timeZone),
-    endedAt: args.endedAt ? parseWorkshopDateTime(args.endedAt, timeZone) : null,
-    note: args.note,
+    startedAt:
+      args.startedAt !== undefined
+        ? parseWorkshopDateTime(args.startedAt, timeZone)
+        : (kept?.startedAt as Date),
+    endedAt:
+      args.endedAt !== undefined
+        ? args.endedAt
+          ? parseWorkshopDateTime(args.endedAt, timeZone)
+          : null
+        : (kept?.endedAt ?? null),
+    note: args.note !== undefined ? args.note : kept?.note,
     editedByUserId: ctx.userId,
   })
   const [sheet] = await toSheetEntries([entry])

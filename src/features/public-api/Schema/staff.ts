@@ -3,8 +3,13 @@
  * workshop's own work order statuses with the stage each is filed under.
  */
 import { z } from 'zod'
+import {
+  createTechnicianSchema,
+  updateTechnicianSchema,
+} from '@/features/workboard/Schema/workboardSchema'
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
+import { patchBody, writeEndpoints } from '../Lib/writeSpec'
 
 export const technicianSchema = z
   .object({
@@ -57,5 +62,11 @@ export const workOrderStatusesSpec: ReadSpec<WorkOrderStatusOut> = {
 
 export const staffEndpoints: EndpointSpec[] = [
   ...readEndpoints(techniciansSpec),
+  ...writeEndpoints({
+    ...techniciansSpec,
+    create: createTechnicianSchema,
+    update: patchBody(updateTechnicianSchema),
+    remove: true,
+  }),
   ...readEndpoints(workOrderStatusesSpec),
 ]

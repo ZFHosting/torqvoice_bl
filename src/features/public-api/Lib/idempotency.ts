@@ -40,7 +40,9 @@ export async function withIdempotency(
   scope: { organizationId: string; apiKeyId: string },
   body: string,
   run: () => Promise<Response>,
-  now = new Date()
+  now = new Date(),
+  /** What is kept for a replay, when not the whole answer: a secret shown once is not shown again. */
+  storedAs: (body: unknown) => unknown = (body) => body
 ): Promise<Response> {
   const key = request.headers.get('idempotency-key')?.trim()
   if (!key) return run()
@@ -110,7 +112,10 @@ export async function withIdempotency(
   try {
     await db.apiIdempotencyKey.updateMany({
       where: { id: claimId, organizationId: scope.organizationId },
-      data: { responseStatus: response.status, responseBody: stored ?? {} },
+      data: {
+        responseStatus: response.status,
+        responseBody: (stored === null ? {} : storedAs(stored)) as Prisma.InputJsonValue,
+      },
     })
   } catch (err) {
     // The write itself committed: answer as it did, rather than a 500 that invites a retry. The

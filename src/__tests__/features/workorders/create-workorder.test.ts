@@ -48,6 +48,8 @@ vi.mock('@/lib/db', () => ({
     serviceRecord: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
     inspection: { findMany: vi.fn() },
     technician: { findFirst: vi.fn() },
+    // fork: a part line may not name another workshop's inventory part (A4): none here; the expectations are unchanged.
+    inventoryPart: { count: vi.fn(async () => 0) },
     // The workshop's closed days and time off, read with what is booked.
     workshopClosure: { findMany: vi.fn() },
     technicianAbsence: { findMany: vi.fn() },

@@ -3,10 +3,12 @@
  * (with `excluded` for what the customer declined) and `customFields`.
  */
 import { z } from 'zod'
+import { createQuoteSchema, updateQuoteSchema } from '@/features/quotes/Schema/quoteSchema'
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
+import { documentBodySchema, patchBody, writeEndpoints } from '../Lib/writeSpec'
 import { customFieldValueSchema, jobSchema, lineSchema } from './common'
-import { taxComponentAmountSchema } from './workOrders'
+import { taxComponentAmountSchema, workOrderSchema } from './workOrders'
 
 export const quoteSchema = z
   .object({
@@ -65,4 +67,24 @@ export const quotesSpec: ReadSpec<QuoteOut> = {
   response: quoteSchema,
 }
 
-export const quoteEndpoints: EndpointSpec[] = readEndpoints(quotesSpec)
+/** `POST /quotes/{id}/convert` (A4): the quote's own vehicle unless another of the workshop's is named. */
+export const convertQuoteSchema = z.object({ vehicleId: z.string().min(1).optional() }).strict()
+
+export const quoteEndpoints: EndpointSpec[] = [
+  ...readEndpoints(quotesSpec),
+  ...writeEndpoints({
+    ...quotesSpec,
+    create: documentBodySchema(createQuoteSchema),
+    update: patchBody(documentBodySchema(updateQuoteSchema)),
+    remove: true,
+  }),
+  {
+    method: 'post',
+    path: '/quotes/{id}/convert',
+    summary: 'Turn a quote into a work order (the app’s own conversion)',
+    tag: 'Quotes',
+    body: convertQuoteSchema,
+    response: workOrderSchema,
+    status: 201,
+  },
+]
