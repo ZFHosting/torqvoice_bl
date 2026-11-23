@@ -226,7 +226,7 @@ export async function attachOrderFiles(
         serviceRecordId,
         fileUrl,
         fileName: isPdf
-          ? `Shopmonkey invoice ${orderId}.pdf`
+          ? lc.label('Shopmonkey invoice {id}.pdf', { id: orderId })
           : typeof payload.fileName === 'string' && payload.fileName
             ? payload.fileName
             : `${record.remoteId}`,
@@ -234,7 +234,7 @@ export async function attachOrderFiles(
         fileSize: file.bytes,
         category: isPdf ? 'document' : 'diagnostic',
         // MAPPING §3: the original PDF keeps the exact historical document, off the printed invoice.
-        description: isPdf ? 'Original Shopmonkey invoice' : null,
+        description: isPdf ? lc.label('Original Shopmonkey invoice') : null,
         includeInInvoice: !isPdf,
       },
       select: { id: true },

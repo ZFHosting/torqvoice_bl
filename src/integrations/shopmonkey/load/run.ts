@@ -32,6 +32,7 @@ import {
   stagedAll,
 } from './people'
 import { applySettingChanges, type Proposals, proposeNumbering, proposeSettings } from './proposals'
+import { importLabeler } from './labels'
 import { loadResolver } from './resolver'
 
 export interface LoadOptions {
@@ -135,6 +136,7 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
     statusStageMap,
     technicianMap: options.technicianMap,
     now: options.now,
+    label: await importLabeler(scope.organizationId),
   })
   let mileageUnit: string | null = null
   let proposals: Proposals | null = null

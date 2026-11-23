@@ -78,18 +78,22 @@ export async function writeCustomFields(
       create: {
         organizationId: lc.scope.organizationId,
         userId: lc.runUserId,
+        // The name stays the English one's, so a workshop that changes language keeps one field; the label is
+        // what the workshop reads.
         name,
-        label: row.name,
+        label: lc.label(row.name),
         fieldType: 'text',
         entityType: row.entityType,
       },
       update: {},
       select: { id: true },
     })
+    // Only the importer's own value is translated; Shopmonkey's free text stays as it was.
+    const value = row.name === 'Customer type' ? lc.label(row.value) : row.value
     await tx.customFieldValue.upsert({
       where: { fieldId_entityId: { fieldId: definition.id, entityId } },
-      create: { fieldId: definition.id, entityId, entityType: row.entityType, value: row.value },
-      update: { value: row.value },
+      create: { fieldId: definition.id, entityId, entityType: row.entityType, value },
+      update: { value },
     })
   }
 }

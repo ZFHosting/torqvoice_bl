@@ -1231,6 +1231,14 @@
     "noReason": "none given",
     "restoredUndo": "A safety copy of the workshop as it was right before the restore was taken first and is kept for 90 days. Contact support to go back to it."
   },
+  "shopmonkeyImport": {
+    "customerType": "Customer type",
+    "fleet": "Fleet",
+    "labels": "Labels",
+    "referralSource": "Referral source",
+    "originalInvoice": "Original Shopmonkey invoice",
+    "invoiceFileName": "Shopmonkey invoice {id}.pdf"
+  },
   "aiErrors": {
     "modelAccess": "This API key has no access to the selected model. Pick another in Settings → Integrations.",
     "spendLimit": "This OpenAI account has reached its spending limit. Check the limits at platform.openai.com.",

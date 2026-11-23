@@ -1231,6 +1231,14 @@
     "noReason": "nenurodyta",
     "restoredUndo": "Prieš atkuriant buvo sukurta dirbtuvės apsauginė kopija, kokia ji buvo prieš pat atkūrimą; ji saugoma 90 dienų. Norėdami prie jos grįžti, susisiekite su pagalbos komanda."
   },
+  "shopmonkeyImport": {
+    "customerType": "Kliento tipas",
+    "fleet": "Autoparkas",
+    "labels": "Žymos",
+    "referralSource": "Rekomendacijos šaltinis",
+    "originalInvoice": "Originali Shopmonkey sąskaita faktūra",
+    "invoiceFileName": "Shopmonkey sąskaita faktūra {id}.pdf"
+  },
   "aiErrors": {
     "modelAccess": "Šis API raktas neturi prieigos prie pasirinkto modelio. Pasirinkite kitą skiltyje Nustatymai → Integracijos.",
     "spendLimit": "Ši OpenAI paskyra pasiekė išlaidų limitą. Patikrinkite limitus platform.openai.com.",

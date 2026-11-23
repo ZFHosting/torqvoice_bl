@@ -1231,6 +1231,14 @@
     "noReason": "geen opgegeven",
     "restoredUndo": "Eerst is een veiligheidskopie gemaakt van de werkplaats zoals die vlak voor het terugzetten was; die wordt 90 dagen bewaard. Neem contact op met support om ernaar terug te gaan."
   },
+  "shopmonkeyImport": {
+    "customerType": "Klanttype",
+    "fleet": "Wagenpark",
+    "labels": "Labels",
+    "referralSource": "Verwijzingsbron",
+    "originalInvoice": "Originele Shopmonkey-factuur",
+    "invoiceFileName": "Shopmonkey-factuur {id}.pdf"
+  },
   "aiErrors": {
     "modelAccess": "Deze API-sleutel heeft geen toegang tot het gekozen model. Kies een ander onder Instellingen → Integraties.",
     "spendLimit": "Dit OpenAI-account heeft zijn bestedingslimiet bereikt. Controleer de limieten op platform.openai.com.",

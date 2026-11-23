@@ -1231,6 +1231,14 @@
     "noReason": "aucun",
     "restoredUndo": "Une copie de sécurité de l'atelier tel qu'il était juste avant la restauration a d'abord été réalisée et est conservée pendant 90 jours. Contactez l'assistance pour y revenir."
   },
+  "shopmonkeyImport": {
+    "customerType": "Type de client",
+    "fleet": "Flotte",
+    "labels": "Étiquettes",
+    "referralSource": "Source de recommandation",
+    "originalInvoice": "Facture originale Shopmonkey",
+    "invoiceFileName": "Facture Shopmonkey {id}.pdf"
+  },
   "aiErrors": {
     "modelAccess": "Cette clé d'API n'a pas accès au modèle sélectionné. Choisissez-en un autre dans Paramètres → Intégrations.",
     "spendLimit": "Ce compte OpenAI a atteint sa limite de dépenses. Vérifiez les limites sur platform.openai.com.",

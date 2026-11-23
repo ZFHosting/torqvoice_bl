@@ -1231,6 +1231,14 @@
     "noReason": "keiner angegeben",
     "restoredUndo": "Vorher wurde eine Sicherheitskopie der Werkstatt im Zustand direkt vor der Wiederherstellung erstellt, die 90 Tage lang aufbewahrt wird. Wenden Sie sich an den Support, um zu ihr zurückzukehren."
   },
+  "shopmonkeyImport": {
+    "customerType": "Kundentyp",
+    "fleet": "Flotte",
+    "labels": "Labels",
+    "referralSource": "Empfehlungsquelle",
+    "originalInvoice": "Originalrechnung aus Shopmonkey",
+    "invoiceFileName": "Shopmonkey-Rechnung {id}.pdf"
+  },
   "aiErrors": {
     "modelAccess": "Dieser API-Schlüssel hat keinen Zugriff auf das ausgewählte Modell. Wählen Sie unter Einstellungen → Integrationen ein anderes.",
     "spendLimit": "Dieses OpenAI-Konto hat sein Ausgabenlimit erreicht. Prüfen Sie die Limits auf platform.openai.com.",

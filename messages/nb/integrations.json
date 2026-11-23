@@ -1231,6 +1231,14 @@
     "noReason": "ingen oppgitt",
     "restoredUndo": "Først ble det tatt en kopi av verkstedet slik det var rett før gjenopprettingen, og den beholdes i 90 dager. Kontakt supporten for å gå tilbake til den."
   },
+  "shopmonkeyImport": {
+    "customerType": "Kundetype",
+    "fleet": "Flåte",
+    "labels": "Etiketter",
+    "referralSource": "Henvisningskilde",
+    "originalInvoice": "Original faktura fra Shopmonkey",
+    "invoiceFileName": "Shopmonkey-faktura {id}.pdf"
+  },
   "aiErrors": {
     "modelAccess": "Denne API-nøkkelen har ikke tilgang til den valgte modellen. Velg en annen under Innstillinger → Integrasjoner.",
     "spendLimit": "Denne OpenAI-kontoen har nådd forbruksgrensen sin. Sjekk grensene på platform.openai.com.",

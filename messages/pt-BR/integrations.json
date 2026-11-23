@@ -1231,6 +1231,14 @@
     "noReason": "nenhum informado",
     "restoredUndo": "Antes, foi feita uma cópia de proteção da oficina como ela estava logo antes da restauração, que fica guardada por 90 dias. Fale com o suporte para voltar a ela."
   },
+  "shopmonkeyImport": {
+    "customerType": "Tipo de cliente",
+    "fleet": "Frota",
+    "labels": "Etiquetas",
+    "referralSource": "Origem da indicação",
+    "originalInvoice": "Fatura original do Shopmonkey",
+    "invoiceFileName": "Fatura do Shopmonkey {id}.pdf"
+  },
   "aiErrors": {
     "modelAccess": "Esta chave de API não tem acesso ao modelo selecionado. Escolha outro em Configurações → Integrações.",
     "spendLimit": "Esta conta da OpenAI atingiu o limite de gastos. Confira os limites em platform.openai.com.",

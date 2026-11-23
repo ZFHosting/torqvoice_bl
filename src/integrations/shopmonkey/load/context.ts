@@ -38,7 +38,11 @@ export interface LoadContext {
   /** Set during a dry run: every unit runs in it, under a savepoint. */
   dryTx: Tx | null
   now: Date
+  /** The importer's own words, in the workshop's language (`labels.ts`); anything else unchanged. */
+  label: Labeler
 }
+
+export type Labeler = (english: string, values?: Record<string, string>) => string
 
 /** Where reads and writes outside a unit go: the dry run's transaction, or the database. */
 export function clientOf(lc: LoadContext): Tx {
@@ -63,6 +67,7 @@ export function createLoadContext(input: {
   statusStageMap: Record<string, Stage>
   technicianMap?: Record<string, string | 'create'>
   now?: Date
+  label?: Labeler
 }): LoadContext {
   return {
     scope: input.scope,
@@ -84,6 +89,7 @@ export function createLoadContext(input: {
     placedFiles: [],
     dryTx: null,
     now: input.now ?? new Date(),
+    label: input.label ?? ((english) => english),
   }
 }
 
