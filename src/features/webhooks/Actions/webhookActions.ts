@@ -4,28 +4,25 @@ import { db } from '@/lib/db'
 import { withAuth } from '@/lib/with-auth'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
 import { revalidatePath } from 'next/cache'
-import { createWebhookSchema, updateWebhookSchema, WEBHOOK_EVENTS } from '../Schema/webhookSchema'
-import { generateWebhookSecret, signPayload } from '../Lib/sign'
+import { WEBHOOK_EVENTS } from '../Schema/webhookSchema'
+import { signPayload } from '../Lib/sign'
 import { deliverOnce } from '../Lib/deliver'
-import { checkWebhookUrl } from '../Lib/ssrf'
 import { demoGuard } from '@/lib/demo'
 import { requireFeature } from '@/lib/features'
-
-const SSRF_REASONS: Record<string, string> = {
-  invalid_url: 'URL is not valid',
-  scheme_not_http: 'Only http:// and https:// URLs are allowed',
-  missing_host: 'URL is missing a host',
-  metadata_host: 'Cloud metadata endpoints are not allowed',
-  loopback_host: 'Loopback hostnames are not allowed',
-  private_ip: 'Private IP addresses are not allowed',
-  resolves_private: 'URL resolves to a private network address',
-  dns_resolution_failed: 'Could not resolve URL host',
-  dns_no_records: 'No DNS records found for URL host',
-}
-
-function ssrfMessage(reason: string): string {
-  return SSRF_REASONS[reason] ?? `URL was rejected: ${reason}`
-}
+// fork: the write bodies and their audit events live beside the webhook service (A2)
+import {
+  createWebhookEvent,
+  deleteWebhookEvent,
+  rotateWebhookSecretEvent,
+  updateWebhookEvent,
+} from '../Lib/webhookAuditEvents'
+import {
+  createWebhookService,
+  deleteWebhookService,
+  rotateWebhookSecretService,
+  toggleWebhookService,
+  updateWebhookService,
+} from '../Lib/webhookService.server'
 
 export async function getWebhooks() {
   return withAuth(
@@ -61,117 +58,37 @@ export async function getWebhooks() {
 
 export async function createWebhook(input: unknown) {
   return withAuth(
-    async ({ organizationId, userId }) => {
-      await requireFeature(organizationId, 'api')
-      // Otherwise the demo becomes an open outbound HTTP relay: SSRF blocks
-      // private ranges, but not arbitrary public URLs.
-      demoGuard()
-      const data = createWebhookSchema.parse(input)
-      const safety = await checkWebhookUrl(data.url)
-      if (!safety.ok) throw new Error(ssrfMessage(safety.reason))
-      const secret = generateWebhookSecret()
-
-      const webhook = await db.webhook.create({
-        data: {
-          name: data.name,
-          url: data.url,
-          description: data.description ?? null,
-          events: JSON.stringify(data.events),
-          isActive: data.isActive ?? true,
-          secret,
-          organizationId,
-          createdById: userId,
-        },
-      })
-
-      revalidatePath('/settings/webhooks')
-      // Returned ONCE on creation; the secret never appears in subsequent reads.
-      return {
-        id: webhook.id,
-        name: webhook.name,
-        url: webhook.url,
-        secret,
-      }
-    },
+    // fork: the body is createWebhookService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      createWebhookService({ organizationId, userId, actor: 'user' }, input),
     {
       requiredPermissions: [
         { action: PermissionAction.UPDATE, subject: PermissionSubject.SETTINGS },
       ],
-      audit: ({ result }) => ({
-        action: 'webhook.create',
-        entity: 'webhook',
-        entityId: result.id,
-        details: { key: 'webhook_create', params: { name: result.name } },
-      }),
+      audit: ({ result }) => createWebhookEvent(result),
     }
   )
 }
 
 export async function updateWebhook(input: unknown) {
   return withAuth(
-    async ({ organizationId }) => {
-      await requireFeature(organizationId, 'api')
-      demoGuard()
-      const data = updateWebhookSchema.parse(input)
-      const existing = await db.webhook.findFirst({
-        where: { id: data.id, organizationId },
-      })
-      if (!existing) throw new Error('Webhook not found')
-
-      if (data.url !== existing.url) {
-        const safety = await checkWebhookUrl(data.url)
-        if (!safety.ok) throw new Error(ssrfMessage(safety.reason))
-      }
-
-      const reEnabling = data.isActive === true && existing.isActive === false
-
-      const updated = await db.webhook.update({
-        where: { id: data.id },
-        data: {
-          name: data.name,
-          url: data.url,
-          description: data.description ?? null,
-          events: JSON.stringify(data.events),
-          isActive: data.isActive ?? existing.isActive,
-          ...(reEnabling ? { failureCount: 0 } : {}),
-        },
-      })
-
-      revalidatePath('/settings/webhooks')
-      return { id: updated.id }
-    },
+    // fork: the body is updateWebhookService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      updateWebhookService({ organizationId, userId, actor: 'user' }, input),
     {
       requiredPermissions: [
         { action: PermissionAction.UPDATE, subject: PermissionSubject.SETTINGS },
       ],
-      audit: ({ result }) => ({
-        action: 'webhook.update',
-        entity: 'webhook',
-        entityId: result.id,
-      }),
+      audit: ({ result }) => updateWebhookEvent(result),
     }
   )
 }
 
 export async function toggleWebhook(id: string) {
   return withAuth(
-    async ({ organizationId }) => {
-      await requireFeature(organizationId, 'api')
-      const existing = await db.webhook.findFirst({
-        where: { id, organizationId },
-      })
-      if (!existing) throw new Error('Webhook not found')
-      const reEnabling = !existing.isActive
-      const updated = await db.webhook.update({
-        where: { id },
-        data: {
-          isActive: reEnabling,
-          ...(reEnabling ? { failureCount: 0 } : {}),
-        },
-      })
-      revalidatePath('/settings/webhooks')
-      return { id: updated.id, isActive: updated.isActive }
-    },
+    // fork: the body is toggleWebhookService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      toggleWebhookService({ organizationId, userId, actor: 'user' }, id),
     {
       requiredPermissions: [
         { action: PermissionAction.UPDATE, subject: PermissionSubject.SETTINGS },
@@ -182,53 +99,28 @@ export async function toggleWebhook(id: string) {
 
 export async function deleteWebhook(id: string) {
   return withAuth(
-    async ({ organizationId }) => {
-      const existing = await db.webhook.findFirst({
-        where: { id, organizationId },
-      })
-      if (!existing) throw new Error('Webhook not found')
-      await db.webhook.delete({ where: { id } })
-      revalidatePath('/settings/webhooks')
-      return { id }
-    },
+    // fork: the body is deleteWebhookService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      deleteWebhookService({ organizationId, userId, actor: 'user' }, id),
     {
       requiredPermissions: [
         { action: PermissionAction.UPDATE, subject: PermissionSubject.SETTINGS },
       ],
-      audit: ({ result }) => ({
-        action: 'webhook.delete',
-        entity: 'webhook',
-        entityId: result.id,
-      }),
+      audit: ({ result }) => deleteWebhookEvent(result),
     }
   )
 }
 
 export async function rotateWebhookSecret(id: string) {
   return withAuth(
-    async ({ organizationId }) => {
-      await requireFeature(organizationId, 'api')
-      const existing = await db.webhook.findFirst({
-        where: { id, organizationId },
-      })
-      if (!existing) throw new Error('Webhook not found')
-      const secret = generateWebhookSecret()
-      await db.webhook.update({
-        where: { id },
-        data: { secret },
-      })
-      revalidatePath('/settings/webhooks')
-      return { id, secret }
-    },
+    // fork: the body is rotateWebhookSecretService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      rotateWebhookSecretService({ organizationId, userId, actor: 'user' }, id),
     {
       requiredPermissions: [
         { action: PermissionAction.UPDATE, subject: PermissionSubject.SETTINGS },
       ],
-      audit: ({ result }) => ({
-        action: 'webhook.rotateSecret',
-        entity: 'webhook',
-        entityId: result.id,
-      }),
+      audit: ({ result }) => rotateWebhookSecretEvent(result),
     }
   )
 }

@@ -73,6 +73,8 @@ vi.mock('@/lib/db', () => ({
       return Array.isArray(steps) ? Promise.all(steps) : steps
     }),
     customFieldValue: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+    // fork: a delete also leaves a tombstone for API sync (A2); the expectations are unchanged.
+    deletedRecord: { create: vi.fn(), createMany: vi.fn() },
     user: { findUnique: vi.fn() },
     customer: {
       findFirst: vi.fn(),

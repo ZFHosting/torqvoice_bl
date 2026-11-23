@@ -2,10 +2,19 @@
 
 import { db } from '@/lib/db'
 import { withAuth } from '@/lib/with-auth'
-import { createLaborPresetSchema, updateLaborPresetSchema } from '../Schema/laborPresetSchema'
-import { revalidatePath } from 'next/cache'
 import { Prisma } from '@/generated/prisma/client'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
+// fork: the write bodies and their audit events live beside the labor preset service (A2)
+import {
+  createLaborPresetEvent,
+  deleteLaborPresetEvent,
+  updateLaborPresetEvent,
+} from '../Lib/laborPresetAuditEvents'
+import {
+  createLaborPresetService,
+  deleteLaborPresetService,
+  updateLaborPresetService,
+} from '../Lib/laborPresetService.server'
 
 export async function getLaborPresetsPaginated(params: {
   page?: number
@@ -97,155 +106,42 @@ export async function getLaborPreset(presetId: string) {
 
 export async function createLaborPreset(input: unknown) {
   return withAuth(
-    async ({ userId, organizationId }) => {
-      const data = createLaborPresetSchema.parse(input)
-      const resolvedName = data.name?.trim() || data.items[0]?.description || 'Untitled'
-      const preset = await db.laborPreset.create({
-        data: {
-          name: resolvedName,
-          description: data.description || undefined,
-          userId,
-          organizationId,
-          items: {
-            create: data.items.map((item, index) => ({
-              description: item.description,
-              hours: item.hours,
-              rate: item.rate,
-              pricingType: item.pricingType || 'hourly',
-              sortOrder: index,
-            })),
-          },
-          parts: data.parts?.length
-            ? {
-                create: data.parts.map((part, index) => ({
-                  name: part.name,
-                  partNumber: part.partNumber || null,
-                  quantity: part.quantity,
-                  unit: part.unit ?? null,
-                  category: part.category ?? null,
-                  unitPrice: part.unitPrice,
-                  inventoryPartId: part.inventoryPartId || null,
-                  sortOrder: index,
-                })),
-              }
-            : undefined,
-        },
-        include: { items: true, parts: true },
-      })
-      revalidatePath('/labor-presets')
-      return preset
-    },
+    // fork: the body is createLaborPresetService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      createLaborPresetService({ organizationId, userId, actor: 'user' }, input),
     {
       requiredPermissions: [
         { action: PermissionAction.CREATE, subject: PermissionSubject.LABOR_PRESETS },
       ],
-      audit: ({ result }) => ({
-        action: 'labor_preset.create',
-        entity: 'LaborPreset',
-        entityId: result.id,
-        details: { key: 'labor_preset_create', params: { name: result.name } },
-        metadata: { presetId: result.id },
-      }),
+      audit: ({ result }) => createLaborPresetEvent(result),
     }
   )
 }
 
 export async function updateLaborPreset(input: unknown) {
   return withAuth(
-    async ({ userId, organizationId }) => {
-      const data = updateLaborPresetSchema.parse(input)
-      const { id, items, parts, ...updateData } = data
-      // Resolve name from first item if not provided
-      if (updateData.name !== undefined) {
-        updateData.name = updateData.name?.trim() || items?.[0]?.description || 'Untitled'
-      }
-
-      const existing = await db.laborPreset.findFirst({
-        where: { id, organizationId },
-      })
-      if (!existing) throw new Error('Preset not found')
-
-      await db.$transaction(async (tx) => {
-        // Delete old items and parts
-        await tx.laborPresetItem.deleteMany({ where: { presetId: id } })
-        await tx.laborPresetPart.deleteMany({ where: { presetId: id } })
-
-        // Update preset and create new items/parts
-        return tx.laborPreset.update({
-          where: { id },
-          data: {
-            ...updateData,
-            description:
-              updateData.description !== undefined ? updateData.description || null : undefined,
-            items: items
-              ? {
-                  create: items.map((item, index) => ({
-                    description: item.description,
-                    hours: item.hours,
-                    rate: item.rate,
-                    pricingType: item.pricingType || 'hourly',
-                    sortOrder: index,
-                  })),
-                }
-              : undefined,
-            parts: parts?.length
-              ? {
-                  create: parts.map((part, index) => ({
-                    name: part.name,
-                    partNumber: part.partNumber || null,
-                    quantity: part.quantity,
-                    unit: part.unit ?? null,
-                    category: part.category ?? null,
-                    unitPrice: part.unitPrice,
-                    inventoryPartId: part.inventoryPartId || null,
-                    sortOrder: index,
-                  })),
-                }
-              : undefined,
-          },
-          include: { items: true, parts: true },
-        })
-      })
-
-      revalidatePath('/labor-presets')
-      return { updated: true, presetId: id }
-    },
+    // fork: the body is updateLaborPresetService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      updateLaborPresetService({ organizationId, userId, actor: 'user' }, input),
     {
       requiredPermissions: [
         { action: PermissionAction.UPDATE, subject: PermissionSubject.LABOR_PRESETS },
       ],
-      audit: ({ result }) => ({
-        action: 'labor_preset.update',
-        entity: 'LaborPreset',
-        entityId: result.presetId,
-        details: { key: 'labor_preset_update', params: { id: result.presetId } },
-        metadata: { presetId: result.presetId },
-      }),
+      audit: ({ result }) => updateLaborPresetEvent(result),
     }
   )
 }
 
 export async function deleteLaborPreset(presetId: string) {
   return withAuth(
-    async ({ userId, organizationId }) => {
-      const result = await db.laborPreset.deleteMany({
-        where: { id: presetId, organizationId },
-      })
-      if (result.count === 0) throw new Error('Preset not found')
-      revalidatePath('/labor-presets')
-      return { deleted: true, presetId }
-    },
+    // fork: the body is deleteLaborPresetService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      deleteLaborPresetService({ organizationId, userId, actor: 'user' }, presetId),
     {
       requiredPermissions: [
         { action: PermissionAction.DELETE, subject: PermissionSubject.LABOR_PRESETS },
       ],
-      audit: ({ result }) => ({
-        action: 'labor_preset.delete',
-        entity: 'LaborPreset',
-        entityId: result.presetId,
-        details: { key: 'labor_preset_delete', params: { id: result.presetId } },
-        metadata: { presetId: result.presetId },
-      }),
+      audit: ({ result }) => deleteLaborPresetEvent(result),
     }
   )
 }

@@ -17,6 +17,26 @@ concurrency and locks.
 5. A `demoGuard()` call wherever the service sends a message or calls a paid provider (the same rule as
    actions).
 
+### From the A2 review
+- **Prerequisite, before `PATCH /technicians/{id}` ships:** fix an upstream cross-workshop write found in
+  the moved body of `updateTechnicianService` (`src/features/workboard/Lib/technicianService.server.ts`,
+  originally `technicianActions.ts`): the technician update is workshop-scoped but its count is not
+  checked, and the `techName` sync that follows is `serviceRecord.updateMany({ where: { technicianId: id }
+  })` with no workshop filter, so another workshop's technician id renames that workshop's jobs. Fix it in
+  its own commit (check the count, scope the sync by `organizationId`), and update
+  `workboard/technician-service.test.ts`, which asserts today's query.
+- Pass the **raw body** to the service (it validates itself, as the action did); parsing first would run a
+  schema's transforms twice.
+- Services call `revalidatePath`, and `vehicleService` calls `getTranslations` (the caller's cookie or
+  `Accept-Language`, not the workshop's language): fine in a route handler, not outside a request.
+- Line adds: `addPartToServiceRecord` calls the `addPart` helper **and** `onInventoryChanged`; an endpoint
+  must do both (or move the pair into a service first), or stock alerts drift from the UI's.
+- `addQuoteToServiceRecord` (validates before `withAuth`) was not moved in A2: move it if the API needs it.
+- New services come with their endpoints here: customer contacts (X4), work jobs (X2), technician shifts
+  (X6). Their deletes write `DeletedRecord`s like A2's.
+- Create, update and status services had no direct tests in A2 (deletes did): each endpoint's tests are
+  their first direct coverage, so assert rows and the audit event, not just the status code.
+
 ## Acceptance
 - [ ] Parity tests: the API and the action produce the same rows, audit event and webhook delivery for create customer, create work order, add a labor line with a technician, record a payment, and convert a quote.
 - [ ] Editing an issued invoice's lines gets 409 `document_locked` with `details.reason`.

@@ -11,10 +11,11 @@ import {
   deleteCustomFieldValuesOf,
   workOrderIdsOfVehicles,
 } from '@/features/custom-fields/Lib/deleteCustomFieldValues'
+import { cascadeTombstones } from '@/features/public-api/Lib/tombstones.server'
 
 export async function deleteVehicle(vehicleId: string) {
   return withAuth(
-    async ({ organizationId }) => {
+    async ({ organizationId, userId }) => {
       // Its files are read while the rows exist and let go once they are gone:
       // this path used to leave every photo of every job on disk.
       const files = await vehicleFileUrls(organizationId, [vehicleId])
@@ -29,12 +30,34 @@ export async function deleteVehicle(vehicleId: string) {
           jobIds: workOrderIds,
           vehicleId,
         })
+        // fork: what the delete takes with it, read while it exists (API sync tombstones).
+        const cascaded = await cascadeTombstones(
+          tx,
+          { organizationId, userId },
+          { workOrderIds, vehicleId }
+        )
         const deleted = await tx.vehicle.deleteMany({
           where: { id: vehicleId, organizationId },
         })
         await deleteCustomFieldValuesOf(tx, organizationId, 'service_record', workOrderIds)
         // And the vehicle's own.
         await deleteCustomFieldValuesOf(tx, organizationId, 'vehicle', [vehicleId])
+        // fork: tombstones for API sync, as deleteVehicleService leaves (A2): the vehicle and the
+        // work orders that went with it.
+        if (deleted.count > 0) {
+          await tx.deletedRecord.createMany({
+            data: [
+              { organizationId, entityType: 'vehicle', entityId: vehicleId, actorUserId: userId },
+              ...workOrderIds.map((entityId) => ({
+                organizationId,
+                entityType: 'work_order',
+                entityId,
+                actorUserId: userId,
+              })),
+              ...cascaded,
+            ],
+          })
+        }
         return deleted
       })
       if (result.count === 0) throw new Error('Vehicle not found')

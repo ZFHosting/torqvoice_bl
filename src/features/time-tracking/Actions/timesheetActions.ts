@@ -3,18 +3,32 @@
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { withAuth } from '@/lib/with-auth'
-import { auditDetails } from '@/lib/audit'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
 import { workshopTimeZone } from '@/lib/workshop-timezone'
 import { addZonedDays, startOfZonedDay, zonedDayKey } from '@/lib/timezone'
-import { parseWorkshopDateTime, workshopDayRange } from '@/lib/workshop-datetime'
+import { workshopDayRange } from '@/lib/workshop-datetime'
 import { OPEN_SERVICE_STATUSES } from '@/lib/service-record'
 import { SETTING_KEYS } from '@/features/settings/Schema/settingsSchema'
-import { createManualEntry, deleteEntry, listOrgEntries, updateEntry } from '../Lib/timeEntries'
+import { listOrgEntries } from '../Lib/timeEntries'
 import { toSheetEntries } from '../Lib/serialize'
 import { canEditTimeEntries } from '../Lib/canEdit'
 import type { SheetEntry, SheetTechnician } from '../Lib/timesheet'
 import { typeKeySearch } from '@/features/vehicles/Lib/typeKeySetting'
+// fork: the write bodies, their input schemas and audit events live beside the time entry service (A2)
+import {
+  createTimeEntryEvent,
+  deleteTimeEntryEvent,
+  stopTimeEntryEvent,
+  updateTimeEntryEvent,
+} from '../Lib/timeEntryAuditEvents'
+import {
+  type createSchema,
+  createTimeEntryService,
+  deleteTimeEntryService,
+  stopTimeEntryService,
+  type updateSchema,
+  updateTimeEntryService,
+} from '../Lib/timeEntryService.server'
 
 /**
  * The manager's side of the clock: who worked when, and fixing what the
@@ -173,90 +187,30 @@ export async function searchTimesheetJobs(query: string) {
   )
 }
 
-/** Wall-clock input from the dialog, "YYYY-MM-DDTHH:MM" in the workshop's zone. */
-const wallClock = z.string().regex(/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2})?$/)
-
-const createSchema = z.object({
-  technicianId: z.string().min(1),
-  serviceRecordId: z.string().min(1),
-  startedAt: wallClock,
-  endedAt: wallClock,
-  note: z.string().max(500).optional().nullable(),
-})
-
 export async function createTimeEntry(input: z.input<typeof createSchema>) {
   return withAuth(
-    async (ctx) => {
-      const args = createSchema.parse(input)
-      const timeZone = await workshopTimeZone(ctx.organizationId)
-      const entry = await createManualEntry({
-        organizationId: ctx.organizationId,
-        technicianId: args.technicianId,
-        serviceRecordId: args.serviceRecordId,
-        startedAt: parseWorkshopDateTime(args.startedAt, timeZone),
-        endedAt: parseWorkshopDateTime(args.endedAt, timeZone),
-        note: args.note,
-        editedByUserId: ctx.userId,
-      })
-      const [sheet] = await toSheetEntries([entry])
-      return sheet
-    },
+    // fork: the body is createTimeEntryService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      createTimeEntryService({ organizationId, userId, actor: 'user' }, input),
     {
       requiredPermissions: [
         { action: PermissionAction.UPDATE, subject: PermissionSubject.TIME_TRACKING },
       ],
-      audit: ({ result }) => ({
-        action: 'timeEntry.create',
-        entity: 'timeEntry',
-        entityId: result.id,
-        details: auditDetails('timeEntry_create', {
-          technician: result.technicianName,
-          job: result.job.title,
-          minutes: result.durationMinutes ?? 0,
-        }),
-      }),
+      audit: ({ result }) => createTimeEntryEvent(result),
     }
   )
 }
 
-const updateSchema = z.object({
-  id: z.string().min(1),
-  startedAt: wallClock,
-  /** Null keeps a running clock running. */
-  endedAt: wallClock.nullable(),
-  note: z.string().max(500).optional().nullable(),
-})
-
 export async function updateTimeEntry(input: z.input<typeof updateSchema>) {
   return withAuth(
-    async (ctx) => {
-      const args = updateSchema.parse(input)
-      const timeZone = await workshopTimeZone(ctx.organizationId)
-      const entry = await updateEntry({
-        organizationId: ctx.organizationId,
-        id: args.id,
-        startedAt: parseWorkshopDateTime(args.startedAt, timeZone),
-        endedAt: args.endedAt ? parseWorkshopDateTime(args.endedAt, timeZone) : null,
-        note: args.note,
-        editedByUserId: ctx.userId,
-      })
-      const [sheet] = await toSheetEntries([entry])
-      return sheet
-    },
+    // fork: the body is updateTimeEntryService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      updateTimeEntryService({ organizationId, userId, actor: 'user' }, input),
     {
       requiredPermissions: [
         { action: PermissionAction.UPDATE, subject: PermissionSubject.TIME_TRACKING },
       ],
-      audit: ({ result }) => ({
-        action: 'timeEntry.update',
-        entity: 'timeEntry',
-        entityId: result.id,
-        details: auditDetails('timeEntry_update', {
-          technician: result.technicianName,
-          job: result.job.title,
-          minutes: result.durationMinutes ?? 0,
-        }),
-      }),
+      audit: ({ result }) => updateTimeEntryEvent(result),
     }
   )
 }
@@ -264,56 +218,28 @@ export async function updateTimeEntry(input: z.input<typeof updateSchema>) {
 /** A manager stopping a clock somebody left running: an update with "now" as the end. */
 export async function stopTimeEntry(id: string) {
   return withAuth(
-    async (ctx) => {
-      const existing = await db.timeEntry.findFirst({
-        where: { id, organizationId: ctx.organizationId, endedAt: null },
-        select: { startedAt: true },
-      })
-      if (!existing) throw new Error('That clock is not running.')
-      const entry = await updateEntry({
-        organizationId: ctx.organizationId,
-        id,
-        startedAt: existing.startedAt,
-        endedAt: new Date(),
-        editedByUserId: ctx.userId,
-      })
-      const [sheet] = await toSheetEntries([entry])
-      return sheet
-    },
+    // fork: the body is stopTimeEntryService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      stopTimeEntryService({ organizationId, userId, actor: 'user' }, id),
     {
       requiredPermissions: [
         { action: PermissionAction.UPDATE, subject: PermissionSubject.TIME_TRACKING },
       ],
-      audit: ({ result }) => ({
-        action: 'timeEntry.update',
-        entity: 'timeEntry',
-        entityId: result.id,
-        details: auditDetails('timeEntry_stop', {
-          technician: result.technicianName,
-          job: result.job.title,
-          minutes: result.durationMinutes ?? 0,
-        }),
-      }),
+      audit: ({ result }) => stopTimeEntryEvent(result),
     }
   )
 }
 
 export async function deleteTimeEntry(id: string) {
   return withAuth(
-    async (ctx) => {
-      const removed = await deleteEntry(ctx.organizationId, id)
-      return { id: removed.id }
-    },
+    // fork: the body is deleteTimeEntryService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      deleteTimeEntryService({ organizationId, userId, actor: 'user' }, id),
     {
       requiredPermissions: [
         { action: PermissionAction.UPDATE, subject: PermissionSubject.TIME_TRACKING },
       ],
-      audit: ({ result }) => ({
-        action: 'timeEntry.delete',
-        entity: 'timeEntry',
-        entityId: result.id,
-        details: auditDetails('timeEntry_delete', { id: result.id }),
-      }),
+      audit: ({ result }) => deleteTimeEntryEvent(result),
     }
   )
 }

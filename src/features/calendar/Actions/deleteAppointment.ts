@@ -1,9 +1,10 @@
 'use server'
 
-import { z } from 'zod'
-import { db } from '@/lib/db'
 import { withAuth } from '@/lib/with-auth'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
+// fork: the body and its audit event live beside the booking service (A2)
+import { deleteAppointmentEvent } from '../Lib/bookingAuditEvents'
+import { deleteAppointmentService } from '../Lib/bookingService.server'
 
 /**
  * Takes an appointment off the calendar, with its notifications. A booked
@@ -11,26 +12,14 @@ import { PermissionAction, PermissionSubject } from '@/lib/permissions'
  */
 export async function deleteAppointment(id: string) {
   return withAuth(
-    async ({ organizationId }) => {
-      const appointmentId = z.string().min(1).parse(id)
-      const appointment = await db.appointment.findFirst({
-        where: { id: appointmentId, organizationId },
-        select: { id: true, title: true },
-      })
-      if (!appointment) throw new Error('Appointment not found')
-      await db.appointment.delete({ where: { id: appointment.id } })
-      return appointment
-    },
+    // fork: the body is deleteAppointmentService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      deleteAppointmentService({ organizationId, userId, actor: 'user' }, id),
     {
       requiredPermissions: [
         { action: PermissionAction.DELETE, subject: PermissionSubject.SERVICES },
       ],
-      audit: ({ result }) => ({
-        action: 'appointment.delete',
-        entity: 'Appointment',
-        entityId: result.id,
-        details: { key: 'appointment_delete', params: { title: result.title } },
-      }),
+      audit: ({ result }) => deleteAppointmentEvent(result),
     }
   )
 }

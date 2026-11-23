@@ -72,17 +72,47 @@ params>)`, with the helpers it uses; the action keeps its name, input, permissio
 the service. Audit builders move to `<domain>AuditEvents.ts` so the API logs the same event. Deletes also
 write a `DeletedRecord`. Per domain: extractor → Biome (unsafe fix drops unused imports) → that domain's
 existing tests unchanged → a service test → `tsc` → commit. Order (brief):
-1. [ ] customers (+ contacts X4, custom fields)
-2. [ ] vehicles (+ notes)
-3. [ ] service records: draft, header, lines, status, jobs (X2)
-4. [ ] payments (+ the invoice issuing they trigger)
-5. [ ] quotes (+ convert to job)
-6. [ ] appointments
-7. [ ] technicians, time entries, shifts (X6)
-8. [ ] inventory (+ stock adjust), labor presets
-9. [ ] findings
-10. [ ] webhooks (subscription management)
-11. [ ] DoD, reviewer, merge.
+1. [x] customers (80787391): `customerService.server.ts`, `customerAuditEvents.ts`; test
+   `features/customers/customer-service.test.ts`; customer-related tests unchanged and passing (49 files).
+   Contacts (X4) move to A4 (nothing to extract; brief updated).
+2. [x] vehicles + notes + archive (349f3bdc): `vehicleService`, `vehicleArchiveService`, `noteService`,
+   `vehicleAuditEvents.ts`; test `features/vehicles/vehicle-service.test.ts`; vehicle-related folders pass
+   (only the Windows baseline file tests fail); `tsc` exit 0.
+3. [x] service records (a2e14f31, b0ccb678): `serviceRecordService` (create, update incl. lines, status,
+   internal notes, title, manually paid, delete, attachment delete, public link), `draftServiceRecordService`,
+   `serviceAttachmentService`, `serviceRecordAuditEvents.ts`; test `vehicles/service-record-service.test.ts`;
+   `meters-gates`, `equipment-gates` and `service-concerns` now read the service file (same assertions).
+   `addPartToServiceRecord` already calls a library helper. Jobs (X2) have no action to extract: their service
+   comes with their endpoints in A4, like contacts. Board scheduling and assignment writes go with
+   appointments (6). Folders pass except Windows baseline tests (checked by test name); `tsc` exit 0.
+4. [x] payments (86ade5b7): `paymentService`, `paymentAuditEvents.ts`, test `payments/payment-service.test.ts`;
+   payment-related folders pass (Fiken load timeout only); `tsc` exit 0.
+5. [x] quotes (4c2d804c): create, update, status, delete, convert in `quoteService`, `quoteAuditEvents.ts`; test
+   `quotes/quote-service.test.ts`; equipment-gates allows the service file. `addQuoteToServiceRecord` (validates
+   before withAuth) left for A4 to decide on. Folders pass except Windows baseline (by test name); `tsc` exit 0.
+6. [x] appointments (7518cc93): `bookingService` (createBookingOnce, updateBooking, deleteAppointment,
+   bookAppointment), `bookingAuditEvents.ts`; test `calendar/booking-service.test.ts`; booking-token db test passes.
+7. [x] technicians, time entries (587245dd): `technicianService`, `timeEntryService` (+ the timesheet schemas),
+   audit events; tests `time-tracking/time-entry-service.test.ts`, `workboard/technician-service.test.ts`.
+   Shifts (X6): nothing to extract, A4.
+8. [x] inventory + stock adjust, labor presets (2912c2ad): `inventoryService`, `laborPresetService`, audit
+   events; test `inventory/inventory-service.test.ts`. `applyMarkupToAll` stays.
+9. [x] findings (4e8a7e76): `findingService`, `findingAuditEvents.ts`.
+10. [x] webhooks (4e8a7e76): `webhookService`, `webhookAuditEvents.ts`; test `webhooks/webhook-service.test.ts`.
+11. [x] DoD (2026-11-23, at the A2 tip): `tsc` exit 0; Biome 14 (baseline); `npm test` all 808 files in 7 chunks
+    on Node 22.23.4, failing = the 14 Windows-only baseline files (checked by test name where a file also holds
+    fork-relevant checks: meters-gates and equipment-gates fail only their path-separator test) plus
+    environment-only `backup-manifest` / `workshop-columns` (CRLF copies; pass after LF, 26/26) and the
+    `fiken` pure-computation timeout; `test:db` 16 files / 102 tests on `torqvoice_fork_test`.
+12. [x] Reviewer pass 1: **needs changes** (acceptance 3, the move, PASS by its own AST check: 63 bodies, 423
+    bindings, every export and option). Fixed: cascaded tombstones (payments, time entries, findings,
+    inspections) via `public-api/Lib/tombstones.server.ts` in the work order and both vehicle deletes, tested in
+    `vehicle-service.test.ts` / `service-record-service.test.ts`, and on Postgres by `test:db` (16/102);
+    `workboard/technician-service.test.ts` (6). Should-fix: demo-guard scans services; A4 brief notes; decisions.
+13. [x] Reviewer pass 2 (2026-11-23): **ready for PR**, on condition the merge records an upstream cross-workshop
+    write found in a moved body (`updateTechnicianService`'s `techName` sync): recorded in the merge commit,
+    the Decisions log and as an A4 prerequisite. Its notes taken: workshop filters on the cascade reads, the
+    vehicle test checks the reads come before the delete, A5 task 7 lists the deletes A2 didn't reach.
 
 M0 acceptance:
 - [x] NOTICE-FORK.md, README link, CLAUDE.md import, docs/fork/UPSTREAM.md (commit 0c7ec939).
@@ -180,7 +210,16 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-22 | A1: the API keys page's strings in 13 languages besides English were written by Claude, not a translator. | The parity test needs every locale; they follow each locale's existing settings wording but deserve a native read before release. |
 | 2026-11-22 | A1: keys' service users show on Settings → Team and count as seats; left for A6 task 7 (label them, drop them from the seat count). | Self-hosted installs have every seat, so nothing is refused; editing a key's role on the Team page is how its scope is managed (API.md §2). |
 | 2026-11-22 | **A1 done.** DoD: `tsc` exit 0; Biome 14 (baseline); `npm test` all 796 files, failures = the 14 Windows-only baseline files plus environment-only ones (CRLF copies, load timeouts; Current step history); `test:db` 16 files / 101 tests, then the A1 db files 20 tests after review fixes. Acceptance 1–4 with test names in the A1 checklist. Reviewer pass 2: ready for PR. Merged into `fork/integration` at 1c81e08e. | Evidence for the definition of done and acceptance. |
-| 2026-11-22 | A2: a service takes the action's own parameters (raw input included) and validates inside, exactly as the action body did, instead of the brief's "action parses, service takes parsed input". | The body moves verbatim (no behaviour change, the brief's acceptance 3), and the API gets the very same validation, including messages the action words in the workshop's language (the vehicle fleet number). |
+| 2026-11-23 | A2: upstream tests that read a moved action as text now read the service file it moved to, assertions unchanged: `meters-gates` (vehicle delete, work order move and delete; its block delimiter follows the 4-space shallower indent), `equipment-gates` (allowlist adds `serviceRecordService` and `quoteService` beside their action files), `service-concerns`. | The code moved verbatim; the checks still guard it where it now lives, and on Linux CI the allowlists would otherwise fail. |
+| 2026-11-23 | A2: not moved, with reasons: `addPartToServiceRecord` (already calls the `addPart` library helper), `addQuoteToServiceRecord` (validates before `withAuth`; A4 decides if the API needs it), `applyMarkupToAll` (a settings-wide pricing tool, no API counterpart), board scheduling and assignment writes (no API endpoint names them yet). New services with no action to extract (customer contacts X4, work jobs X2, technician shifts X6) are written with their endpoints in A4; the A2 brief says so. | A2 moves existing logic; inventing services ahead of their endpoints would be untested new behaviour. |
+| 2026-11-23 | A2: tombstone `entityType`s are the API's resource names in the singular, snake case: `customer`, `vehicle`, `work_order`, `note`, `payment`, `time_entry`, `finding`, `inspection`, ... **Revised after review:** a delete also tombstones what it takes with it by cascade onto a top-level API resource (`src/features/public-api/Lib/tombstones.server.ts`, read before the delete, written in its transaction): a work order's payments and time entries; a vehicle's work orders, their payments and time entries, its findings and inspections. What only an API parent serves (attachments, notes, reminders under a deleted vehicle) follows the parent's tombstone (A5 documents it at `/deleted`). | `/api/v1/deleted?entityType=` is read by API clients, which know resources, not Prisma models; a delete that isn't tombstoned when it happens can never be tombstoned later. |
+| 2026-11-23 | A2: the vehicle page's own `deleteVehicle` (`Actions/deleteVehicle.ts`, separate from the list's) keeps its body and gains the tombstones in its transaction, rather than calling `deleteVehicleService`. | The service looks the vehicle up first (as the list's action always did); upstream's tests mock the page action's exact queries, and A2 must leave existing tests' expectations alone. |
+| 2026-11-23 | A2: upstream tests whose hand-written database mock lacks `deletedRecord` get it added (`// fork:`), expectations untouched. | A delete now writes a tombstone in its transaction (the brief's "deletes also write DeletedRecord"). |
+| 2026-11-23 | A2: a service takes the action's own parameters (raw input included) and validates inside, exactly as the action body did, instead of the brief's "action parses, service takes parsed input". | The body moves verbatim (no behaviour change, the brief's acceptance 3), and the API gets the very same validation, including the messages an action words through next-intl (the vehicle fleet number, in the caller's locale from cookie or Accept-Language). |
+| 2026-11-23 | A2: one branch with a commit per domain, not one PR per domain. | Autopilot merges per milestone; each domain's commit stands alone (tests, `tsc`), so the history reads as the brief's PRs would. Playwright runs in CI's shards on the merged branch. |
+| 2026-11-23 | **Upstream bug found in A2's move, not fixed in A2:** `updateTechnicianService` (formerly `updateTechnician`) renames `techName` on work orders matched by technician id alone, after a workshop-scoped update whose count it never checks, so another workshop's technician id renames that workshop's jobs. Present on upstream `main`. | The A2 brief: bugs found while moving code are noted in the PR and fixed separately. It becomes reachable by API keys with A4's `PATCH /technicians/{id}`, so it is an A4 prerequisite (A4 brief). Worth reporting upstream too. |
+| 2026-11-23 | A2 review, accepted: tombstones after a non-transactional delete (a note, a finding, a webhook, a payment, an appointment, an attachment, an inventory part, a labor preset, a time entry) are written right after it, not in one transaction; a few bulk paths tombstone every pre-checked id once `count > 0`. | Wrapping them would change bodies A2 promised to move verbatim and upstream's mocks; a crash between the two writes loses one tombstone, and a race can tombstone a row deleted by someone else a moment earlier, both rare and harmless to tenancy (every id is checked to be the workshop's). A6's security review lists it. |
+| 2026-11-23 | A2 review: `demo-guard-coverage` also scans `*Service.server.ts`, where the moved bodies (and their `demoGuard()` calls) now live. | Otherwise a send added to a service later wouldn't be caught. |
 | 2026-11-22 | A1 review: the IP allowlist keeps upstream's address rules (`X-Real-IP`, or Cloudflare's header when trusted) and says plainly, in API.md §2 and under the field, that it only holds behind a proxy that overwrites `X-Real-IP`. No new environment switch. | One source for "who is calling" across the limiter and the allowlist; the shipped compose file exposes the port directly, so the doc and the UI have to say it. An opt-in variable can come with A6's security review if needed. |
 | 2026-11-22 | A1 review: failed authentication is limited per address (30 a minute) before any key lookup; a route's own rate limit counts in its own bucket. | Upstream's withApiAuth refuses cheaply first; a bad-key flood shouldn't cost a database read and an HMAC each. A tight route mustn't eat or reshape the key's default budget. |
 | 2026-11-22 | A1 review: an Idempotency-Key claim still in flight after 5 minutes is treated as abandoned; a failure to store the response is logged and the real response returned. | A crash would otherwise lock the key for 24 hours, and a committed write answered with a 500 invites a duplicate. |

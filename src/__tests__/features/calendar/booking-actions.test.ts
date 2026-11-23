@@ -40,6 +40,8 @@ const db = vi.hoisted(() => ({
   serviceConcern: { deleteMany: vi.fn(), createMany: vi.fn() },
   appointment: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   appointmentNotification: { findMany: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
+  // fork: a delete also leaves a tombstone for API sync (A2); the expectations are unchanged.
+  deletedRecord: { create: vi.fn(), createMany: vi.fn() },
   $transaction: vi.fn(),
 }))
 vi.mock('@/lib/db', () => ({ db }))

@@ -80,15 +80,17 @@ describe('the meter tables', () => {
   })
 
   it('are no longer a job’s when the job moves to another vehicle, in the same save', () => {
-    const source = readFileSync('src/features/vehicles/Actions/serviceActions.ts', 'utf8')
+    // fork: the work order save and delete moved, unchanged, into the service record service (A2)
+    const source = readFileSync('src/features/vehicles/Lib/serviceRecordService.server.ts', 'utf8')
     const move = source.slice(source.indexOf('if (!sameVehicle && vehicleBefore) {'))
-    expect(move.slice(0, move.indexOf('\n        }\n'))).toContain(
+    // fork: the block closes four spaces shallower than in the action it came from
+    expect(move.slice(0, move.indexOf('\n    }\n'))).toContain(
       'unlinkJobMeterReadingsFromOtherVehicles(tx'
     )
   })
 
   it('keep the date they count at when their job or its vehicle is deleted', () => {
-    const job = readFileSync('src/features/vehicles/Actions/serviceActions.ts', 'utf8')
+    const job = readFileSync('src/features/vehicles/Lib/serviceRecordService.server.ts', 'utf8')
     const remove = job.slice(job.indexOf('export async function deleteServiceRecord'))
     expect(remove.indexOf('unlinkMeterReadingsOfDeletedJobs(tx')).toBeGreaterThan(-1)
     expect(remove.indexOf('unlinkMeterReadingsOfDeletedJobs(tx')).toBeLessThan(
@@ -96,7 +98,8 @@ describe('the meter tables', () => {
     )
     for (const file of [
       'src/features/vehicles/Actions/deleteVehicle.ts',
-      'src/features/vehicles/Actions/vehicleActions.ts',
+      // fork: the vehicle list's delete moved, unchanged, into the vehicle service (A2)
+      'src/features/vehicles/Lib/vehicleService.server.ts',
     ]) {
       const source = readFileSync(file, 'utf8')
       const at = source.indexOf('unlinkMeterReadingsOfDeletedJobs(tx')

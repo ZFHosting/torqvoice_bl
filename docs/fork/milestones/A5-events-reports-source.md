@@ -20,6 +20,12 @@ raw access to everything archived from Shopmonkey, and delete tombstones.
 4. `/api/v1/source-records` (read-only, filter by `table`, `remoteId`, `updatedSince`), and
    `include=source` on resources that have a link (it looks up `IntegrationLink`, then `SourceRecord`).
 5. `/api/v1/deleted?since=&entityType=` from `DeletedRecord`.
+7. **Deletes A2 didn't reach** (A2 review): these still delete without a tombstone, so either tombstone
+   them or list them at `/deleted` as not covered: `inspections/Actions/inspectionActions.ts` (an inspection
+   deleted directly; one deleted by its vehicle's cascade is tombstoned), the accounting sync's
+   `removePulledPayment` (`integrations/Lib/accounting-sync.ts`), the spreadsheet import's undo
+   (`import/Actions/importActions.ts`), `inspection-reminders/Actions/bookingActions.ts`,
+   `onboarding/Actions/checklistActions.ts`, `settings/Actions/deleteContent.ts`.
 6. **Restores and sync** (M1 review): a restore replaces the tombstones, removes rows without writing
    any, and brings rows back with their old `updatedAt`, so a client syncing with `updatedSince` can't
    see what a restore did. Expose it: record each restore (time, workshop) and serve it at
