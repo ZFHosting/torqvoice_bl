@@ -27,6 +27,22 @@ describe('sourceExtra', () => {
     expect((extra as Record<string, unknown>).somethingNew).toEqual({ kept: true })
   })
 
+  it('keeps every other key when one value is malformed', () => {
+    const extra = readPartSourceExtra({
+      sku: 'AS2254517',
+      costCents: 'sixty dollars',
+      tireIdentificationNumbers: ['TIN1'],
+      somethingNew: 1,
+    })
+    expect(extra).toEqual({
+      sku: 'AS2254517',
+      tireIdentificationNumbers: ['TIN1'],
+      somethingNew: 1,
+    })
+    expect(readLaborSourceExtra('not an object')).toEqual({})
+    expect(readLaborSourceExtra(['a'])).toEqual({})
+  })
+
   it('reads tire and subcontract fields on a part line', () => {
     const extra = readPartSourceExtra({
       sku: 'AS2254517',
