@@ -191,6 +191,31 @@ export async function extractStep(deps: ExtractDeps, input: ExtractState): Promi
   return result(true, `done: ${state.calls + deps.client.stats.calls - callsBefore} calls`)
 }
 
+/**
+ * Units of work until the run is done or `budgetMs` has passed, saving the state after each one, so a
+ * job run (once a minute, from the cron) keeps close to Shopmonkey's rate limit instead of doing one
+ * page a minute. Returns the last unit's result.
+ */
+export async function extractFor(
+  deps: ExtractDeps,
+  state: ExtractState,
+  options: {
+    budgetMs: number
+    save: (state: ExtractState) => Promise<void>
+    clock?: () => number
+  }
+): Promise<StepResult & { units: number }> {
+  const clock = options.clock ?? Date.now
+  const started = clock()
+  let current = state
+  for (let units = 1; ; units++) {
+    const result = await extractStep(deps, current)
+    await options.save(result.state)
+    current = result.state
+    if (result.done || clock() - started >= options.budgetMs) return { ...result, units }
+  }
+}
+
 function finishStep(state: ExtractState, step: PlanStep, cp: StepCheckpoint) {
   if (cp.highWatermark) {
     state.watermarks[step.table] = later(

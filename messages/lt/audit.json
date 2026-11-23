@@ -234,6 +234,7 @@
     "platform_grantSuperAdmin": "Suteiktos vyriausiojo administratoriaus teisės",
     "api_key_create": "Sukurtas API raktas",
     "api_key_revoke": "Atšauktas API raktas",
+    "shopmonkey_extract": "Gauta iš Shopmonkey",
     "platform_revokeSuperAdmin": "Atimtos vyriausiojo administratoriaus teisės"
   },
   "summary": {
@@ -428,6 +429,7 @@
     "platform_grantSuperAdmin": "{name} ({email}) tapo vyriausiuoju administratoriumi",
     "api_key_create": "Sukurtas API raktas {name} ({ref})",
     "api_key_revoke": "Atšauktas API raktas {name} ({ref})",
+    "shopmonkey_extract": "Iš Shopmonkey gauta naujų ar pakeistų įrašų: {records} ({count} API užklausų)",
     "platform_revokeSuperAdmin": "Atimtos vyriausiojo administratoriaus teisės iš {name} ({email})"
   }
 }

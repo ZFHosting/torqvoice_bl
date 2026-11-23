@@ -234,6 +234,7 @@
     "platform_grantSuperAdmin": "Super administrateur accordé",
     "api_key_create": "Clé d'API créée",
     "api_key_revoke": "Clé d'API révoquée",
+    "shopmonkey_extract": "Récupéré depuis Shopmonkey",
     "platform_revokeSuperAdmin": "Super administrateur retiré"
   },
   "summary": {
@@ -428,6 +429,7 @@
     "platform_grantSuperAdmin": "{name} ({email}) nommé super administrateur",
     "api_key_create": "Clé d'API {name} ({ref}) créée",
     "api_key_revoke": "Clé d'API {name} ({ref}) révoquée",
+    "shopmonkey_extract": "{records} enregistrements nouveaux ou modifiés récupérés depuis Shopmonkey ({count} appels API)",
     "platform_revokeSuperAdmin": "Rôle de super administrateur retiré à {name} ({email})"
   }
 }
