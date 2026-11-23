@@ -249,6 +249,9 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
             const row = await tx.serviceRecord.create({
               data: {
                 ...record,
+                // Every report finds a job by its start (as upstream's importers set it); an appointment the
+                // order references moves it later in the run (MAPPING §3).
+                startDateTime: record.serviceDate,
                 taxComponents: json(record.taxComponents),
                 createdById: lc.runUserId,
                 importBatchId: lc.batches.services ?? null,

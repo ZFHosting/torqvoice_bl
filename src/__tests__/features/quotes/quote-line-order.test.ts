@@ -144,6 +144,8 @@ beforeEach(() => {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     quotePart: {
+      // fork: the save reads the lines it replaces, to keep their imported columns (M5 task 12)
+      findMany: vi.fn(async () => table.parts),
       deleteMany: vi.fn(async () => {
         table.parts = []
       }),
@@ -152,6 +154,8 @@ beforeEach(() => {
       }),
     },
     quoteLabor: {
+      // fork: the save reads the lines it replaces, to keep their imported columns (M5 task 12)
+      findMany: vi.fn(async () => table.labor),
       deleteMany: vi.fn(async () => {
         table.labor = []
       }),

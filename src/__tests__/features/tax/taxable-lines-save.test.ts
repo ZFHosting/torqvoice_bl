@@ -127,9 +127,21 @@ function transaction(extra: Record<string, unknown> = {}) {
     serviceLabor: {
       createMany: written.labor,
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      // fork: the save reads the lines it replaces, to keep their imported columns (M5 task 12)
+      findMany: vi.fn().mockResolvedValue([]),
     },
-    quotePart: { createMany: written.parts, deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
-    quoteLabor: { createMany: written.labor, deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    quotePart: {
+      createMany: written.parts,
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      // fork: as above
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    quoteLabor: {
+      createMany: written.labor,
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      // fork: as above
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     serviceConcern: { createMany: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
     serviceAttachment: { createMany: vi.fn(), deleteMany: vi.fn() },
     inventoryPart: { findFirst: vi.fn().mockResolvedValue(null) },

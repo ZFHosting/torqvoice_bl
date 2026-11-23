@@ -195,6 +195,15 @@ describe('loading the archive into a workshop', () => {
     expect(open?.payments).toEqual([])
   })
 
+  it('gives every imported job a start, so the date-ranged reports find it', async () => {
+    const jobs = await db.serviceRecord.findMany({
+      where: { organizationId },
+      select: { startDateTime: true, serviceDate: true },
+    })
+    expect(jobs.length).toBeGreaterThan(0)
+    expect(jobs.filter((j) => !j.startDateTime)).toEqual([])
+  })
+
   it('updates exactly the order that changed', async () => {
     const before = await db.serviceRecord.findMany({
       where: { organizationId },
