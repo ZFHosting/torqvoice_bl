@@ -176,7 +176,7 @@ export function prismaSourceStore(
       // Prisma can't compare two columns with a null on one side, so this one is SQL.
       return client.$queryRaw<PendingParent[]>`
         SELECT "id", "remoteId", "payload", "payloadHash"
-        FROM "source_records"
+        FROM "public"."source_records"
         WHERE "organizationId" = ${organizationId}
           AND "source" = ${SOURCE}
           AND "table" = ${table}
