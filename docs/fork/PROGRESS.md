@@ -73,14 +73,14 @@ Environment (local, Windows):
 merge is still blocked by B15). Plan:
 0. [x] Prerequisite (6ddcbc98): `updateTechnicianService` refuses another workshop's technician id (count checked)
    and scopes the `techName` sync by `organizationId` (`workboard/technician-service.test.ts`).
-1. [ ] `Lib/writeRoute.ts`: withPublicApi + the permission + the raw body to the service (it validates) + `If-Match`
+1. [x] (868d7561) `Lib/writeRoute.ts`: withPublicApi + the permission + the raw body to the service (it validates) + `If-Match`
    on PATCH/DELETE (412) + `Idempotency-Key` on POST + the action's own audit builder through `logAudit` (so
    webhooks fire as from the UI) + errors: zod 400 with paths, document lock 409 `document_locked`, plan gate 403
    with `details.gate`, a service's "… not found" 404, another plain `Error` (a refusal the action shows) 400,
    a unique violation 409. The response is the record as A3 serializes it.
 2. [ ] Partial PATCH: update services that parse a `.partial()` schema with defaults switch to `parseSentFields`
    (a field not sent stays as it is; the forms send everything, so the app is unchanged).
-3. [ ] Phase 1: customers (+ contacts, a new service with tombstones), vehicles (a customer id of another
+3. [x] Phase 1 (868d7561, 7e4ed17d; `db/public-api-write-people.db.test.ts`): customers (+ contacts, a new service with tombstones; contacts, jobs and shifts services in `features/fork-records/`), vehicles (a customer id of another
    workshop is a 404).
 4. [ ] Phase 2: work orders (create, update, delete, status action, lines, jobs (new service), payments, attachments
    multipart), quotes (+ convert).
