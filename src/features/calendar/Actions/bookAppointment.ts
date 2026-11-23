@@ -1,14 +1,11 @@
 'use server'
 
-import { db } from '@/lib/db'
 import { withAuth } from '@/lib/with-auth'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
-import { workshopTimeZone } from '@/lib/workshop-timezone'
-import { zonedDate } from '@/lib/timezone'
-import { createDraftRecord } from '@/features/vehicles/Lib/createDraftRecord'
-import { resourceFor } from '../Lib/booking.server'
-import { bookAppointmentSchema, type BookAppointmentInput } from '../Schema/appointmentSchema'
-import { appointmentConcerns, appointmentTitle } from '../Lib/appointment'
+import { type BookAppointmentInput } from '../Schema/appointmentSchema'
+// fork: the body and its audit event live beside the booking service (A2)
+import { bookAppointmentEvent } from '../Lib/bookingAuditEvents'
+import { bookAppointmentService } from '../Lib/bookingService.server'
 
 /**
  * Books a car or a customer in from the calendar without going through the
@@ -28,86 +25,14 @@ import { appointmentConcerns, appointmentTitle } from '../Lib/appointment'
  */
 export async function bookAppointment(input: BookAppointmentInput) {
   return withAuth(
-    async ({ organizationId, userId }) => {
-      const data = bookAppointmentSchema.parse(input)
-
-      // Ids from the browser can belong to another workshop.
-      const vehicle = data.vehicleId
-        ? await db.vehicle.findFirst({
-            where: { id: data.vehicleId, organizationId },
-            select: { id: true, customer: { select: { taxExempt: true } } },
-          })
-        : null
-      if (data.vehicleId && !vehicle) throw new Error('Vehicle not found')
-
-      // A job on a car finds its customer through the car, so a customer is
-      // only looked up for a booking that has no car yet.
-      const customer =
-        !vehicle && data.customerId
-          ? await db.customer.findFirst({
-              where: { id: data.customerId, organizationId },
-              select: { id: true, taxExempt: true },
-            })
-          : null
-      if (!vehicle && !customer) throw new Error('Customer not found')
-
-      const timeZone = await workshopTimeZone(organizationId)
-      const [year, month, day] = data.date.split('-').map(Number)
-      const [hour, minute] = data.time.split(':').map(Number)
-      const start = zonedDate(year, month, day, hour, minute, timeZone)
-      const end = new Date(start.getTime() + data.durationMinutes * 60_000)
-      const concerns = appointmentConcerns(data.work)
-      const { resource, full } = await resourceFor(organizationId, start, data.durationMinutes)
-
-      const record = await db.$transaction(async (tx) => {
-        const created = await createDraftRecord(
-          { organizationId, userId },
-          {
-            vehicleId: vehicle?.id ?? null,
-            customerId: vehicle ? null : (customer?.id ?? null),
-            customerExempt: vehicle
-              ? (vehicle.customer?.taxExempt ?? false)
-              : (customer?.taxExempt ?? false),
-            title: appointmentTitle(data.work),
-            startDateTime: start,
-            endDateTime: end,
-            technicianId: resource?.technicianId ?? undefined,
-            workBayId: resource?.workBayId ?? undefined,
-            // Work on a car even before the car is on file.
-            shopWork: true,
-            tx,
-          }
-        )
-        return tx.serviceRecord.update({
-          where: { id: created.id },
-          data: {
-            status: 'scheduled',
-            description: data.work,
-            concerns: {
-              create: concerns.map((description, sortOrder) => ({ description, sortOrder })),
-            },
-          },
-          select: { id: true, vehicleId: true, invoiceNumber: true },
-        })
-      })
-      // Booked all the same: the office may fill an hour the booking page
-      // would refuse. The dialog says so, and the board shows the clash.
-      return { ...record, overbooked: full }
-    },
+    // fork: the body is bookAppointmentService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      bookAppointmentService({ organizationId, userId, actor: 'user' }, input),
     {
       requiredPermissions: [
         { action: PermissionAction.CREATE, subject: PermissionSubject.SERVICES },
       ],
-      audit: ({ result }) => ({
-        action: 'service.create',
-        entity: 'ServiceRecord',
-        entityId: result.id,
-        details: {
-          key: 'service_bookAppointment',
-          params: { ref: result.invoiceNumber || result.id },
-        },
-        metadata: { serviceRecordId: result.id, vehicleId: result.vehicleId },
-      }),
+      audit: ({ result }) => bookAppointmentEvent(result),
     }
   )
 }
