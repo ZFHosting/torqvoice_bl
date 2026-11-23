@@ -1,0 +1,829 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`customers > take the primary email and phone, keep every contact, and compose the address 1`] = `
+{
+  "rows": {
+    "contacts": [
+      {
+        "isPrimary": true,
+        "kind": "email",
+        "label": null,
+        "marketingOptIn": true,
+        "remoteId": "syn_eml_1",
+        "subscribed": true,
+        "value": "dana.dunmore@example.test",
+      },
+      {
+        "isPrimary": false,
+        "kind": "email",
+        "label": null,
+        "marketingOptIn": false,
+        "remoteId": "syn_eml_2",
+        "subscribed": false,
+        "value": "dana.work@example.test",
+      },
+      {
+        "isPrimary": true,
+        "kind": "phone",
+        "label": "Mobile",
+        "marketingOptIn": null,
+        "remoteId": "syn_phn_1",
+        "subscribed": null,
+        "value": "+12025550101",
+      },
+      {
+        "isPrimary": false,
+        "kind": "phone",
+        "label": "Landline",
+        "marketingOptIn": null,
+        "remoteId": "syn_phn_2",
+        "subscribed": null,
+        "value": "+12025550102",
+      },
+    ],
+    "customFields": [
+      {
+        "entityType": "customer",
+        "name": "syn_cf_1",
+        "value": "Blue sedan owner club",
+      },
+      {
+        "entityType": "customer",
+        "name": "Labels",
+        "value": "VIP",
+      },
+      {
+        "entityType": "customer",
+        "name": "Referral source",
+        "value": "syn_ref_1",
+      },
+    ],
+    "customer": {
+      "address": "12 Maple St
+Apt 4
+Riverton, TX 90012
+US",
+      "company": null,
+      "createdAt": 2020-05-04T16:30:00.000Z,
+      "email": "dana.dunmore@example.test",
+      "name": "Dana Dunmore",
+      "notes": "Prefers text messages.",
+      "organizationId": "org-1",
+      "phone": "+12025550101",
+      "reminderOptOut": false,
+      "taxExempt": false,
+      "userId": "user-run",
+    },
+    "customerNumberCandidate": "1001",
+  },
+  "unmapped": [
+    "companyId",
+    "discountPercent",
+    "locationId",
+    "locationIds",
+    "preferredContactMethod",
+    "preferredLanguage",
+    "updatedDate",
+  ],
+  "warnings": [
+    {
+      "code": "customer_referral_unresolved",
+      "field": "referralSourceId",
+      "message": "Its referral source is not in the archive",
+      "remoteId": "syn_cus_1",
+      "table": "customer",
+    },
+  ],
+}
+`;
+
+exports[`inspections > make templates on the basic scale, and inspections against them with their photos 1`] = `
+{
+  "rows": {
+    "items": [
+      {
+        "allowNotApplicable": true,
+        "description": null,
+        "name": "Brakes",
+        "remoteId": "syn_iti_1",
+        "sortOrder": 0,
+      },
+      {
+        "allowNotApplicable": true,
+        "description": null,
+        "name": "Tires",
+        "remoteId": "syn_iti_2",
+        "sortOrder": 1,
+      },
+      {
+        "allowNotApplicable": true,
+        "description": null,
+        "name": "Wiper blades",
+        "remoteId": "syn_iti_3",
+        "sortOrder": 2,
+      },
+      {
+        "allowNotApplicable": true,
+        "description": null,
+        "name": "Battery",
+        "remoteId": "syn_iti_4",
+        "sortOrder": 3,
+      },
+    ],
+    "section": {
+      "name": "Multi-point inspection",
+      "sortOrder": 0,
+    },
+    "template": {
+      "country": null,
+      "createdAt": 2019-05-01T12:00:00.000Z,
+      "description": null,
+      "name": "Multi-point inspection",
+      "organizationId": "org-1",
+      "severityScale": "basic",
+      "standard": "custom",
+    },
+  },
+  "unmapped": [
+    "companyId",
+    "locationId",
+    "updatedDate",
+  ],
+  "warnings": [],
+}
+`;
+
+exports[`inspections > make templates on the basic scale, and inspections against them with their photos 2`] = `
+{
+  "rows": {
+    "inspection": {
+      "completedAt": 2025-03-10T17:30:00.000Z,
+      "createdAt": 2025-03-10T17:00:00.000Z,
+      "mileage": 84250,
+      "notes": "Front pads worn; tires near the wear bars.",
+      "organizationId": "org-1",
+      "severityScale": "basic",
+      "status": "completed",
+      "technicianId": "local:user:syn_usr_1",
+      "templateId": "local:inspection_template:syn_itp_1",
+      "vehicleId": "local:vehicle:syn_veh_1",
+    },
+    "items": [
+      {
+        "condition": "fail",
+        "name": "Brakes",
+        "notes": "Front pads at 2 mm.",
+        "photoRemoteIds": [
+          "syn_ifl_1",
+        ],
+        "remoteId": "syn_iit_1",
+        "section": "Multi-point inspection",
+        "sortOrder": 0,
+      },
+      {
+        "condition": "attention",
+        "name": "Tires",
+        "notes": "Tread at 3/32".",
+        "photoRemoteIds": [],
+        "remoteId": "syn_iit_2",
+        "section": "Multi-point inspection",
+        "sortOrder": 1,
+      },
+      {
+        "condition": "pass",
+        "name": "Wiper blades",
+        "notes": null,
+        "photoRemoteIds": [],
+        "remoteId": "syn_iit_3",
+        "section": "Multi-point inspection",
+        "sortOrder": 2,
+      },
+      {
+        "condition": "not_applicable",
+        "name": "Battery",
+        "notes": null,
+        "photoRemoteIds": [],
+        "remoteId": "syn_iit_4",
+        "section": "Multi-point inspection",
+        "sortOrder": 3,
+      },
+    ],
+    "orderRemoteId": "syn_ord_1003",
+  },
+  "unmapped": [
+    "checklistStage",
+    "companyId",
+    "createdById",
+    "locationId",
+    "ordinal",
+    "recommended",
+    "updatedDate",
+  ],
+  "warnings": [],
+}
+`;
+
+exports[`payments > match the snapshot 1`] = `
+[
+  {
+    "rows": {
+      "amount": 100,
+      "date": 2025-03-10T16:05:00.000Z,
+      "externalId": "syn_pay_1003_1",
+      "method": "cash",
+      "note": "Deposit · Shopmonkey: Cash · Deposit at drop-off",
+      "provider": "shopmonkey",
+      "serviceRecordId": "local:order:syn_ord_1003",
+    },
+    "unmapped": [
+      "companyId",
+      "locationId",
+      "paymentMode",
+      "provider",
+      "receiptNumber",
+      "updatedDate",
+    ],
+    "warnings": [],
+  },
+  {
+    "rows": {
+      "amount": 500,
+      "date": 2025-03-14T17:30:00.000Z,
+      "externalId": "syn_pay_1003_2",
+      "method": "card",
+      "note": "Shopmonkey: Card · card ending 4242",
+      "provider": "shopmonkey",
+      "serviceRecordId": "local:order:syn_ord_1003",
+    },
+    "unmapped": [
+      "companyId",
+      "locationId",
+      "paymentMode",
+      "provider",
+      "receiptNumber",
+      "refunded",
+      "refundedAmountCents",
+      "updatedDate",
+    ],
+    "warnings": [],
+  },
+  {
+    "rows": {
+      "amount": -50,
+      "date": 2025-03-20T15:00:00.000Z,
+      "externalId": "syn_pay_1003_3",
+      "method": "card",
+      "note": "Refund of syn_pay_1003_2 · Shopmonkey: Card · card ending 4242 · reason: RequestedByCustomer · Goodwill for the wait",
+      "provider": "shopmonkey",
+      "serviceRecordId": "local:order:syn_ord_1003",
+    },
+    "unmapped": [
+      "companyId",
+      "locationId",
+      "paymentMode",
+      "provider",
+      "receiptNumber",
+      "updatedDate",
+    ],
+    "warnings": [],
+  },
+  {
+    "rows": null,
+    "unmapped": [
+      "companyId",
+      "locationId",
+      "paymentMode",
+      "provider",
+      "receiptNumber",
+      "updatedDate",
+    ],
+    "warnings": [],
+  },
+  {
+    "rows": {
+      "amount": 144,
+      "date": 2023-11-02T18:10:00.000Z,
+      "externalId": "syn_pay_1004_1",
+      "method": "other",
+      "note": "Shopmonkey: Check · check 5521",
+      "provider": "shopmonkey",
+      "serviceRecordId": "local:order:syn_ord_1004",
+    },
+    "unmapped": [
+      "companyId",
+      "locationId",
+      "paymentMode",
+      "provider",
+      "receiptNumber",
+      "refunded",
+      "refundedAmountCents",
+      "updatedDate",
+    ],
+    "warnings": [],
+  },
+  {
+    "rows": {
+      "amount": -144,
+      "date": 2023-11-20T15:00:00.000Z,
+      "externalId": "syn_pay_1004_2",
+      "method": "other",
+      "note": "Refund of syn_pay_1004_1 · Shopmonkey: Check · reason: RequestedByCustomer · Warranty claim",
+      "provider": "shopmonkey",
+      "serviceRecordId": "local:order:syn_ord_1004",
+    },
+    "unmapped": [
+      "companyId",
+      "locationId",
+      "paymentMode",
+      "provider",
+      "receiptNumber",
+      "updatedDate",
+    ],
+    "warnings": [],
+  },
+]
+`;
+
+exports[`staff and statuses > file statuses under a stage: invoice workflow completed, the first repair status pending 1`] = `
+{
+  "rows": [
+    {
+      "name": "Waiting for approval",
+      "organizationId": "org-1",
+      "remoteId": "syn_wfs_1",
+      "sortOrder": 0,
+      "stage": "pending",
+    },
+    {
+      "name": "Invoiced",
+      "organizationId": "org-1",
+      "remoteId": "syn_wfs_5",
+      "sortOrder": 0,
+      "stage": "completed",
+    },
+    {
+      "name": "In progress",
+      "organizationId": "org-1",
+      "remoteId": "syn_wfs_2",
+      "sortOrder": 1,
+      "stage": "in-progress",
+    },
+    {
+      "name": "Paid",
+      "organizationId": "org-1",
+      "remoteId": "syn_wfs_6",
+      "sortOrder": 1,
+      "stage": "completed",
+    },
+    {
+      "name": "Waiting on parts",
+      "organizationId": "org-1",
+      "remoteId": "syn_wfs_3",
+      "sortOrder": 2,
+      "stage": "in-progress",
+    },
+    {
+      "name": "Ready for pickup",
+      "organizationId": "org-1",
+      "remoteId": "syn_wfs_4",
+      "sortOrder": 3,
+      "stage": "in-progress",
+    },
+  ],
+  "unmapped": [
+    "archiveWhenInactive",
+    "archiveWhenPaid",
+    "companyId",
+    "daysToArchive",
+    "locationId",
+    "updatedDate",
+  ],
+  "warnings": [],
+}
+`;
+
+exports[`staff and statuses > make technicians from users, with their colour as hex 1`] = `
+{
+  "rows": {
+    "color": "#3b82f6",
+    "createdAt": 2019-01-02T15:00:00.000Z,
+    "isActive": true,
+    "name": "Avery Ashford",
+    "organizationId": "org-1",
+  },
+  "unmapped": [
+    "assignedServiceWriter",
+    "assignedTechnician",
+    "canTrackTime",
+    "companyIds",
+    "locationIds",
+    "roleIds",
+    "updatedDate",
+  ],
+  "warnings": [],
+}
+`;
+
+exports[`the catalog and settings > make inventory parts with the starting count as an import movement 1`] = `
+{
+  "rows": {
+    "movement": {
+      "delta": 6,
+      "note": "Imported from Shopmonkey",
+      "quantityAfter": 6,
+      "reason": "import",
+    },
+    "part": {
+      "barcodeCandidate": "BP1234",
+      "category": "Brakes",
+      "description": null,
+      "location": "A3",
+      "minQuantity": 2,
+      "name": "Ceramic brake pads (front)",
+      "organizationId": "org-1",
+      "partNumber": "BP-1234",
+      "quantity": 6,
+      "sellPrice": 89.99,
+      "supplier": "Westbrook Parts Supply",
+      "supplierEmail": "orders@example.test",
+      "supplierPhone": "+12025550104",
+      "supplierUrl": "https://vendor.example.test",
+      "unitCost": 42,
+      "userId": "user-run",
+    },
+  },
+  "unmapped": [
+    "availableQuantity",
+    "companyId",
+    "createdDate",
+    "locationId",
+    "reservedQuantity",
+    "taxable",
+    "updatedDate",
+  ],
+  "warnings": [],
+}
+`;
+
+exports[`the catalog and settings > make presets from canned services, catalog labor and fees 1`] = `
+{
+  "rows": {
+    "items": [
+      {
+        "description": "Replace front brake pads",
+        "hours": 1.5,
+        "pricingType": "hourly",
+        "rate": 140,
+        "sortOrder": 0,
+      },
+      {
+        "description": "Brake cleaner",
+        "hours": 1,
+        "pricingType": "shopFee",
+        "rate": 5,
+        "sortOrder": 1,
+      },
+    ],
+    "parts": [
+      {
+        "category": null,
+        "inventoryPartId": "local:inventory_part:syn_inv_1",
+        "name": "Ceramic brake pads (front)",
+        "partNumber": null,
+        "quantity": 1,
+        "sortOrder": 2,
+        "unitPrice": 89.99,
+      },
+    ],
+    "preset": {
+      "description": "Pads, cleaner and a road test.",
+      "name": "Front brake service",
+      "organizationId": "org-1",
+      "userId": "user-run",
+    },
+  },
+  "unmapped": [
+    "bookable",
+    "companyId",
+    "createdDate",
+    "locationId",
+    "lumpSum",
+    "pricing",
+    "publicId",
+    "recommended",
+    "updatedDate",
+  ],
+  "warnings": [],
+}
+`;
+
+exports[`the catalog and settings > make presets from canned services, catalog labor and fees 2`] = `
+{
+  "rows": {
+    "items": [
+      {
+        "description": "Brake inspection",
+        "hours": 0.5,
+        "pricingType": "hourly",
+        "rate": 140,
+        "sortOrder": 0,
+      },
+    ],
+    "parts": [],
+    "preset": {
+      "description": null,
+      "name": "Brake inspection",
+      "organizationId": "org-1",
+      "userId": "user-run",
+    },
+  },
+  "unmapped": [
+    "categoryId",
+    "companyId",
+    "createdDate",
+    "discountCents",
+    "discountPercent",
+    "discountValueType",
+    "locationId",
+    "multiplier",
+    "multiplierType",
+    "rateId",
+    "taxable",
+    "taxableGST",
+    "taxableHST",
+    "taxablePST",
+    "updatedDate",
+  ],
+  "warnings": [],
+}
+`;
+
+exports[`the catalog and settings > make presets from canned services, catalog labor and fees 3`] = `
+{
+  "rows": {
+    "items": [
+      {
+        "description": "Shop disposal fee",
+        "hours": 1,
+        "pricingType": "shopFee",
+        "rate": 3.5,
+        "sortOrder": 0,
+      },
+    ],
+    "parts": [],
+    "preset": {
+      "description": null,
+      "name": "Shop disposal fee",
+      "organizationId": "org-1",
+      "userId": "user-run",
+    },
+  },
+  "unmapped": [
+    "companyId",
+    "createdDate",
+    "locationId",
+    "updatedDate",
+  ],
+  "warnings": [],
+}
+`;
+
+exports[`the catalog and settings > read the tax config and the default labor rate 1`] = `
+{
+  "components": null,
+  "epaTaxable": false,
+  "laborTaxable": true,
+  "partsTaxable": true,
+  "rate": 8.25,
+  "shopSuppliesTaxable": false,
+  "system": "US",
+}
+`;
+
+exports[`time and appointments > make appointments, with the order they were booked for 1`] = `
+{
+  "rows": {
+    "appointment": {
+      "createdAt": 2025-01-30T12:00:00.000Z,
+      "customerId": "local:customer:syn_cus_2",
+      "description": "Drop off before 8.",
+      "endAt": 2025-02-03T15:00:00.000Z,
+      "organizationId": "org-1",
+      "startAt": 2025-02-03T14:00:00.000Z,
+      "title": "Fleet oil change",
+      "vehicleId": "local:vehicle:syn_veh_2",
+    },
+    "orderRemoteId": "syn_ord_1002",
+  },
+  "unmapped": [
+    "allDay",
+    "color",
+    "companyId",
+    "confirmationStatus",
+    "locationId",
+    "origin",
+    "publicId",
+    "recurring",
+    "sendConfirmation",
+    "sendReminder",
+    "updatedDate",
+    "useEmail",
+    "useSMS",
+  ],
+  "warnings": [],
+}
+`;
+
+exports[`vehicles > normalise the plate, lowercase the colour, leave fuel unset and keep the exact transmission 1`] = `
+{
+  "rows": {
+    "customFields": [
+      {
+        "entityType": "vehicle",
+        "name": "Submodel",
+        "value": "EX",
+      },
+      {
+        "entityType": "vehicle",
+        "name": "Drivetrain",
+        "value": "FWD",
+      },
+      {
+        "entityType": "vehicle",
+        "name": "Plate state",
+        "value": "TX",
+      },
+      {
+        "entityType": "vehicle",
+        "name": "Transmission",
+        "value": "AutomaticCVT",
+      },
+    ],
+    "mileageUnit": "Mile",
+    "note": {
+      "content": "Customer prefers synthetic oil.",
+      "title": "Shopmonkey note",
+    },
+    "ownerRemoteId": "syn_cus_1",
+    "vehicle": {
+      "bodyType": "Car",
+      "color": "blue",
+      "createdAt": 2020-05-04T16:40:00.000Z,
+      "customerId": "local:customer:syn_cus_1",
+      "engineSize": "2.0L I4",
+      "fleetNumber": null,
+      "fuelType": null,
+      "licensePlate": "FX-1001",
+      "make": "Honda",
+      "mileage": 84250,
+      "model": "Civic",
+      "organizationId": "org-1",
+      "transmission": "automatic",
+      "userId": "user-run",
+      "vin": "TVFX0SYN000000001",
+      "year": 2018,
+    },
+  },
+  "unmapped": [
+    "companyId",
+    "licensePlateCountry",
+    "locationId",
+    "locationIds",
+    "updatedDate",
+  ],
+  "warnings": [],
+}
+`;
+
+exports[`what the review asked for > matches the snapshots of timesheets and tires 1`] = `
+[
+  {
+    "rows": {
+      "kind": "timeEntry",
+      "row": {
+        "durationMinutes": 90,
+        "endedAt": 2025-03-10T19:30:00.000Z,
+        "note": null,
+        "organizationId": "org-1",
+        "serviceRecordId": "local:order:syn_ord_1003",
+        "source": "shopmonkey",
+        "startedAt": 2025-03-10T18:00:00.000Z,
+        "technicianId": "local:user:syn_usr_1",
+      },
+    },
+    "unmapped": [
+      "companyId",
+      "createdDate",
+      "duration",
+      "flatRate",
+      "inProgress",
+      "laborId",
+      "locationId",
+      "number",
+      "serviceId",
+      "type",
+      "updatedDate",
+    ],
+    "warnings": [],
+  },
+  {
+    "rows": {
+      "kind": "shift",
+      "row": {
+        "clockIn": 2025-03-10T13:00:00.000Z,
+        "clockOut": 2025-03-10T21:30:00.000Z,
+        "durationMinutes": 510,
+        "note": "Opening shift",
+        "organizationId": "org-1",
+        "source": "shopmonkey",
+        "sourceRemoteId": "syn_tsh_2",
+        "technicianId": "local:user:syn_usr_2",
+      },
+    },
+    "unmapped": [
+      "companyId",
+      "createdDate",
+      "duration",
+      "flatRate",
+      "inProgress",
+      "locationId",
+      "number",
+      "type",
+      "updatedDate",
+    ],
+    "warnings": [],
+  },
+  {
+    "rows": {
+      "kind": "shift",
+      "row": {
+        "clockIn": 2025-03-11T13:00:00.000Z,
+        "clockOut": null,
+        "durationMinutes": null,
+        "note": null,
+        "organizationId": "org-1",
+        "source": "shopmonkey",
+        "sourceRemoteId": "syn_tsh_3",
+        "technicianId": "local:user:syn_usr_1",
+      },
+    },
+    "unmapped": [
+      "companyId",
+      "createdDate",
+      "flatRate",
+      "inProgress",
+      "locationId",
+      "number",
+      "type",
+      "updatedDate",
+    ],
+    "warnings": [],
+  },
+]
+`;
+
+exports[`what the review asked for > matches the snapshots of timesheets and tires 2`] = `
+{
+  "rows": {
+    "movement": {
+      "delta": 8,
+      "note": "Imported from Shopmonkey",
+      "quantityAfter": 8,
+      "reason": "import",
+    },
+    "part": {
+      "barcodeCandidate": "AS2254517",
+      "category": "Tires",
+      "description": "Size 225/45R17",
+      "location": null,
+      "minQuantity": 4,
+      "name": "All-season 225/45R17",
+      "organizationId": "org-1",
+      "partNumber": "AS-2254517",
+      "quantity": 8,
+      "sellPrice": 135,
+      "supplier": null,
+      "supplierEmail": null,
+      "supplierPhone": null,
+      "supplierUrl": null,
+      "unitCost": 90,
+      "userId": "user-run",
+    },
+  },
+  "unmapped": [
+    "availableQuantity",
+    "companyId",
+    "createdDate",
+    "discountCents",
+    "federalExciseTaxCents",
+    "locationId",
+    "reservedQuantity",
+    "sizeFormat",
+    "taxable",
+    "tireModelId",
+    "updatedDate",
+    "wasteTireFeeCents",
+  ],
+  "warnings": [],
+}
+`;

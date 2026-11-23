@@ -26,7 +26,7 @@ resolved.
 | A2 | done | fork/A2-domain-services | Merged c7f16d90. Reviewer: ready for PR after 2 passes. Upstream techName bug recorded as an A4 prerequisite. |
 | M2 | provisional | fork/M2-connector-and-client | Merged 6318fb3f. Built on documented shapes only: re-verify with a key (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M2 provisional). |
 | M3 | provisional | fork/M3-extract-and-stage | Merged c79858fb. Built on documented shapes and synthetic fixtures: re-verify with a key (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M3 provisional). |
-| M4 | todo | | |
+| M4 | in_progress | fork/M4-transform | |
 | M5 | todo | | |
 | A3 | todo | | |
 | A4 | todo | | |
@@ -65,9 +65,43 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**Next: M4 (transform).** Drafts (all transforms, tests, field specs) are in the session scratchpad `m4/`; they
-typecheck and 71/72 of their tests pass there (the no-database check needs the repo folder). Generate MAPPING §11
-(archive-only fields) with `scratchpad/m4_archive_table.py`.
+**M4 (transform), in progress** on `fork/M4-transform` (from `fork/integration` at 97ffb77c; upstream had nothing
+new). Provisional (B1): synthetic fixtures. Plan:
+1. [x] One pure module per entity in `src/integrations/shopmonkey/transform/` (customer, vehicle, staff and statuses,
+   order with its lines, payment, time and appointments, catalog and tax, inspection, reference tables), each with a
+   `FieldSpec` (mapped / archive). Nothing imports `@/lib/db`.
+2. [x] Tests: `transform/order.test.ts` (complex invoice 1003 with zero `money_mismatch`, declined and deferred
+   services out of the totals, fees/EPA/shop supplies as shopFee lines, tires and sublets, previous owner and percent
+   discount on 1004, repair order 1002, estimate 1001, deleted 1005, a mismatch warned with both numbers),
+   `transform/entities.test.ts` (refunds and deposits each their own test, customers, vehicles, staff, time,
+   appointments, catalog, tax, inspections; 17 snapshots), `transform/fields.test.ts` (every fixture field, nested
+   lines included, mapped or archived; no `@/lib/db`), `transform/mapping-doc.test.ts` (MAPPING §11 = the specs).
+3. [x] MAPPING §11 (archive-only fields per table, generated from the specs) and §6.6 (fallbacks).
+4. [x] DoD at 9e495edc: `tsc` exit 0; Biome 14 (baseline, LF checkout); features/integrations, i18n, lib, multitenancy,
+   scripts: 226 files, failures only the Windows baseline files (lib/backup/engine, restic, files/manager,
+   only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access), the Fiken timeout and
+   `backup-manifest` on CRLF schema files (passes after `sed -i 's/\r$//'`, 17/17); M4 adds files only in fork folders
+   and docs, so the rest of the suite is as at M3's full run; no migration or loader, so no `test:db`.
+5. [x] Reviewer pass 1: **needs changes** (8 must-fix). Fixed: the service writer's Shopmonkey id no longer lands in
+   `serviceWriterUserId` (null; the name is kept); referral sources and labels resolve to names through lookups
+   (`customer_referral_unresolved` otherwise); `line_item_assignment` isn't read, MAPPING says so (§1, §3); the
+   declined-only and deferred-only services, EPA, `epa_also_fee`, timesheet and tire snapshots each have tests; every
+   nested record (emails, phones, service and canned lines, inspection and template items, file entries) has its own
+   spec in `transform/specs.ts`, checked by `fields.test.ts` and listed in MAPPING §11; fees take Shopmonkey's
+   `amountCents` (`feeCents`); the tax rate is the tax config's, Canadian too; the technician is never a helper.
+   Should-fixes done: the primary email/phone is the first with a value; the customer's phone has no extension;
+   disputes and transfers aren't payments; payments, orders and invoices with missing dates warn instead of
+   inventing one; `epa_also_fee` only where the service has EPA; tire names; `sourceExtra` carries `source`,
+   `remoteId`, `remoteServiceId` and parses with the M1 schema; the service and line fields left out are reported;
+   canned percent fees; `aqua`; a locale-free sort; the `resolve`/stage-map/technician-map contracts in
+   `types.ts`; MAPPING §4, §6.1, §6.2, §6.5, §6.6, §7. Tests: transform 4 files / 102 tests, 19 snapshots.
+6. [ ] Reviewer pass 2, merge as provisional.
+Notes for M5 (from M4's review): quote lines take `excluded = !job.counts` (§6.3); `ctx.resolve` must follow the
+table-to-model contract in `transform/types.ts` (`order` → work orders only); build `statusStageMap` complete
+(operator over `defaultStages`); write the transforms' English labels in the workshop's language; pick the
+`mileageUnit` from the first vehicle in a fixed order (oldest `createdDate`, then id); the M1 `sourceExtra` reader
+still drops the whole object when one key is malformed (deferred again from M4: it matters once M5 writes and the
+API reads them).
 
 Carried over from M3's review (pass 2, should-fix, none blocking), for M7 (scheduled re-runs):
 - One order with several slow files can keep a job past the queue's 10-minute stuck limit and split a run into two
@@ -138,6 +172,9 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | S4 | Order `files[]` is on Find Order (taken from the list when it carries them); a file `url` may be signed and change per read (left out of the file's hash); a link on Shopmonkey's own API origin needs the key | `extract/engine.ts` (`files` child, `stageFile`); `extract/files.ts` |
 | S4 | Archive-only lists exist at `GET /v3/<table>` (`workflow`, `payment_term`, `role`, `labor_matrix`, `pricing_matrix`, `message_template`, `brand`, `tire_model`, `tpi_scan`, `message`, `purchase_order`, `line_item_assignment`, `location`) or as searches (`statement`, `part_return`, `inventory_transfer`); a 404 skips one with a warning | `extract/tables.ts` (`optional`) |
 | S4 | `GET /v3/company/:id` returns the company (id from `identify`) | `extract/tables.ts` (`company`) |
+| S4 | `customFields` and `labels` are `{ id: value }` objects (a custom field's name is its id until definitions are recorded); a user's `color` is a name (`blue`) | `transform/customer.ts`, `vehicle.ts`, `order.ts`; `transform/staff.ts` (`technicianColor`) |
+| S6 | The tax config's `rateId` names the default labor rate (else the oldest non-employee rate) | `transform/reference.ts` (`defaultLaborRate`) |
+| S10 | A vendor's `contactPhone` may be an object with `number` | `transform/catalog.ts` (`transformInventoryItem`) |
 | S4 | File links (`files[].url`, `thumbnailUrl`) may be signed per read: left out of every hash; `GET /v3/order/:id` and `GET /v3/inspection/:id` return fresh `files[]` / `items[].files[]` | `extract/stage.ts` (`recordHash`); `extract/engine.ts` (`files`/`itemFiles` children) |
 | S4 | Vehicle's current owner = the most recently created `vehicle_owner` row | `build-synthetic-fixtures.ts` (`vehicleOwner`); MAPPING §3 VehicleOwner |
 | S4 | Order files (`files[]` on Find Order, documented) download from their `url` without extra auth | `build-synthetic-fixtures.ts` (order `files`); MAPPING §3 Order files |
@@ -145,12 +182,12 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | S4 | Order `labels` object read as label names; customer fleet entity archive only; signed-document images | MAPPING §3, §6.1 |
 | S4 | `reminderOptOut` only from the primary email's `subscribed: false` | MAPPING §4 |
 | S4 | `recommendation` prints on Shopmonkey's invoice → `invoiceNotes` | MAPPING §6.1 |
-| S5 | Line total = gross − `discountCents` (labor `round(hours × rate × multiplier)`, parts/tires `round(qty × retail)`, sublet `retail`); percent fee = `round(percent% × service line base)` | `build-synthetic-fixtures.ts` (`lineTotal`); MAPPING §6.2 |
-| S5 | A service counts toward order totals unless `Declined` or `deferredDate` set | `build-synthetic-fixtures.ts` (`countsTowardTotals`); MAPPING §6.3 |
+| S5 | Line total = gross − `discountCents` (labor `round(hours × rate × multiplier)`, parts/tires `round(qty × retail)`, sublet `retail`); a fee's amount is its `amountCents`, else `round(percent% × subtotalCents or the service line base)` | `build-synthetic-fixtures.ts` (`lineTotal`); `transform/lines.ts` (`lineCents`, `feeCents`); MAPPING §6.2 |
+| S5 | A service counts toward order totals unless `Declined` or `deferredDate` set | `build-synthetic-fixtures.ts` and `transform/lines.ts` (`countsTowardTotals`); MAPPING §6.3 |
 | S5 | Order-level discount comes off after tax (`totalCostCents = subtotal − discount + tax`) | `build-synthetic-fixtures.ts` (`rollUpOrder`) |
 | S5 | Refunds have negative `amountCents` (importer uses `-abs`); `refundedAmountCents` on charges is not subtracted again | `build-synthetic-fixtures.ts` (`rollUpOrder`, payments); MAPPING §6.5 |
 | S5 | EPA / shop supplies are never also `fee` rows; tire FET and waste fee are outside the line total | MAPPING §6.2 |
-| S6 | Fees are never taxed; EPA/shop supplies taxability from the tax config | MAPPING §6.2 |
+| S6 | Fees are never taxed; EPA/shop supplies taxability from the tax config | `transform/lines.ts` (`transformService`); MAPPING §6.2 |
 | S7 | Inspection item photos (`items[].files[]`, documented) download from their `url` | `build-synthetic-fixtures.ts` (`inspectionItem`); MAPPING §3, §8 |
 | S8 | Timesheet `duration` is milliseconds (unused: minutes come from clock times) | `build-synthetic-fixtures.ts` (`timesheet`); MAPPING §3 |
 | S11 | `publicId` and order `number` are digits in practice (both are strings in the schema) | MAPPING §4, §9 |
@@ -213,6 +250,10 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | M3 backups: the archive is `source-archive.ndjson` beside `data.json` (manual export and scheduled snapshots), written only when the workshop has archive rows and restored line by line in batches inside the restore's transaction, refusing another workshop's ids; `data.json` keeps an empty `sourceRecords` marker, so the restore clears the archive before refilling it, and a backup without the file never touches the workshop's archive. New export option `sourceArchive` ("Import archive", on by default; optional in `ExportOptions`, so absent means not exported). Older backups with the rows inside `data.json` still restore. | The brief's acceptance (a 50,000-order archive restorable) against the 128 MiB data-file cap. Upstream touched only with marked lines: build-data, manifest, engine, restore, import, both backup routes, data settings; upstream tests: `engine.test`/`restore.test` mocks gained `sourceRecord`, `tenancy-schema.test`'s export-option list gained `sourceArchive`. The marker's read matches nothing but stays workshop-scoped, which `build-data.test` checks of every dataset. An uploaded zip is still bound by the 2 GiB uncompressed zip cap (`zip-guard.ts`); scheduled snapshots aren't. |
 | 2026-11-23 | M3: the run's audit summary takes `{records}` and `{count}` (calls). | `audit-summaries.test` renders every summary with a fixed sample set that has `count` and not `calls`. |
 | 2026-11-23 | **M3 provisional.** DoD at 45900214 (before the review fixes): `tsc` exit 0; Biome 14 (baseline); `npm test` in five chunks, 816 files, failures only the Windows baseline files and the Fiken timeout; `test:db` 18 files / 108 tests. After the review fixes (2b04d0f3): `tsc` exit 0; Biome 14; features/integrations, features/backup, lib/backup, raw-sql-qualified, backup-manifest, i18n: 95 files, failures only `lib/backup/engine` and `restic` (baseline, 51 tests); `test:db` 18 files / 109 tests. Reviewer: needs changes (pass 1), ready for PR (pass 2). Merged at c79858fb. Provisional because every Shopmonkey endpoint and shape it relies on is documented, not recorded (B1). | Acceptance evidence: PROGRESS Current step at the merge (items 7 and 9), and the tests named there: `extract.test.ts`, `extract-jobs.test.ts`, `files.test.ts`, `db/shopmonkey-extract.db.test.ts`, `db/shopmonkey-archive-backup.db.test.ts`, `db/backup-round-trip.db.test.ts`. |
+| 2026-11-23 | M4: the transforms return rows plus what M5 must settle across records: `customerNumberCandidate` (a numeric `publicId`; M5 keeps it only if unique and numbers the rest after), `barcodeCandidate` (a part's sku; M5 keeps it only if unique, else `sku:<value>` in tags), custom field values by name (definitions created on first sight), the vehicle's `mileageUnit` (the first sets the workshop's unit), `issueAsInvoice`, the order a booked appointment belongs to, staged photo ids. `ctx.settings.statusStageMap` holds every status's stage (the operator's choices over `defaultStages`). | Each needs every record or the database, which a pure per-record function doesn't have. |
+| 2026-11-23 | M4 fallbacks (MAPPING §6.6): a customer with no name is "Shopmonkey customer <publicId or id>" (warned); an invalid email is kept and warned; a vehicle with no year/make/model is Unknown/Unknown/0 (warned); an appointment with no usable end is an hour long (warned); a timesheet on an order that isn't a work order is a shift (warned); an inspection whose order's vehicle or template didn't load isn't imported (warned: Torqvoice needs both); a percent catalog fee is a preset with rate 0 (warned); Shopmonkey's colour names map to hex, an unknown one keeps the default. | Required Torqvoice fields need a value; each choice keeps the data and says so (M4 rules). |
+| 2026-11-23 | M4 (brief's layout changed): findings ride on the order transform (`JobRows.deferred`, `revivesRemoteId`), custom field values on each entity's transform (by name), and `reference.ts` holds the lookup tables' specs, the workshop name/time zone and the default labor rate, instead of separate `finding.ts`/`customFields.ts`/`taxSettings.ts` modules; `specs.ts` lists every field spec. | A finding is one of an order's services; custom field values belong to the record they're on; one registry feeds the unmapped-field test and MAPPING §11. |
+| 2026-11-23 | M4 review: `line_item_assignment` isn't read (MAPPING amended): no shape in the synthetic fixtures, and every labor line carries its own `technicianId`; re-checked with a key. | The brief says to update MAPPING first when the code departs from it. |
 | 2026-11-23 | M3 review: a run's checkpoint saves only while its `runId` is the connection's (`saveExtractState`, one conditional UPDATE); a start or the CLI writes a new `runId` unconditionally, and the replaced run stops at its next save without rescheduling. | `saveState` overwrites the whole `extract` key; the running job (45 s of every minute) would otherwise put the old run back and the new start would be lost. |
 | 2026-11-23 | M3 review: a file or invoice PDF that fails for now is not staged and leaves its parent pending (the next run fetches its children again, file links read fresh by id); a link refused for good (not https, private address, not a link, 4xx other than 401/403/408/429, too large, wrong type) is staged with `_staged.skipped`; files on Shopmonkey's own API origin are read into memory under the 25 MiB cap; a download that takes over 5 minutes is retried on the next run. | One bad link stopped the whole extract (5 failures then a dead job); signed links expire between the list and the download. |
 | 2026-11-23 | M3 review: a record's hash leaves out the links of its `files[]` entries (`recordHash`), PROVISIONAL(M0:S4); `markGone` runs only on a refetch (a first fetch has nothing to lose, and a backfill no longer scans the child table once per parent); payment search rows must match the order; a children unit stops after 30 s as well as 25 calls. | Signed links would refetch every parent's children every run; `markGone` filters on a JSON path with no index; a search that ignored `where` would file every payment under every order; a unit must stay well inside the queue's 10-minute stuck-job window. The job holds the (sequential) runner for up to 45 s of each minute: a trade-off for import speed on a self-hosted install. |
