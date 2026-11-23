@@ -8,7 +8,16 @@
  * under src/app/api/v1 served by withPublicApi is in it.
  */
 import { z } from 'zod'
+import { catalogEndpoints } from '../Schema/catalog'
+import { customerEndpoints } from '../Schema/customers'
+import { inspectionEndpoints } from '../Schema/inspections'
+import { quoteEndpoints } from '../Schema/quotes'
+import { recordEndpoints } from '../Schema/records'
+import { scheduleEndpoints } from '../Schema/schedule'
 import { settingsEndpoints } from '../Schema/settings'
+import { staffEndpoints } from '../Schema/staff'
+import { vehicleEndpoints } from '../Schema/vehicles'
+import { workOrderEndpoints } from '../Schema/workOrders'
 
 export interface EndpointSpec {
   method: 'get' | 'post' | 'patch' | 'delete'
@@ -25,10 +34,23 @@ export interface EndpointSpec {
   paged?: boolean
   /** Success status; 200 unless set. */
   status?: number
+  /** A success body that isn't the JSON envelope (a file download): its media type, the body a binary string. */
+  contentType?: string
 }
 
 /** Every resource's operations. A new resource adds its list here. */
-export const RESOURCES: readonly EndpointSpec[][] = [settingsEndpoints]
+export const RESOURCES: readonly EndpointSpec[][] = [
+  settingsEndpoints,
+  customerEndpoints,
+  vehicleEndpoints,
+  workOrderEndpoints,
+  quoteEndpoints,
+  inspectionEndpoints,
+  staffEndpoints,
+  catalogEndpoints,
+  scheduleEndpoints,
+  recordEndpoints,
+]
 
 /** Every refusal's body (src/features/public-api/Lib/errors.ts); `components.schemas.Error`. */
 const errorSchema = z.object({
@@ -111,7 +133,9 @@ export function buildOpenApiDocument(endpoints: readonly EndpointSpec[]) {
       responses: {
         [String(e.status ?? 200)]: {
           description: 'Success',
-          content: { 'application/json': { schema: toSchema(success, 'output') } },
+          content: e.contentType
+            ? { [e.contentType]: { schema: { type: 'string', format: 'binary' } } }
+            : { 'application/json': { schema: toSchema(success, 'output') } },
         },
         ...Object.fromEntries(
           Object.entries(ERRORS).map(([status, description]) => [

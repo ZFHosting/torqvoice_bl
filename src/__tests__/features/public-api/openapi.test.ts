@@ -17,7 +17,10 @@ const { GET } = await import('@/app/api/v1/openapi.json/route')
 
 const V1 = path.join(process.cwd(), 'src', 'app', 'api', 'v1')
 
-/** Every public API route file: those that run in withPublicApi, with the methods they export. */
+/**
+ * Every public API route file, with the methods it exports: those that run in withPublicApi themselves, and the
+ * thin ones built from a resource declaration (`export const GET = listRoute(…)`, A3).
+ */
 function publicRoutes(): { path: string; methods: string[] }[] {
   const found: { path: string; methods: string[] }[] = []
   const walk = (dir: string) => {
@@ -26,13 +29,18 @@ function publicRoutes(): { path: string; methods: string[] }[] {
       if (entry.isDirectory()) walk(full)
       else if (entry.name === 'route.ts') {
         const source = fs.readFileSync(full, 'utf-8')
-        if (!source.includes('withPublicApi(')) continue
+        const builtFromResource =
+          source.includes("from '@/features/public-api/Resources/") ||
+          source.includes("from '@/features/public-api/Lib/readResource'")
+        if (!source.includes('withPublicApi(') && !builtFromResource) continue
         const route = path
           .relative(V1, path.dirname(full))
           .split(path.sep)
           .map((part) => part.replace(/^\[(\w+)\]$/, '{$1}'))
           .join('/')
-        const methods = [...source.matchAll(/export async function (GET|POST|PATCH|DELETE)\b/g)]
+        const methods = [
+          ...source.matchAll(/export (?:async function|const) (GET|POST|PATCH|DELETE)\b/g),
+        ]
         found.push({ path: `/${route}`, methods: methods.map((m) => m[1].toLowerCase()) })
       }
     }
