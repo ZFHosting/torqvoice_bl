@@ -3,8 +3,10 @@
  * `include=customFields`.
  */
 import { z } from 'zod'
+import { createVehicleSchema, updateVehicleSchema } from '@/features/vehicles/Schema/vehicleSchema'
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
+import { patchBody, writeEndpoints } from '../Lib/writeSpec'
 import { customFieldValueSchema } from './common'
 
 export const vehicleNoteSchema = z
@@ -62,4 +64,12 @@ export const vehiclesSpec: ReadSpec<VehicleOut> = {
   response: vehicleSchema,
 }
 
-export const vehicleEndpoints: EndpointSpec[] = readEndpoints(vehiclesSpec)
+export const vehicleEndpoints: EndpointSpec[] = [
+  ...readEndpoints(vehiclesSpec),
+  ...writeEndpoints({
+    ...vehiclesSpec,
+    create: createVehicleSchema,
+    update: patchBody(updateVehicleSchema),
+    remove: true,
+  }),
+]

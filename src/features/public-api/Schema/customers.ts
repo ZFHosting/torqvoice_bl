@@ -4,8 +4,13 @@
  * `/customers/{id}/contacts`.
  */
 import { z } from 'zod'
+import {
+  createCustomerSchema,
+  updateCustomerSchema,
+} from '@/features/customers/Schema/customerSchema'
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
+import { patchBody, writeEndpoints } from '../Lib/writeSpec'
 import { customFieldValueSchema } from './common'
 
 export const customerContactSchema = z
@@ -58,6 +63,12 @@ export const customersSpec: ReadSpec<CustomerOut> = {
 
 export const customerEndpoints: EndpointSpec[] = [
   ...readEndpoints(customersSpec),
+  ...writeEndpoints({
+    ...customersSpec,
+    create: createCustomerSchema,
+    update: patchBody(updateCustomerSchema),
+    remove: true,
+  }),
   {
     method: 'get',
     path: '/customers/{id}/contacts',
