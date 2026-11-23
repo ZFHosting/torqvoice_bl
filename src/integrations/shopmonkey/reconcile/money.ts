@@ -86,6 +86,8 @@ export function compareOrder(
   }
   add('lines', sm.subtotalCents, tv.linesCents, known.moneyMismatch ? 'money_mismatch' : null)
   add('total', sm.totalCents, tv.totalCents, null)
+  // PROVISIONAL(M0:S5): Shopmonkey's paidCostCents nets refunds and leaves failed charges out, so it equals the sum
+  // of the imported payments; remainingCostCents is the total less that.
   // Payments left out by rule explain a paid difference that comes to exactly what they add up to.
   const paidGap = sm.paidCents - tv.paidCents
   const byRule = known.skippedPayments.filter((p) =>
@@ -248,7 +250,7 @@ export async function readShopmonkeyOrders(
     .map((r) => ({
       orderId: String(r.remoteId),
       number: r.number ? String(r.number) : null,
-      // MAPPING §6.1: the subtotal is the categories of the services that count.
+      // MAPPING §6.1: the subtotal is the categories of the services that count. PROVISIONAL(M0:S5).
       subtotalCents:
         smCents(r.labor) +
         smCents(r.parts) +
