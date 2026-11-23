@@ -15,3 +15,5 @@ export { processIntegrationJobs, cleanupIntegrationLogs } from './lib/cron/integ
 export { processBackupRuns } from './lib/cron/backup-runs'
 export { syncWorkshopHolidays } from './lib/cron/workshop-holidays'
 export { startHeartbeat } from './lib/cron/heartbeat'
+// fork: the public API's stored Idempotency-Key responses (docs/fork/API.md §3)
+export { purgeApiIdempotencyKeys } from './lib/cron/purge-api-idempotency'

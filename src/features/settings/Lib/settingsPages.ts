@@ -34,6 +34,8 @@ export type SettingsPageKey =
   | 'reportSchedule'
   | 'integrations'
   | 'webhooks'
+  // fork: Settings → API keys (docs/fork/API.md §2)
+  | 'apiKeys'
   | 'data'
   | 'install'
   | 'license'
@@ -117,6 +119,8 @@ export const SETTINGS_PAGES: SettingsPage[] = [
 
   { key: 'integrations', href: '/settings/integrations', category: 'integrations' },
   { key: 'webhooks', href: '/settings/webhooks', category: 'integrations', gate: 'api' },
+  // fork: Settings → API keys (docs/fork/API.md §2)
+  { key: 'apiKeys', href: '/settings/api-keys', category: 'integrations', gate: 'api' },
 
   { key: 'data', href: '/settings/data', category: 'system' },
   { key: 'install', href: '/settings/install', category: 'system' },

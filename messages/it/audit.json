@@ -232,6 +232,8 @@
     "equipment_delete": "Attrezzatura eliminata",
     "platform_deleteUser": "Utente eliminato",
     "platform_grantSuperAdmin": "Super amministratore concesso",
+    "api_key_create": "Chiave API creata",
+    "api_key_revoke": "Chiave API revocata",
     "platform_revokeSuperAdmin": "Super amministratore rimosso"
   },
   "summary": {
@@ -424,6 +426,8 @@
     "equipment_meter": "Ha aggiunto il contatore {meter} a {name} su {vehicle}",
     "platform_deleteUser": "Utente {name} ({email}) eliminato",
     "platform_grantSuperAdmin": "{name} ({email}) reso super amministratore",
+    "api_key_create": "Chiave API {name} ({ref}) creata",
+    "api_key_revoke": "Chiave API {name} ({ref}) revocata",
     "platform_revokeSuperAdmin": "Ruolo di super amministratore rimosso da {name} ({email})"
   }
 }

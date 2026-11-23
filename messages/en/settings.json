@@ -155,6 +155,10 @@
         "title": "Email templates",
         "description": "What your invoice, quote and report emails say"
       },
+      "apiKeys": {
+        "title": "API keys",
+        "description": "Keys for integrations"
+      },
       "workOrderStatuses": {
         "title": "Work order statuses",
         "description": "Your own steps, and who gets told"

@@ -232,6 +232,8 @@
     "equipment_delete": "Equipamento excluído",
     "platform_deleteUser": "Usuário excluído",
     "platform_grantSuperAdmin": "Super admin concedido",
+    "api_key_create": "Chave de API criada",
+    "api_key_revoke": "Chave de API revogada",
     "platform_revokeSuperAdmin": "Super admin removido"
   },
   "summary": {
@@ -424,6 +426,8 @@
     "equipment_meter": "Adicionou o medidor {meter} a {name} em {vehicle}",
     "platform_deleteUser": "Usuário {name} ({email}) excluído",
     "platform_grantSuperAdmin": "{name} ({email}) agora é super admin",
+    "api_key_create": "Chave de API {name} ({ref}) criada",
+    "api_key_revoke": "Chave de API {name} ({ref}) revogada",
     "platform_revokeSuperAdmin": "Super admin removido de {name} ({email})"
   }
 }

@@ -155,6 +155,10 @@
         "title": "Szablony e-mail",
         "description": "Co mówią e-maile z fakturą, ofertą i raportem"
       },
+      "apiKeys": {
+        "title": "Klucze API",
+        "description": "Klucze do integracji"
+      },
       "workOrderStatuses": {
         "title": "Statusy zleceń",
         "description": "Własne etapy i kto dostaje wiadomość"

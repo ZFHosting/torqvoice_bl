@@ -155,6 +155,10 @@
         "title": "E-Mail-Vorlagen",
         "description": "Was Ihre E-Mails zu Rechnung, Angebot und Bericht sagen"
       },
+      "apiKeys": {
+        "title": "API-Schlüssel",
+        "description": "Schlüssel für Integrationen"
+      },
       "workOrderStatuses": {
         "title": "Auftragsstatus",
         "description": "Eigene Schritte, und wer informiert wird"

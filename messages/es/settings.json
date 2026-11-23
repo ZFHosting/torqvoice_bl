@@ -155,6 +155,10 @@
         "title": "Plantillas de correo",
         "description": "Lo que dicen tus correos de factura, presupuesto e informe"
       },
+      "apiKeys": {
+        "title": "Claves de API",
+        "description": "Claves para integraciones"
+      },
       "workOrderStatuses": {
         "title": "Estados de la orden",
         "description": "Sus propios pasos, y a quién se avisa"

@@ -155,6 +155,10 @@
         "title": "El. laiškų šablonai",
         "description": "Ką rašo sąskaitų, pasiūlymų ir ataskaitų laiškai"
       },
+      "apiKeys": {
+        "title": "API raktai",
+        "description": "Raktai integracijoms"
+      },
       "workOrderStatuses": {
         "title": "Užsakymų būsenos",
         "description": "Jūsų žingsniai ir kam pranešama"

@@ -155,6 +155,10 @@
         "title": "E-posta şablonları",
         "description": "Fatura, teklif ve rapor e-postalarınızın metni"
       },
+      "apiKeys": {
+        "title": "API anahtarları",
+        "description": "Entegrasyonlar için anahtarlar"
+      },
       "workOrderStatuses": {
         "title": "İş emri durumları",
         "description": "Kendi adımlarınız ve kime haber verileceği"

@@ -39,7 +39,9 @@ let warnedAboutCloudflare = false
  * proxy added is the last one and everything before it is whatever the caller
  * felt like typing.
  */
-function clientAddress(request: Request): string {
+// fork: exported for the public API's IP allowlist (src/features/public-api), so both read the
+// caller's address the same way.
+export function clientAddress(request: Request): string {
   const cf = request.headers.get('cf-connecting-ip')?.trim()
 
   if (TRUST_CLOUDFLARE) {

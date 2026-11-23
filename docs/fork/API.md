@@ -29,14 +29,26 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
   technician app's and goes through `withApiAuth`, not here.
 - Keys are created in **Settings → API keys** (new page, gated by the existing `api` plan feature,
   which is on for self-hosted). The full key is shown once. Only an HMAC-SHA256 of it is stored, peppered
-  with `API_KEY_PEPPER` from the environment.
+  with `API_KEY_PEPPER` from the environment (16+ characters). An install that hasn't set it gets a pepper
+  derived from `BETTER_AUTH_SECRET` under its own label, so keys work out of the box; changing either
+  secret invalidates every key. Settings → API keys is for owners and admins only.
 - **Each key acts as its own service user.** Creating a key creates a `User` with no password and no
   login, plus an `OrganizationMember` in the workshop with a role the owner picks. Permissions come from
   that role through the existing `src/lib/permissions.ts`, so a key's scope is managed with the same
   roles screen as staff. It also gives every record a real `userId` / `createdById` (Torqvoice requires
   one on customers, vehicles, quotes and inventory).
 - Revoking a key works immediately. `lastUsedAt` and `lastUsedIp` are recorded (throttled to one write a minute).
-- Optional per-key IP allowlist.
+- Optional per-key IP allowlist (exact addresses). It reads the caller's address the way upstream's
+  rate limiter does (`clientAddress` in `src/lib/rate-limit.ts`): `X-Real-IP`, set by the reverse proxy
+  in front of the app, or Cloudflare's `CF-Connecting-IP` when `TRUST_CF_CONNECTING_IP=true`. **It only
+  holds behind a proxy that overwrites `X-Real-IP`** (nginx with `proxy_set_header X-Real-IP
+  $remote_addr`, for example): with the app's port open directly, as the shipped `docker-compose.yml`
+  does, a caller can send any `X-Real-IP`. A request with no address is refused when the key has an
+  allowlist. The settings screen says so under the field.
+- An address that fails authentication 30 times in a minute is refused (429) before any key lookup. It
+  reads the address the same way, so the same caveat holds: without a proxy that overwrites
+  `X-Real-IP`, a caller can spend another address's failures (and lock out a valid key using it) by
+  sending that address in the header.
 - Server-to-server only: no CORS headers.
 
 **New tables (`prisma/schema/fork.prisma`)**
@@ -55,13 +67,13 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
 | Casing | camelCase JSON. |
 | Times | ISO 8601 UTC. Calendar dates the workshop types (due dates) are also returned as `YYYY-MM-DD` in the workshop's time zone, alongside the UTC value. |
 | Money | Decimal numbers in major units, rounded to 2 places. Every document has `currency` (ISO 4217, from workshop settings). |
-| Paging | `?limit=` (default 50, max 200) and `?cursor=` (opaque). The response has `meta.nextCursor` and `meta.hasMore`. Order is `(updatedAt, id)` ascending unless `sort=` says otherwise. |
-| Sync | `?updatedSince=<ISO>` on every list. Deletes come from `GET /api/v1/deleted?since=`. |
+| Paging | `?limit=` (default 50, max 200) and `?cursor=` (opaque). The response has `meta.nextCursor` and `meta.hasMore`. Order is `(updatedAt, id)` ascending unless `sort=` says otherwise. A record updated during a walk comes round again at the end with its new state. |
+| Sync | `?updatedSince=<ISO>` on every list. Deletes come from `GET /api/v1/deleted?since=`. Start each sync a little before the last `updatedAt` you saw (a minute is plenty) and de-duplicate by `id`: a write whose transaction commits late can carry an earlier `updatedAt` than rows already read. |
 | Expansion | `?include=lines,jobs,payments,customFields,meta,source` on the endpoints that support it. Nothing nested comes back unless it's asked for. |
-| Idempotency | `Idempotency-Key` header on any `POST`. The same key with the same body replays the stored response; the same key with a different body gets 409 `idempotency_conflict`. |
-| Concurrency | Every single-record `GET` returns `ETag` (a hash of `updatedAt`). `PATCH` and `DELETE` honour `If-Match`; a mismatch gets 412 `precondition_failed`. |
+| Idempotency | `Idempotency-Key` header on any `POST`. The same key with the same body replays the stored response (with `Idempotent-Replayed: true`); the same key with a different body, or while the first request is still running, gets 409 `idempotency_conflict`. A request that fails with a 5xx gives the key back, and so does one still in flight after 5 minutes (its process died). The request hash covers the method, path, query string and body. Stored responses are kept 24 hours. |
+| Concurrency | Every single-record `GET` returns `ETag` (a hash of the id and `updatedAt`). `PATCH` and `DELETE` honour `If-Match`, compared strongly (a `W/` tag never matches); a mismatch gets 412 `precondition_failed`. |
 | Locks | Editing an issued or paid invoice gets 409 `document_locked` with `details.reason`, through the existing `documentLockedResponse`. |
-| Rate limit | Per key. 429 with `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`. The existing limiter is per process; that's fine for a single container. |
+| Rate limit | Per key, across every path: 120 requests a minute; a route that sets its own limit counts in a bucket of its own. Every answer to a valid key (success or refusal) carries `X-RateLimit-Limit` and `X-RateLimit-Remaining`; past the limit, 429 `rate_limited` with `Retry-After`. An invalid key has no budget to report. In-process, like upstream's limiter; that's fine for a single container. |
 | Versioning | Within v1, changes are additive only. Removing or renaming a field means v2. |
 
 ## 4. Resources
@@ -94,7 +106,7 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
 | `/work-order-statuses` | R | |
 | `/payments` | R | Across all work orders, for accounting sync: `?from=&to=`, `?method=`. |
 | `/webhooks` | R W | Manage webhook subscriptions (the existing `Webhook` model) from code. |
-| `/settings` | R | Currency, time zone, tax setup, default labor rate, numbering format. |
+| `/settings` | R | Currency, time zone, tax setup, default labor rate, numbering format. Needs `read:settings` (the numbering format isn't member-readable). |
 | `/reports/sales` | R | Totals by day, week or month: invoiced, collected, tax, parts, labor, fees. |
 | `/reports/receivables` | R | Open invoices with aging buckets. |
 | `/reports/technicians` | R | Per technician: hours sold (labor lines with `technicianId`), hours clocked (time entries), shift hours, and jobs completed in a period. This is the input BlueLabel's pay calculation needs. |

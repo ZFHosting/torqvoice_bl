@@ -80,6 +80,8 @@ export default getRequestConfig(async () => {
   const permissions = (await import(`../../messages/${locale}/permissions.json`)).default
   const featureHints = (await import(`../../messages/${locale}/featureHints.json`)).default
   const dataImport = (await import(`../../messages/${locale}/dataImport.json`)).default
+  // fork: Settings → API keys
+  const apiKeys = (await import(`../../messages/${locale}/apiKeys.json`)).default
   const integrations = (await import(`../../messages/${locale}/integrations.json`)).default
   const timeTracking = (await import(`../../messages/${locale}/timeTracking.json`)).default
   const email = (await import(`../../messages/${locale}/email.json`)).default
@@ -133,6 +135,7 @@ export default getRequestConfig(async () => {
       permissions,
       featureHints,
       dataImport,
+      apiKeys, // fork
       integrations,
       timeTracking,
       email,

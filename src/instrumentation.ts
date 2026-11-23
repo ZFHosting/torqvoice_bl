@@ -38,6 +38,7 @@ export async function register() {
       cleanupIntegrationLogs,
       processBackupRuns,
       syncWorkshopHolidays,
+      purgeApiIdempotencyKeys, // fork: public API
       startHeartbeat,
     } = await import('./cronTasks')
     const { warnAboutAppUrl } = await import('./lib/auth-origin-hint')
@@ -60,6 +61,7 @@ export async function register() {
     cleanupIntegrationLogs()
     processBackupRuns()
     syncWorkshopHolidays()
+    purgeApiIdempotencyKeys() // fork: public API
     // Last, so the health check only sees beats once everything above started.
     startHeartbeat()
   }

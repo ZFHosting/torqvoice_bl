@@ -232,6 +232,8 @@
     "equipment_delete": "Ištrinta įranga",
     "platform_deleteUser": "Ištrintas naudotojas",
     "platform_grantSuperAdmin": "Suteiktos vyriausiojo administratoriaus teisės",
+    "api_key_create": "Sukurtas API raktas",
+    "api_key_revoke": "Atšauktas API raktas",
     "platform_revokeSuperAdmin": "Atimtos vyriausiojo administratoriaus teisės"
   },
   "summary": {
@@ -424,6 +426,8 @@
     "equipment_meter": "Skaitiklis {meter} pridėtas prie {name} ({vehicle})",
     "platform_deleteUser": "Ištrintas naudotojas {name} ({email})",
     "platform_grantSuperAdmin": "{name} ({email}) tapo vyriausiuoju administratoriumi",
+    "api_key_create": "Sukurtas API raktas {name} ({ref})",
+    "api_key_revoke": "Atšauktas API raktas {name} ({ref})",
     "platform_revokeSuperAdmin": "Atimtos vyriausiojo administratoriaus teisės iš {name} ({email})"
   }
 }
