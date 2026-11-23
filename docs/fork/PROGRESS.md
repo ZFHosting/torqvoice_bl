@@ -93,7 +93,7 @@ merge at the start conflicted (B15) and was aborted; A3 carries on without it. P
    403 without READ, 500 records paged with changes mid-walk (each once, a changed one again with its new state),
    `updatedSince`. `features/public-api/serializers-no-spread.test.ts`; `openapi.test.ts` now finds the thin routes
    too, so every endpoint is checked to be in `openapi.json` (valid OpenAPI 3.1).
-5. [~] DoD at 2b0d5c1 (tsc 0, Biome 14, chunks = Windows baseline, `test:db` 26/151). Reviewer pass 1: needs changes, 2 must-fix, both fixed with tests:
+5. [~] DoD at 2fba685f (tsc 0, Biome 14, chunks = Windows baseline, `test:db` 26/151). Reviewer pass 1: needs changes, 2 must-fix, both fixed with tests:
    (1) `?customerId=` on work orders and quotes reads a customer's records as the app does (billed to them, or on
    a vehicle they own); (2) the `updatedSince` test now has an unchanged vehicle that must be left out. Should-fix
    taken: nested responses checked against their schemas; a key that may read nothing is refused by every
