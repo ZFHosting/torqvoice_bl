@@ -98,7 +98,12 @@ existing tests unchanged → a service test → `tsc` → commit. Order (brief):
    events; test `inventory/inventory-service.test.ts`. `applyMarkupToAll` stays.
 9. [x] findings (4e8a7e76): `findingService`, `findingAuditEvents.ts`.
 10. [x] webhooks (4e8a7e76): `webhookService`, `webhookAuditEvents.ts`; test `webhooks/webhook-service.test.ts`.
-11. [ ] DoD, reviewer, merge.
+11. [x] DoD (2026-11-23, at the A2 tip): `tsc` exit 0; Biome 14 (baseline); `npm test` all 808 files in 7 chunks
+    on Node 22.23.4, failing = the 14 Windows-only baseline files (checked by test name where a file also holds
+    fork-relevant checks: meters-gates and equipment-gates fail only their path-separator test) plus
+    environment-only `backup-manifest` / `workshop-columns` (CRLF copies; pass after LF, 26/26) and the
+    `fiken` pure-computation timeout; `test:db` 16 files / 102 tests on `torqvoice_fork_test`.
+12. [ ] Reviewer, merge.
 
 M0 acceptance:
 - [x] NOTICE-FORK.md, README link, CLAUDE.md import, docs/fork/UPSTREAM.md (commit 0c7ec939).
@@ -196,6 +201,8 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-22 | A1: the API keys page's strings in 13 languages besides English were written by Claude, not a translator. | The parity test needs every locale; they follow each locale's existing settings wording but deserve a native read before release. |
 | 2026-11-22 | A1: keys' service users show on Settings → Team and count as seats; left for A6 task 7 (label them, drop them from the seat count). | Self-hosted installs have every seat, so nothing is refused; editing a key's role on the Team page is how its scope is managed (API.md §2). |
 | 2026-11-22 | **A1 done.** DoD: `tsc` exit 0; Biome 14 (baseline); `npm test` all 796 files, failures = the 14 Windows-only baseline files plus environment-only ones (CRLF copies, load timeouts; Current step history); `test:db` 16 files / 101 tests, then the A1 db files 20 tests after review fixes. Acceptance 1–4 with test names in the A1 checklist. Reviewer pass 2: ready for PR. Merged into `fork/integration` at 1c81e08e. | Evidence for the definition of done and acceptance. |
+| 2026-11-23 | A2: upstream tests that read a moved action as text now read the service file it moved to, assertions unchanged: `meters-gates` (vehicle delete, work order move and delete; its block delimiter follows the 4-space shallower indent), `equipment-gates` (allowlist adds `serviceRecordService` and `quoteService` beside their action files), `service-concerns`. | The code moved verbatim; the checks still guard it where it now lives, and on Linux CI the allowlists would otherwise fail. |
+| 2026-11-23 | A2: not moved, with reasons: `addPartToServiceRecord` (already calls the `addPart` library helper), `addQuoteToServiceRecord` (validates before `withAuth`; A4 decides if the API needs it), `applyMarkupToAll` (a settings-wide pricing tool, no API counterpart), board scheduling and assignment writes (no API endpoint names them yet). New services with no action to extract (customer contacts X4, work jobs X2, technician shifts X6) are written with their endpoints in A4; the A2 brief says so. | A2 moves existing logic; inventing services ahead of their endpoints would be untested new behaviour. |
 | 2026-11-23 | A2: tombstone `entityType`s are the API's resource names in the singular, snake case: `customer`, `vehicle`, `work_order`, `note` (and so on). A deleted vehicle also leaves tombstones for its work orders, which go with it by cascade; other cascades (notes, reminders) follow their parent, for A5 to document at `/deleted`. | `/api/v1/deleted?entityType=` is read by API clients, which know resources, not Prisma models. |
 | 2026-11-23 | A2: the vehicle page's own `deleteVehicle` (`Actions/deleteVehicle.ts`, separate from the list's) keeps its body and gains the tombstones in its transaction, rather than calling `deleteVehicleService`. | The service looks the vehicle up first (as the list's action always did); upstream's tests mock the page action's exact queries, and A2 must leave existing tests' expectations alone. |
 | 2026-11-23 | A2: upstream tests whose hand-written database mock lacks `deletedRecord` get it added (`// fork:`), expectations untouched. | A delete now writes a tombstone in its transaction (the brief's "deletes also write DeletedRecord"). |
