@@ -85,8 +85,11 @@ existing tests unchanged → a service test → `tsc` → commit. Order (brief):
    `addPartToServiceRecord` already calls a library helper. Jobs (X2) have no action to extract: their service
    comes with their endpoints in A4, like contacts. Board scheduling and assignment writes go with
    appointments (6). Folders pass except Windows baseline tests (checked by test name); `tsc` exit 0.
-4. [ ] payments (+ the invoice issuing they trigger)
-5. [ ] quotes (+ convert to job)
+4. [x] payments (86ade5b7): `paymentService`, `paymentAuditEvents.ts`, test `payments/payment-service.test.ts`;
+   payment-related folders pass (Fiken load timeout only); `tsc` exit 0.
+5. [x] quotes (4c2d804c): create, update, status, delete, convert in `quoteService`, `quoteAuditEvents.ts`; test
+   `quotes/quote-service.test.ts`; equipment-gates allows the service file. `addQuoteToServiceRecord` (validates
+   before withAuth) left for A4 to decide on. Folders pass except Windows baseline (by test name); `tsc` exit 0.
 6. [ ] appointments
 7. [ ] technicians, time entries, shifts (X6)
 8. [ ] inventory (+ stock adjust), labor presets
