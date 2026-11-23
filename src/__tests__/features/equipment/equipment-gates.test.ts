@@ -29,6 +29,8 @@ const ALLOWED = [
   'src/features/vehicles/Lib/serviceRecordService.server.ts',
   // And so does a quote.
   'src/features/quotes/Actions/quoteActions.ts',
+  // fork: where the quote save and conversion now live, moved unchanged (A2)
+  'src/features/quotes/Lib/quoteService.server.ts',
   // Deletes that must find an item's report file before the rows go.
   'src/lib/files/collect.ts',
   // Deleting a workshop's data: items before their types, which refuse to go first.
