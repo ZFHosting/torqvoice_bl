@@ -36,6 +36,8 @@ export interface ExportOptions {
    * the settings a workshop builds up that are not key/value AppSettings.
    */
   workshopConfig: boolean
+  // fork: the import archive, written to its own file (lib/backup/fork-archive.ts); left out when absent
+  sourceArchive?: boolean
 }
 
 export const DEFAULT_OPTIONS: ExportOptions = {
@@ -54,6 +56,8 @@ export const DEFAULT_OPTIONS: ExportOptions = {
   notifications: true,
   tireHotel: true,
   workshopConfig: true,
+  // fork: the import archive
+  sourceArchive: true,
 }
 
 export interface BuildDataOptions extends ExportOptions {
@@ -403,13 +407,15 @@ const DATASETS: readonly Dataset[] = [
     option: 'auditLogs',
     read: (organizationId, page) => db.auditLog.findMany({ ...page, where: { organizationId } }),
   },
-  // fork: what an import archived unchanged, and delete tombstones (prisma/schema/fork.prisma)
+  // fork: what an import archived unchanged, and delete tombstones (prisma/schema/fork.prisma).
+  // The archive's rows go in their own file (lib/backup/fork-archive.ts); the empty array marks it
+  // as carried, so a restore clears the workshop's archive before refilling it from that file.
   {
     key: 'sourceRecords',
-    option: 'auditLogs',
-    pageSize: 200,
+    option: 'sourceArchive',
+    // Matches nothing, by design: still a workshop-scoped read, like every other dataset's.
     read: (organizationId, page) =>
-      db.sourceRecord.findMany({ ...page, where: { organizationId } }),
+      db.sourceRecord.findMany({ ...page, where: { organizationId, id: { in: [] } } }),
   },
   {
     key: 'deletedRecords',

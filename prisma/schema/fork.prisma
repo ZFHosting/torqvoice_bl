@@ -24,6 +24,9 @@ model SourceRecord {
   fetchedAt       DateTime  @default(now())
   /// When the source reported it deleted. The row stays, so the archive and the API keep it.
   remoteDeletedAt DateTime?
+  /// The `payloadHash` this record's children (an order's services, payments, files, ...) were last
+  /// fetched for. Null or different from `payloadHash` while they are still to fetch (M3).
+  childrenHash    String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -31,6 +34,8 @@ model SourceRecord {
   @@unique([organizationId, source, table, remoteId])
   @@index([organizationId, table, remoteId])
   @@index([organizationId, updatedAt, id])
+  /// The extractor's sweep for parents whose children are still to fetch, in id order (M3).
+  @@index([organizationId, source, table, id])
   @@map("source_records")
 }
 

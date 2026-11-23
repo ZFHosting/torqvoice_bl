@@ -234,6 +234,7 @@
     "platform_grantSuperAdmin": "Superbeheerder toegekend",
     "api_key_create": "API-sleutel aangemaakt",
     "api_key_revoke": "API-sleutel ingetrokken",
+    "shopmonkey_extract": "Opgehaald uit Shopmonkey",
     "platform_revokeSuperAdmin": "Superbeheerder ingetrokken"
   },
   "summary": {
@@ -428,6 +429,7 @@
     "platform_grantSuperAdmin": "{name} ({email}) superbeheerder gemaakt",
     "api_key_create": "API-sleutel {name} ({ref}) aangemaakt",
     "api_key_revoke": "API-sleutel {name} ({ref}) ingetrokken",
+    "shopmonkey_extract": "{records} nieuwe of gewijzigde records opgehaald uit Shopmonkey ({count} API-aanroepen)",
     "platform_revokeSuperAdmin": "Superbeheerder ingetrokken voor {name} ({email})"
   }
 }

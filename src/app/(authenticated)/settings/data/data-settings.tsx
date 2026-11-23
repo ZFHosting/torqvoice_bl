@@ -89,6 +89,8 @@ interface ExportOptions {
   notifications: boolean
   tireHotel: boolean
   workshopConfig: boolean
+  // fork: the import archive (lib/backup/fork-archive.ts)
+  sourceArchive: boolean
   files: boolean
 }
 
@@ -111,6 +113,8 @@ const OPTION_META: { key: keyof ExportOptions; labelKey: string; descKey: string
   { key: 'customFields', labelKey: 'optCustomFields', descKey: 'optCustomFieldsDesc' },
   { key: 'tireHotel', labelKey: 'optTireHotel', descKey: 'optTireHotelDesc' },
   { key: 'workshopConfig', labelKey: 'optWorkshopConfig', descKey: 'optWorkshopConfigDesc' },
+  // fork: the import archive
+  { key: 'sourceArchive', labelKey: 'optSourceArchive', descKey: 'optSourceArchiveDesc' },
   { key: 'files', labelKey: 'optFiles', descKey: 'optFilesDesc' },
 ]
 
@@ -129,6 +133,7 @@ const ALL_TRUE: ExportOptions = {
   notifications: true,
   tireHotel: true,
   workshopConfig: true,
+  sourceArchive: true, // fork
   files: true,
 }
 

@@ -234,6 +234,7 @@
     "platform_grantSuperAdmin": "Süper yönetici yetkisi verildi",
     "api_key_create": "API anahtarı oluşturuldu",
     "api_key_revoke": "API anahtarı iptal edildi",
+    "shopmonkey_extract": "Shopmonkey'den alındı",
     "platform_revokeSuperAdmin": "Süper yönetici yetkisi kaldırıldı"
   },
   "summary": {
@@ -428,6 +429,7 @@
     "platform_grantSuperAdmin": "{name} ({email}) süper yönetici yapıldı",
     "api_key_create": "API anahtarı {name} ({ref}) oluşturuldu",
     "api_key_revoke": "API anahtarı {name} ({ref}) iptal edildi",
+    "shopmonkey_extract": "Shopmonkey'den {records} yeni veya değişmiş kayıt alındı ({count} API çağrısı)",
     "platform_revokeSuperAdmin": "{name} ({email}) kullanıcısının süper yöneticiliği kaldırıldı"
   }
 }

@@ -14,6 +14,7 @@ import {
   assertReadOnly,
   createShopmonkeyClient,
   INTERACTIVE_BUDGET,
+  pageContinues,
   PAGE_SIZE,
   PagingStalled,
   ReadOnlyViolation,
@@ -450,5 +451,168 @@ describe('on the connector framework’s http', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(JSON.stringify(log.mock.calls)).not.toContain('ada@example.com')
     expect(log).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('paths that would leave Shopmonkey after encoding', () => {
+  it('are refused, whatever fetch would make of them', async () => {
+    const { client, fetch } = setup([])
+    for (const path of [
+      '/v3/x/%2e%2e/vehicle/vin/1HGCM82633A004352',
+      '/v3/vehicle\\vin/1HGCM82633A004352',
+      '/v3/%2e%2e/v2/customer',
+      '/v3/order/a b',
+    ]) {
+      await expect(client.get(path), path).rejects.toThrow(ReadOnlyViolation)
+    }
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('refuse a VIN or plate lookup in any case, without repeating the VIN', () => {
+    for (const path of [
+      '/v3/Vehicle/VIN/1HGCM82633A004352',
+      '/v3/vehicle/license_plate/US/AB12345',
+    ]) {
+      const error = (() => {
+        try {
+          assertReadOnly('GET', path)
+        } catch (e) {
+          return e as Error
+        }
+      })()
+      expect(error).toBeInstanceOf(ReadOnlyViolation)
+      expect(error?.message).not.toMatch(/1HGCM82633A004352|AB12345/)
+    }
+    expect(() => assertReadOnly('GET', '/v3/x/%2e%2e/vehicle/vin/1HGCM82633A004352')).toThrow(
+      /^(?!.*1HGCM).*$/
+    )
+  })
+})
+
+describe('a request that never answers', () => {
+  it('is counted and logged by the error’s name, then thrown', async () => {
+    const timeout = new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+    const fetch = vi.fn(async () => {
+      throw timeout
+    })
+    const log = vi.fn()
+    const client = createShopmonkeyClient({ fetch, log, now: () => 0 })
+    await expect(client.get('/v3/order/a')).rejects.toBe(timeout)
+    expect(log).toHaveBeenCalledWith('warn', 'GET /v3/order/a failed', {
+      method: 'GET',
+      path: '/v3/order/a',
+      durationMs: 0,
+      attempt: 1,
+      error: 'TimeoutError',
+    })
+    expect(client.stats).toEqual({ calls: 1, retries: 0, failures: 1 })
+  })
+})
+
+describe('giving up on a rate limit', () => {
+  it('says how long Shopmonkey asked to wait, so a job can come back then', async () => {
+    const { client } = setup([reply(429, { success: false }, { 'retry-after': '3600' })])
+    await expect(client.get('/v3/order/a')).rejects.toMatchObject({
+      status: 429,
+      retryAfterS: 3600,
+    })
+  })
+
+  it('carries no wait on any other failure', async () => {
+    const { client } = setup([reply(404, { success: false })])
+    await expect(client.get('/v3/order/a')).rejects.toMatchObject({
+      status: 404,
+      retryAfterS: null,
+    })
+  })
+})
+
+describe('one page at a time', () => {
+  it('reads a GET list page at a skip, saying whether there is more', async () => {
+    const { client, fetch } = setup([
+      reply(200, {
+        success: true,
+        data: rows(100, PAGE_SIZE),
+        meta: { hasMore: true, total: 250 },
+      }),
+    ])
+    const page = await client.listPage<{ id: string }>('/v3/order', 100, {
+      where: where.equals('locationId', 'loc-1'),
+    })
+    expect(page).toMatchObject({ more: true, total: 250 })
+    expect(page.rows).toHaveLength(PAGE_SIZE)
+    const url = new URL(fetch.mock.calls[0][0])
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      orderby: 'id asc',
+      where: JSON.stringify({ locationId: { equals: 'loc-1' } }),
+      limit: String(PAGE_SIZE),
+      skip: '100',
+    })
+  })
+
+  it('reads a search page through its body, and ends on a short page', async () => {
+    const { client, fetch } = setup([reply(200, { success: true, data: rows(0, 3) })])
+    const page = await client.searchPage<{ id: string }>('/v3/customer/search', 200)
+    expect(page).toEqual({ rows: rows(0, 3), more: false, total: null })
+    expect(JSON.parse((fetch.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      orderBy: { id: 'asc' },
+      limit: PAGE_SIZE,
+      skip: 200,
+    })
+  })
+
+  it('goes on after a page only while Shopmonkey says so, or the page was full', () => {
+    expect(pageContinues(0, { hasMore: true })).toBe(false)
+    expect(pageContinues(5, { hasMore: true })).toBe(true)
+    expect(pageContinues(PAGE_SIZE, { hasMore: false })).toBe(false)
+    expect(pageContinues(PAGE_SIZE, undefined)).toBe(true)
+    expect(pageContinues(PAGE_SIZE - 1, {})).toBe(false)
+  })
+})
+
+describe('downloads', () => {
+  const pdf = (bytes: number, headers: Record<string, string> = {}) =>
+    new Response(new Uint8Array(bytes).fill(37), {
+      status: 200,
+      headers: { 'content-type': 'application/pdf', 'x-request-id': 'req-9', ...headers },
+    })
+
+  it('fetch the bytes and their type from Shopmonkey, with the query', async () => {
+    const { client, fetch } = setup([pdf(10)])
+    const file = await client.download(
+      '/v3/order/o-1/pdf',
+      { document_type: 'invoice' },
+      { maxBytes: 100 }
+    )
+    expect(file.contentType).toBe('application/pdf')
+    expect(file.bytes?.byteLength).toBe(10)
+    expect(file.requestId).toBe('req-9')
+    expect(fetch.mock.calls[0][0]).toBe(
+      'https://api.shopmonkey.cloud/v3/order/o-1/pdf?document_type=invoice'
+    )
+    expect((fetch.mock.calls[0][1] as RequestInit).method).toBe('GET')
+  })
+
+  it('stop at the size cap, whether or not the length is declared', async () => {
+    const declared = setup([pdf(10, { 'content-length': '500' })])
+    expect(
+      (await declared.client.download('/v3/order/o-1/pdf', {}, { maxBytes: 100 })).bytes
+    ).toBeNull()
+    const streamed = setup([pdf(500)])
+    expect(
+      (await streamed.client.download('/v3/order/o-1/pdf', {}, { maxBytes: 100 })).bytes
+    ).toBeNull()
+  })
+
+  it('fail like any other call when Shopmonkey refuses', async () => {
+    const { client } = setup([
+      reply(403, { success: false, code: 'API-472811', message: 'No access' }),
+    ])
+    await expect(client.download('/v3/order/o-1/pdf', {}, { maxBytes: 100 })).rejects.toMatchObject(
+      {
+        status: 403,
+        code: 'API-472811',
+      }
+    )
   })
 })

@@ -3,6 +3,8 @@ import type {
   ConnectorServer,
   SettingOption,
 } from '@/features/integrations/Lib/types'
+import { saveExtractState } from '@/features/shopmonkey-import/Lib/extractState.server'
+import { auditDetails, logAudit } from '@/lib/audit'
 import {
   BACKFILL_BUDGET,
   createShopmonkeyClient,
@@ -10,7 +12,14 @@ import {
   type RetryBudget,
   ShopmonkeyError,
 } from './client'
+import { type ExtractDeps, extractFor, extractSettings } from './extract/engine'
+import { createFileStager } from './extract/files'
+import type { ExtractState } from './extract/plan'
+import { prismaSourceStore } from './extract/stage'
 import { manifest } from './manifest'
+
+/** How long one job run keeps extracting before it hands back to the queue (the cron runs each minute). */
+const EXTRACT_BUDGET_MS = 45_000
 
 /**
  * The Shopmonkey connector (docs/fork/milestones/M2-connector-and-client.md): proves the key, names
@@ -50,6 +59,83 @@ interface UserMe {
 
 type Location = { id: string; name?: string }
 const toOption = (l: Location): SettingOption => ({ value: l.id, label: l.name || l.id })
+
+/** What the extractor needs, from a connection's context: the same code the CLI and the tests drive. */
+export function extractDepsFor(ctx: ConnectorContext): ExtractDeps {
+  const scope = { organizationId: ctx.connection.organizationId, connectionId: ctx.connection.id }
+  return {
+    client: shopmonkeyClientFor(ctx),
+    store: prismaSourceStore(scope),
+    files: createFileStager({ connectionId: ctx.connection.id }),
+    settings: extractSettings(ctx.connection.settings, ctx.timezone),
+    companyId: ctx.connection.externalAccountId,
+    log: (level, message, details) => ctx.log(level, message, details),
+  }
+}
+
+/** Records written in a run: new or changed, the tables' own and their children. */
+export function recordsWritten(state: ExtractState): number {
+  let total = 0
+  for (const cp of Object.values(state.steps)) {
+    total += cp.counts.created + cp.counts.updated + cp.children.created + cp.children.updated
+  }
+  return total
+}
+
+/** The one audit event a finished run records (the job and the CLI both call it). */
+export async function recordExtractFinished(ctx: ConnectorContext, state: ExtractState) {
+  await logAudit(
+    { userId: '', organizationId: ctx.connection.organizationId },
+    {
+      action: 'shopmonkey.extract',
+      entity: 'integration_connection',
+      entityId: ctx.connection.id,
+      details: auditDetails('shopmonkey_extract', {
+        records: recordsWritten(state),
+        count: state.calls,
+      }),
+      metadata: { runId: state.runId, since: state.since, only: state.only },
+    }
+  )
+}
+
+/**
+ * One job run of an extract started by `startShopmonkeyExtract` (features/shopmonkey-import): units of
+ * work for up to EXTRACT_BUDGET_MS, then the queue runs it again. A run another start replaced (its
+ * `runId` no longer the state's) stops quietly. One audit event when the run finishes; never one per
+ * record, which would fire a webhook per row (FORK.md).
+ */
+async function extractStepJob(ctx: ConnectorContext, payload: Record<string, unknown>) {
+  const state = ctx.connection.state.extract as ExtractState | undefined
+  if (!state || state.runId !== payload.runId || state.finishedAt) {
+    return { summary: 'No extract to continue' }
+  }
+  try {
+    const result = await extractFor(extractDepsFor(ctx), state, {
+      budgetMs: EXTRACT_BUDGET_MS,
+      // Only while this is still the connection's run: a new start or the CLI replaces it.
+      save: (next) =>
+        saveExtractState(
+          { connectionId: ctx.connection.id, organizationId: ctx.connection.organizationId },
+          next
+        ),
+    })
+    if (result.replaced) return { summary: 'Replaced by a newer extract' }
+    if (!result.done) {
+      // A line for the log when a table changes hands, not one per unit.
+      const moved = result.state.step !== state.step
+      return { rescheduleInSeconds: 1, ...(moved ? { summary: result.summary } : {}) }
+    }
+    await recordExtractFinished(ctx, result.state)
+    return { summary: result.summary }
+  } catch (err) {
+    // A rate limit longer than the client waits out: come back when Shopmonkey says to.
+    if (err instanceof ShopmonkeyError && err.status === 429 && err.retryAfterS !== null) {
+      return { summary: 'Rate limited by Shopmonkey', rescheduleInSeconds: err.retryAfterS + 1 }
+    }
+    throw err
+  }
+}
 
 export const connector: ConnectorServer = {
   manifest,
@@ -95,5 +181,7 @@ export const connector: ConnectorServer = {
     },
   },
 
-  jobs: {},
+  jobs: {
+    'extract.step': extractStepJob,
+  },
 }

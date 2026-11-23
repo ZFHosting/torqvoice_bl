@@ -1775,6 +1775,8 @@
         "gallery": "Gallery"
       }
     },
+    "optSourceArchive": "Import archive",
+    "optSourceArchiveDesc": "Records an importer brought over from another system, kept as they were",
     "scheduledBackups": {
       "title": "Scheduled backups",
       "description": "Automatic backups to storage you own, on a schedule you choose.",

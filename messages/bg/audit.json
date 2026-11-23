@@ -234,6 +234,7 @@
     "platform_grantSuperAdmin": "Даден супер администратор",
     "api_key_create": "Създаден API ключ",
     "api_key_revoke": "Отменен API ключ",
+    "shopmonkey_extract": "Извлечено от Shopmonkey",
     "platform_revokeSuperAdmin": "Премахнат супер администратор"
   },
   "summary": {
@@ -428,6 +429,7 @@
     "platform_grantSuperAdmin": "{name} ({email}) стана супер администратор",
     "api_key_create": "Създаден API ключ {name} ({ref})",
     "api_key_revoke": "Отменен API ключ {name} ({ref})",
+    "shopmonkey_extract": "Извлечени {records} нови или променени записа от Shopmonkey ({count} API заявки)",
     "platform_revokeSuperAdmin": "Премахнати правата на супер администратор на {name} ({email})"
   }
 }

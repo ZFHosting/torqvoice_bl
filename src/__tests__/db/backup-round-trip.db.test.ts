@@ -408,7 +408,7 @@ async function seedRows(variant: Variant): Promise<number> {
 
 async function exportWorkshop(
   only?: (keyof typeof buildData.DEFAULT_OPTIONS)[]
-): Promise<{ dataFile: string; filesDir: string; text: string }> {
+): Promise<{ dataFile: string; filesDir: string; text: string; archiveFile: string | null }> {
   const chunks: string[] = []
   const out = new PassThrough()
   out.on('data', (chunk: Buffer | string) => chunks.push(chunk.toString()))
@@ -430,7 +430,23 @@ async function exportWorkshop(
     const from = path.join(dataRoot, 'uploads', ORG, category)
     if (existsSync(from)) cpSync(from, path.join(filesDir, category), { recursive: true })
   }
-  return { dataFile, filesDir, text }
+  // fork: the import archive's own file, as the export route and the snapshot write it
+  let archiveFile: string | null = null
+  if (options.sourceArchive) {
+    const { SOURCE_ARCHIVE_FILE, writeSourceArchive } = await import('@/lib/backup/fork-archive')
+    const lines: string[] = []
+    const { out: archive } = await writeSourceArchive(ORG, () => {
+      const stream = new PassThrough()
+      stream.on('data', (chunk: Buffer | string) => lines.push(chunk.toString()))
+      return stream
+    })
+    if (archive) {
+      archive.end()
+      archiveFile = path.join(dir, SOURCE_ARCHIVE_FILE)
+      writeFileSync(archiveFile, lines.join(''))
+    }
+  }
+  return { dataFile, filesDir, text, archiveFile }
 }
 
 /** Tables a backup does not carry, which this test puts back itself. */
@@ -586,7 +602,8 @@ describeDb('a backup round trip', () => {
 
     await importCore.restoreFromDisk(
       { organizationId: ORG, userId: OWNER },
-      { dataFile: backup.dataFile, filesDir: backup.filesDir }
+      // fork: and the import archive's own file
+      { dataFile: backup.dataFile, filesDir: backup.filesDir, archiveFile: backup.archiveFile }
     )
 
     const after = await dumpAll()

@@ -1775,6 +1775,8 @@
         "gallery": "Galeria"
       }
     },
+    "optSourceArchive": "Archiwum importu",
+    "optSourceArchiveDesc": "Rekordy przeniesione z innego systemu podczas importu, przechowywane bez zmian",
     "scheduledBackups": {
       "title": "Zaplanowane kopie zapasowe",
       "description": "Automatyczne kopie zapasowe do własnej przestrzeni dyskowej, według wybranego harmonogramu.",

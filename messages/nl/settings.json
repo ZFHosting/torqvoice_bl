@@ -1775,6 +1775,8 @@
         "gallery": "Galerij"
       }
     },
+    "optSourceArchive": "Importarchief",
+    "optSourceArchiveDesc": "Records die een import uit een ander systeem overnam, ongewijzigd bewaard",
     "scheduledBackups": {
       "title": "Geplande back-ups",
       "description": "Automatische back-ups naar opslag die van u is, volgens een schema dat u kiest.",

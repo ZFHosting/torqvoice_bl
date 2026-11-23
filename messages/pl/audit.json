@@ -234,6 +234,7 @@
     "platform_grantSuperAdmin": "Nadano superadmina",
     "api_key_create": "Utworzono klucz API",
     "api_key_revoke": "Unieważniono klucz API",
+    "shopmonkey_extract": "Pobrano z Shopmonkey",
     "platform_revokeSuperAdmin": "Odebrano superadmina"
   },
   "summary": {
@@ -428,6 +429,7 @@
     "platform_grantSuperAdmin": "Nadano uprawnienia superadmina: {name} ({email})",
     "api_key_create": "Utworzono klucz API {name} ({ref})",
     "api_key_revoke": "Unieważniono klucz API {name} ({ref})",
+    "shopmonkey_extract": "Pobrano z Shopmonkey nowe lub zmienione rekordy: {records} ({count} wywołań API)",
     "platform_revokeSuperAdmin": "Odebrano uprawnienia superadmina: {name} ({email})"
   }
 }

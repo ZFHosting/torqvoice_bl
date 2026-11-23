@@ -12,13 +12,15 @@ import path from 'node:path'
  * - every spread of a fork-restore.ts helper that returns an object (`...forkPartColumns(p, ids)`,
  *   `...stamps(row)`) is replaced by that object's properties, on one line so a test that reads a
  *   fixed window after a call still sees all of them;
- * - fork-restore.ts is appended, so its create calls count as restore sites.
+ * - fork-restore.ts and fork-archive.ts (the import archive's own backup file) are appended, so their
+ *   create calls count as restore sites.
  */
 export function readImportSourceWithFork(root = process.cwd()): string {
   const read = (file: string) =>
     fs.readFileSync(path.join(root, file), 'utf-8').replace(/\r\n/g, '\n')
   const importSource = read('src/lib/backup/import.ts')
   const forkSource = read('src/lib/backup/fork-restore.ts')
+  const archiveSource = read('src/lib/backup/fork-archive.ts')
 
   const helpers = new Map<string, string>()
   const objectHelpers = [
@@ -39,5 +41,5 @@ export function readImportSourceWithFork(root = process.cwd()): string {
       (spread, name: string) => helpers.get(name) ?? spread
     )
 
-  return `${inline(importSource)}\n${inline(forkSource)}`
+  return `${inline(importSource)}\n${inline(forkSource)}\n${inline(archiveSource)}`
 }

@@ -28,6 +28,8 @@ import { notify } from '@/lib/notify'
 import { orgUploadDir } from '@/lib/upload-root'
 import { workshopTimeZone } from '@/lib/workshop-timezone'
 import { writeBackupData } from './build-data'
+// fork: the import archive's own file
+import { SOURCE_ARCHIVE_FILE, writeSourceArchive } from './fork-archive'
 import {
   PLATFORM_RETENTION,
   PRE_RESTORE_KEEP,
@@ -445,12 +447,25 @@ export async function stageBackupData(
       notifications: true,
       tireHotel: true,
       workshopConfig: true,
+      // fork: the import archive
+      sourceArchive: true,
       includeSecrets,
     },
     out
   )
   out.end()
   await finished(out)
+  // fork: the import archive beside data.json, so its size never counts against the data file's;
+  // none at all (and none left over from a run that died) when the workshop has no archive
+  const archiveFile = path.join(staging, SOURCE_ARCHIVE_FILE)
+  await rm(archiveFile, { force: true })
+  const { out: archive } = await writeSourceArchive(organizationId, () =>
+    createWriteStream(archiveFile, { mode: 0o600 })
+  )
+  if (archive) {
+    archive.end()
+    await finished(archive)
+  }
   return { staging, dataFile }
 }
 
@@ -510,6 +525,10 @@ export async function takeSnapshot(
     return await resticBackup(target.base, { paths, host: target.host, tags: target.tags(trigger) })
   } finally {
     await rm(dataFile, { force: true }).catch((err) =>
+      log.warn('Could not remove the staging file', { organizationId: target.organizationId, err })
+    )
+    // fork: and the import archive written beside it
+    await rm(path.join(staging, SOURCE_ARCHIVE_FILE), { force: true }).catch((err) =>
       log.warn('Could not remove the staging file', { organizationId: target.organizationId, err })
     )
   }

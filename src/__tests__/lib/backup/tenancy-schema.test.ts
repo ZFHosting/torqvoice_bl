@@ -85,6 +85,8 @@ describe('the backup layout', () => {
       'notifications',
       'tireHotel',
       'workshopConfig',
+      // fork: the import archive's export option (lib/backup/fork-archive.ts)
+      'sourceArchive',
       'include',
     ])
     const missing = [...included].filter((k) => !exportOptions.has(k) && !childKeys.has(k))

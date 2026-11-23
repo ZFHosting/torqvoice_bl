@@ -44,6 +44,8 @@ function merge(row: Row, data: Row): Row {
 
 vi.mock('@/lib/db', () => {
   const db: Record<string, any> = {
+    // fork: the import archive the staging writes beside data.json (lib/backup/fork-archive.ts)
+    sourceRecord: { findMany: vi.fn(async () => []) },
     backupRun: {
       create: vi.fn(async ({ data }: { data: Row }) => {
         const id = `run${++h.seq}`

@@ -27,6 +27,8 @@ export type BackupOption =
   | 'notifications'
   | 'tireHotel'
   | 'workshopConfig'
+  // fork: the import archive (lib/backup/fork-archive.ts)
+  | 'sourceArchive'
 
 export interface BackupEntity {
   /** Prisma model name, spelled as in schema.prisma. */
@@ -471,12 +473,13 @@ export const BACKUP_ENTITIES: readonly BackupEntity[] = [
     nestedUnder: 'Technician',
     restore: 'replace',
   },
-  // fork: what an import archived unchanged, and the deletes an API client
-  // syncs from. History, so they travel with the audit log.
+  // fork: what an import archived unchanged (its own export option and file,
+  // lib/backup/fork-archive.ts), and the deletes an API client syncs from
+  // (history, so they travel with the audit log).
   {
     model: 'SourceRecord',
     key: 'sourceRecords',
-    option: 'auditLogs',
+    option: 'sourceArchive',
     restore: 'replace',
     clearOrder: 21,
   },

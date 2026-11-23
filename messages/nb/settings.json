@@ -1775,6 +1775,8 @@
         "gallery": "Galleri"
       }
     },
+    "optSourceArchive": "Importarkiv",
+    "optSourceArchiveDesc": "Poster en import hentet fra et annet system, lagret uendret",
     "scheduledBackups": {
       "title": "Planlagte sikkerhetskopier",
       "description": "Automatiske sikkerhetskopier til lagring du eier selv, etter en tidsplan du velger.",
