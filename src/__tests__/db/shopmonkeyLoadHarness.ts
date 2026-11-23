@@ -45,7 +45,9 @@ export async function createWorkshop(label: string) {
 /** Stages the mock's records into the workshop's archive, as a real extract would. */
 export async function extractInto(
   mock: ReturnType<typeof createMockShopmonkey>,
-  scope: { organizationId: string; connectionId: string }
+  scope: { organizationId: string; connectionId: string },
+  /** How files are staged: by default, nothing is (every link "not found"). */
+  stager?: import('@/integrations/shopmonkey/extract/files').FileStager
 ) {
   const { createShopmonkeyClient } = await import('@/integrations/shopmonkey/client')
   const engine = await import('@/integrations/shopmonkey/extract/engine')
@@ -58,7 +60,7 @@ export async function extractInto(
       sleep: async () => undefined,
     }),
     store: stage.prismaSourceStore(scope),
-    files: {
+    files: stager ?? {
       fetchUrl: async () => ({ skipped: 'not_found' as const }),
       write: async () => ({ skipped: 'too_large' as const }),
     },

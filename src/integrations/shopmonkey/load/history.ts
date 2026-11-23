@@ -2,13 +2,14 @@
  * Loading what hangs off the orders (M5 task 4; MAPPING §3, §8): appointments (and the start of the work order they
  * were booked for), inspection templates and inspections (with their photos), time entries and shifts.
  */
-import { SOURCE } from '../extract/stage'
+import { payloadHash, SOURCE } from '../extract/stage'
 import { transformInspection, transformInspectionTemplate } from '../transform/inspection'
 import { transformAppointment, transformTimesheet } from '../transform/time'
 import type { Row } from '../transform/types'
 import { countsFor, type LoadContext, loadOne } from './context'
 import { placeFile, stagedFile } from './files'
 import { stagedAll } from './people'
+import { markLoaded } from './links'
 import { upsertLinked } from './upsert'
 
 export async function loadAppointments(lc: LoadContext): Promise<void> {
@@ -150,57 +151,77 @@ export async function loadInspections(lc: LoadContext): Promise<number> {
               table: 'inspection_file',
               remoteId: { in: photos },
             },
-            select: { remoteId: true, payload: true },
+            select: { remoteId: true, payload: true, payloadHash: true },
           })
         : []
       const fileById = new Map(files.map((f) => [f.remoteId, f.payload as Row]))
+      // A staged photo that couldn't be placed (gone from disk): the inspection is written again next time.
+      let incomplete = false
       const writeItems = async (inspectionId: string) => {
         for (const { remoteId: _r, photoRemoteIds, ...item } of rows.items) {
           const imageUrls: string[] = []
           for (const id of photoRemoteIds) {
-            const staged = fileById.get(id)
-            const file = staged ? stagedFile(staged) : null
-            if (file) imageUrls.push(await placeFile(lc, file, pending))
+            const payload = fileById.get(id)
+            const url = payload
+              ? await placeFile(
+                  tx,
+                  lc,
+                  { table: 'inspection_file', remoteId: id, payload },
+                  pending
+                )
+              : null
+            if (url) imageUrls.push(url)
+            else if (payload && stagedFile(payload)) incomplete = true
           }
           await tx.inspectionItem.create({ data: { ...item, imageUrls, inspectionId } })
         }
       }
-      const { localId, result: outcome } = await upsertLinked(
-        tx,
-        lc.scope,
-        {
-          table: 'inspection',
-          model: 'Inspection',
-          remoteId: record.remoteId,
-          hash: record.payloadHash,
+      const linked = {
+        table: 'inspection',
+        model: 'Inspection' as const,
+        remoteId: record.remoteId,
+        // Its photos too: one staged (or forgotten) since makes the items be written again.
+        hash: payloadHash({
+          inspection: record.payloadHash,
+          photos: files
+            .map((f) => [f.remoteId, f.payloadHash])
+            .sort((a, b) => (a[0] < b[0] ? -1 : 1)),
+        }),
+      }
+      const { localId, result: outcome } = await upsertLinked(tx, lc.scope, linked, {
+        create: async () => {
+          const inspection = await tx.inspection.create({
+            data: { ...rows.inspection, importBatchId: lc.batches.inspections ?? null },
+            select: { id: true },
+          })
+          created++
+          await writeItems(inspection.id)
+          return inspection.id
         },
-        {
-          create: async () => {
-            const inspection = await tx.inspection.create({
-              data: { ...rows.inspection, importBatchId: lc.batches.inspections ?? null },
-              select: { id: true },
-            })
-            created++
-            await writeItems(inspection.id)
-            return inspection.id
-          },
-          update: async (id) => {
-            const { organizationId: _o, createdAt: _c, ...fields } = rows.inspection
-            await tx.inspection.updateMany({
-              where: { id, organizationId: lc.scope.organizationId },
-              data: fields,
-            })
-            await tx.inspectionItem.deleteMany({ where: { inspectionId: id } })
-            await writeItems(id)
-          },
-        }
-      )
+        update: async (id) => {
+          const { organizationId: _o, createdAt: _c, ...fields } = rows.inspection
+          await tx.inspection.updateMany({
+            where: { id, organizationId: lc.scope.organizationId },
+            data: fields,
+          })
+          await tx.inspectionItem.deleteMany({ where: { inspectionId: id } })
+          await writeItems(id)
+        },
+      })
       // The work order it was done on points at it, unless the workshop has linked another since.
       const orderId = rows.orderRemoteId ? lc.resolver.resolve('order', rows.orderRemoteId) : null
       if (orderId) {
         await tx.serviceRecord.updateMany({
           where: { id: orderId, organizationId: lc.scope.organizationId, inspectionId: null },
           data: { inspectionId: localId },
+        })
+      }
+      if (incomplete) {
+        await markLoaded(tx, lc.scope, {
+          ...linked,
+          hash: 'incomplete',
+          localId,
+          created: outcome === 'created',
         })
       }
       lc.resolver.set('inspection', record.remoteId, localId)
