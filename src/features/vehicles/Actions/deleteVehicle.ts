@@ -11,6 +11,7 @@ import {
   deleteCustomFieldValuesOf,
   workOrderIdsOfVehicles,
 } from '@/features/custom-fields/Lib/deleteCustomFieldValues'
+import { cascadeTombstones } from '@/features/public-api/Lib/tombstones.server'
 
 export async function deleteVehicle(vehicleId: string) {
   return withAuth(
@@ -29,6 +30,12 @@ export async function deleteVehicle(vehicleId: string) {
           jobIds: workOrderIds,
           vehicleId,
         })
+        // fork: what the delete takes with it, read while it exists (API sync tombstones).
+        const cascaded = await cascadeTombstones(
+          tx,
+          { organizationId, userId },
+          { workOrderIds, vehicleId }
+        )
         const deleted = await tx.vehicle.deleteMany({
           where: { id: vehicleId, organizationId },
         })
@@ -47,6 +54,7 @@ export async function deleteVehicle(vehicleId: string) {
                 entityId,
                 actorUserId: userId,
               })),
+              ...cascaded,
             ],
           })
         }

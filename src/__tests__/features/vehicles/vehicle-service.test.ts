@@ -73,9 +73,14 @@ beforeEach(() => {
 })
 
 describe('deleting a vehicle', () => {
-  it('leaves a tombstone for the vehicle and for each work order that went with it', async () => {
+  it('leaves a tombstone for the vehicle and for everything that went with it', async () => {
     rows.findFirst.vehicle = { year: 2019, make: 'Volvo', model: 'V60', licensePlate: 'AB12345' }
     rows.findMany.serviceRecord = [{ id: 'sr-1' }, { id: 'sr-2' }]
+    // By cascade: the work orders' payments and time entries, the vehicle's findings and inspections.
+    rows.findMany.payment = [{ id: 'pay-1' }]
+    rows.findMany.timeEntry = [{ id: 'te-1' }]
+    rows.findMany.vehicleFinding = [{ id: 'f-1' }]
+    rows.findMany.inspection = [{ id: 'in-1' }]
     const result = await service.deleteVehicleService(ctx, 'v-1')
     expect(result).toEqual({ vehicleId: 'v-1', vehicleDisplay: '2019 Volvo V60 (AB12345)' })
     const tombstones = calls.list.find((call) => call.key === 'deletedRecord.createMany')
@@ -94,6 +99,17 @@ describe('deleting a vehicle', () => {
           entityId: 'sr-2',
           actorUserId: 'user-1',
         },
+        ...[
+          ['payment', 'pay-1'],
+          ['time_entry', 'te-1'],
+          ['finding', 'f-1'],
+          ['inspection', 'in-1'],
+        ].map(([entityType, entityId]) => ({
+          organizationId: 'org-a',
+          entityType,
+          entityId,
+          actorUserId: 'user-1',
+        })),
       ],
     })
     // After the row is gone, in the same transaction.

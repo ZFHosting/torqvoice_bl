@@ -32,6 +32,7 @@ import { vehicleFileUrls } from '@/lib/files/collect'
 import { READING_SET_BY_HAND } from '../Lib/vehicleReading'
 import { vehicleName } from '@/lib/vehicle-name'
 import type { ServiceCtx } from '@/lib/service-context'
+import { cascadeTombstones } from '@/features/public-api/Lib/tombstones.server'
 
 /** A connector id that is a registry able to keep inspection dates, or null for anything else. */
 function inspectionRegistry(source: string | undefined): string | null {
@@ -272,6 +273,13 @@ export async function deleteVehicleService(ctx: ServiceCtx, vehicleId: string) {
       jobIds: workOrderIds,
       vehicleId,
     })
+    // fork: what the delete takes with it, read while it exists: the work orders' payments and time
+    // entries, the vehicle's findings and inspections.
+    const cascaded = await cascadeTombstones(
+      tx,
+      { organizationId, userId },
+      { workOrderIds, vehicleId }
+    )
     await tx.vehicle.deleteMany({ where: { id: vehicleId, organizationId } })
     await deleteCustomFieldValuesOf(tx, organizationId, 'service_record', workOrderIds)
     // And the vehicle's own.
@@ -286,6 +294,7 @@ export async function deleteVehicleService(ctx: ServiceCtx, vehicleId: string) {
           entityId,
           actorUserId: userId,
         })),
+        ...cascaded,
       ],
     })
   })

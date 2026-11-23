@@ -19,7 +19,11 @@ function actionFiles(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name)
     if (entry.isDirectory()) return actionFiles(full)
-    return entry.isFile() && full.includes(`${path.sep}Actions${path.sep}`) && full.endsWith('.ts')
+    // fork: and the domain services the actions' bodies moved into (A2), where the guards now are.
+    const isService = /Service\.server\.ts$/.test(full)
+    return entry.isFile() &&
+      (full.includes(`${path.sep}Actions${path.sep}`) || isService) &&
+      full.endsWith('.ts')
       ? [full]
       : []
   })

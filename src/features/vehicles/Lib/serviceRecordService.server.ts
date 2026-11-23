@@ -56,6 +56,7 @@ import {
 } from '@/features/vehicles/Lib/vehicleReading'
 import { FRESH_SHARE_LINK } from '@/lib/share-expiry'
 import type { ServiceCtx } from '@/lib/service-context'
+import { cascadeTombstones } from '@/features/public-api/Lib/tombstones.server'
 
 export async function createServiceRecordService(ctx: ServiceCtx, input: unknown) {
   const { userId, organizationId } = ctx
@@ -920,12 +921,21 @@ export async function deleteServiceRecordService(ctx: ServiceCtx, recordId: stri
     })
     // Its meter readings stay in the history, at the date they count at now.
     await unlinkMeterReadingsOfDeletedJobs(tx, { organizationId, jobIds: [recordId] })
+    // fork: what the delete takes with it (its payments, its time entries), read while it exists.
+    const cascaded = await cascadeTombstones(
+      tx,
+      { organizationId, userId },
+      { workOrderIds: [recordId] }
+    )
     await tx.serviceRecord.delete({ where: { id: recordId } })
     // Its custom field values hang on its id alone, so nothing cascades.
     await deleteCustomFieldValuesOf(tx, organizationId, 'service_record', [recordId])
-    // fork: the tombstone an API client syncing by updatedSince learns the delete from.
-    await tx.deletedRecord.create({
-      data: { organizationId, entityType: 'work_order', entityId: recordId, actorUserId: userId },
+    // fork: the tombstones an API client syncing by updatedSince learns the deletes from.
+    await tx.deletedRecord.createMany({
+      data: [
+        { organizationId, entityType: 'work_order', entityId: recordId, actorUserId: userId },
+        ...cascaded,
+      ],
     })
   })
   await releaseFiles(files, { organizationId, reason: 'work order deleted' })

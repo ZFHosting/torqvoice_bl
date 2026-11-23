@@ -79,21 +79,28 @@ beforeEach(() => {
 })
 
 describe('deleting a work order', () => {
-  it('leaves a tombstone after the row, in the same transaction', async () => {
+  it('leaves tombstones for it and what it cascades to, after the row, in the same transaction', async () => {
     rows.findFirst.serviceRecord = { id: 'sr-1', vehicleId: 'v-1', invoiceNumber: 'WO-1' }
+    // Its payments and time entries go with it by cascade.
+    rows.findMany.payment = [{ id: 'pay-1' }]
+    rows.findMany.timeEntry = [{ id: 'te-1' }]
     expect(await service.deleteServiceRecordService(ctx, 'sr-1')).toEqual({ recordId: 'sr-1' })
     const order = writes()
-    expect(order.indexOf('deletedRecord.create')).toBeGreaterThan(
+    expect(order.indexOf('deletedRecord.createMany')).toBeGreaterThan(
       order.indexOf('serviceRecord.delete')
     )
-    expect(calls.list.find((c) => c.key === 'deletedRecord.create')?.args).toEqual({
-      data: {
-        organizationId: 'org-a',
-        entityType: 'work_order',
-        entityId: 'sr-1',
-        actorUserId: 'user-1',
-      },
+    const stone = (entityType: string, entityId: string) => ({
+      organizationId: 'org-a',
+      entityType,
+      entityId,
+      actorUserId: 'user-1',
     })
+    expect(calls.list.find((c) => c.key === 'deletedRecord.createMany')?.args).toEqual({
+      data: [stone('work_order', 'sr-1'), stone('payment', 'pay-1'), stone('time_entry', 'te-1')],
+    })
+    // The cascaded rows were read before the delete, while they still existed.
+    const keys = calls.list.map((c) => c.key)
+    expect(keys.indexOf('payment.findMany')).toBeLessThan(keys.indexOf('serviceRecord.delete'))
   })
 
   it('is refused for another workshop’s work order, writing nothing', async () => {
