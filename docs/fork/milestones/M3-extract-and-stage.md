@@ -19,21 +19,32 @@ resumably, and without fetching the same unchanged record twice.
    connection doing the fetch (M1 review: a reconnect makes a new connection id). It computes `payloadHash` over a canonical JSON
    (sorted keys) and skips the write when the hash is unchanged. It sets `remoteUpdatedAt` from
    `updatedDate`, and `remoteDeletedAt` when `deleted` is true.
-3. Checkpoints in the connection's `state` (through `ctx.saveState`), per table: `{ phase: 'backfill' |
-   'delta', skip, highWatermark }`. A backfill page job processes one page, saves the checkpoint and
-   returns `rescheduleInSeconds: 0`, so the queue keeps it moving. Restarting resumes from the checkpoint.
-4. Child fetch jobs are queued per parent with an `idempotencyKey` (`order-children:<orderId>:<payloadHash>`),
-   so a parent that hasn't changed doesn't refetch its children.
+3. Checkpoints in the connection's `state.extract` (through `ctx.saveState`), per plan step: `{ phase:
+   'backfill' | 'delta', stage, skip, highWatermark, total, lastPage, cursor }`. One unit of work (a page,
+   or a batch of parents' children) saves the checkpoint after it; the `extract.step` job does units for up
+   to 45 s and returns `rescheduleInSeconds: 1`. *(Corrected in M3: `runJob` requeues only on a truthy
+   value, so 0 would stop the run; and the cron ticks once a minute, so one unit per job would read one
+   page a minute.)* Restarting resumes from the checkpoint.
+4. Children are fetched by a sweep, not one job per parent: `SourceRecord.childrenHash` holds the
+   `payloadHash` a parent's children were fetched for, and after a table's list is read the step fetches
+   children for every parent where it differs (in id order, with a cursor), then marks them fetched. A
+   parent that hasn't changed doesn't refetch its children, and a crash or a failed fetch is picked up by
+   the next sweep. *(Corrected in M3: the job queue clears an `idempotencyKey` when a job is claimed, so a
+   key per parent couldn't remember that its children were fetched; and 50,000 queued jobs would hide
+   progress.)* A child no longer returned by its parent is marked `remoteDeletedAt`, never removed.
 5. Files (binary): download into a staging area `dataRoot()/shopmonkey-staging/<connectionId>/` with a
-   size cap and content-type check. Record the path in the file's `SourceRecord` payload under
-   `_staged`. M5 moves them into uploads.
+   size cap and content-type check (the service upload route's own), through links checked like webhook
+   targets. Each file is its own `SourceRecord` (`order_file`, `inspection_file`, `invoice_pdf`): the
+   file entry as Shopmonkey sent it, plus `_parent` (its owner) and `_staged` (path, bytes, sha256, type,
+   or why it was skipped). Keys starting with `_` are the importer's. M5 moves them into uploads.
 6. Run order in `extract/plan.ts`: settings tables → users → customers (+contacts) → vehicles (+owners) →
    catalog (canned services, inventory) → orders (+children) → appointments → inspection templates →
    inspections → timesheets → workflow statuses → optional messages. Each table only starts when the one
    before it has finished.
-7. CLI `scripts/shopmonkey/run.ts extract --connection <id> [--tables a,b] [--since ISO]`. It drives the
-   same job handlers in-process and prints progress (table, done/total from `meta.total`, calls per minute,
-   estimated time left).
+7. CLI `scripts/shopmonkey/run.ts extract --connection <id> [--tables a,b] [--since ISO] [--restart]`,
+   run with `npx tsx --conditions=react-server` (the app's server-only modules). It drives the same
+   `extractStep` in-process, carries on an unfinished run, and prints progress (table, done/total from
+   `meta.total`, calls per minute, estimated time left).
 8. *(Optional, if the shop has EDS)* `extract/eds.ts` reads EDS's Postgres tables and calls `stageRecord`.
    Emails and phones still come from the API, because EDS tokenizes PII.
 9. *(Optional)* `extract/csv.ts` stages Shopmonkey CSV exports under `table: 'csv_<name>'`, for
@@ -51,6 +62,7 @@ resumably, and without fetching the same unchanged record twice.
       (`src/lib/backup/limits.ts`). Before staging writes real volumes, give the archive its own export
       option (labelled, on by default) and keep a 50,000-order archive restorable: a separate file, a
       streamed dataset, or compressed payloads. Test: restore a backup holding a large synthetic archive.
+      *(Built as a separate file, `source-archive.ndjson`, beside `data.json`: `lib/backup/fork-archive.ts`.)*
 - [ ] Restoring the same backup twice leaves one `SourceRecord` per source object (the restore clears the
       workshop's archive first; test it on the database).
 
