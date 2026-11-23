@@ -88,10 +88,27 @@ server serving the synthetic fixtures. Plan:
 6. [x] Backups: the archive gets its own export option (on by default), streamed to its own file and restored
    in batches, so a 50,000-order archive stays restorable; restore clears the workshop's archive first.
    (ee7c928f: `source-archive.ndjson`, `data.json` keeps an empty marker; db test passes)
-7. [ ] Tests (acceptance): mock server; full extract stages every fixture record and a second run writes nothing;
-   kill mid-table and resume; a changed record is restaged and its order's children refetched; no PII in logs;
-   backup round trip with a large archive; restoring twice leaves one row per object (db).
-8. [ ] Brief and MAPPING fixes (Decisions log), DoD, reviewer, merge as provisional.
+7. [x] Tests (acceptance), all against the mock Shopmonkey (`shopmonkey/mockServer.ts`, synthetic fixtures):
+   - full extract stages every fixture record, second run writes nothing: `extract.test.ts` "stages every fixture
+     record…", "writes nothing the second time…"; on Postgres `db/shopmonkey-extract.db.test.ts` "stages every
+     fixture record, and the second run writes nothing";
+   - killed mid-table, resumed with the same count and no page past the checkpoint fetched twice: "resumes from
+     its checkpoint and ends with the same records", "refetches the children of a parent the run died during";
+   - changed record restaged, only its order's children refetched: "is restaged, and only its order's children
+     are fetched again"; on Postgres "finds exactly the changed parent in the children sweep…";
+   - no PII in logs (fixture emails, phones, surnames, file links): "carry no names, emails, phone numbers or
+     file links";
+   - backups: `db/shopmonkey-archive-backup.db.test.ts` "backs it up in its own file and restores every row from
+     it, twice over" (9,000 rows, archive file over the 16 MiB data-file limit, restored twice: one row per
+     object), "keeps the workshop's archive when the backup came without its archive file", "still restores a
+     backup from before M3"; `db/backup-round-trip.db.test.ts` carries the archive file.
+8. [x] Brief and MAPPING fixes (Decisions log, 4580df36). DoD at 45900214: `tsc` exit 0; Biome 14 (baseline, LF
+   checkout); `npm test` in five chunks, 816 files: failures only in the Windows baseline files (api/health,
+   photo-handoff, portal-upload, portal-file-route, equipment-gates and meters-gates on backslash paths,
+   lib/backup/engine (the same 29 test names with and without M3) and restic, files/manager,
+   only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access) and the Fiken load timeout;
+   `test:db` 18 files / 108 tests pass on `torqvoice_fork_test`.
+9. [ ] Reviewer, merge as provisional (B1).
 
 M0 acceptance:
 - [x] NOTICE-FORK.md, README link, CLAUDE.md import, docs/fork/UPSTREAM.md (commit 0c7ec939).
