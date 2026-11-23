@@ -63,7 +63,14 @@ export async function issueInvoices(
 export async function recordLoad(
   organizationId: string,
   userId: string,
-  summary: { runId: string; records: number; counts: Record<string, unknown>; issued: number }
+  summary: {
+    runId: string
+    records: number
+    counts: Record<string, unknown>
+    issued: number
+    /** The setting keys the run applied from its proposals. */
+    applied: string[]
+  }
 ): Promise<void> {
   await logAudit(
     { userId, organizationId },
@@ -71,7 +78,12 @@ export async function recordLoad(
       action: 'shopmonkey.import',
       entity: 'integration_connection',
       details: auditDetails('shopmonkey_import', { records: summary.records }),
-      metadata: { runId: summary.runId, counts: summary.counts, issued: summary.issued },
+      metadata: {
+        runId: summary.runId,
+        counts: summary.counts,
+        issued: summary.issued,
+        applied: summary.applied,
+      },
     }
   )
 }
