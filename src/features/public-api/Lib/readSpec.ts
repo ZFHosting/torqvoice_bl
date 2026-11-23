@@ -1,0 +1,73 @@
+/**
+ * What a read resource publishes (docs/fork/milestones/A3-read-endpoints.md): its path, its response and filters,
+ * what it may include, and the query schemas built from them. Pure, so the OpenAPI document (Lib/openapi.ts) and
+ * the route handlers (Lib/readResource.ts) are made from the same declaration.
+ */
+import { z } from 'zod'
+import type { EndpointSpec } from './openapi'
+import { pageQuerySchema } from './pagination'
+
+export interface ReadSpec<Out> {
+  /** Path under /api/v1, e.g. `/customers`. */
+  path: string
+  tag: string
+  /** What the list and the get are about, for the OpenAPI summaries. */
+  noun: { one: string; many: string }
+  /** Filters beyond paging; merged with `limit`, `cursor`, `updatedSince` and `include`. */
+  filters?: z.ZodObject
+  /** What may be named in `?include=` (comma separated). */
+  includes?: readonly string[]
+  response: z.ZodType<Out>
+}
+
+/** `?include=a,b`, each one of `allowed`; an unknown one is a 400, not silently ignored. */
+export function includeSchema(allowed: readonly string[]) {
+  return z
+    .string()
+    .optional()
+    .describe(allowed.length ? `Comma separated: ${allowed.join(', ')}` : 'Nothing to include')
+    .transform((value, ctx) => {
+      const asked = (value ?? '')
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean)
+      for (const name of asked) {
+        if (!allowed.includes(name)) {
+          ctx.addIssue({ code: 'custom', message: `Unknown include "${name}"` })
+          return z.NEVER
+        }
+      }
+      return new Set(asked) as ReadonlySet<string>
+    })
+}
+
+export function listQuerySchema(spec: { includes?: readonly string[]; filters?: z.ZodObject }) {
+  const base = pageQuerySchema.extend({ include: includeSchema(spec.includes ?? []) })
+  return spec.filters ? base.extend(spec.filters.shape) : base
+}
+
+export const getQuerySchema = (allowed: readonly string[]) =>
+  z.object({ include: includeSchema(allowed) })
+
+/** The resource's two operations, for the OpenAPI document. */
+export function readEndpoints(spec: ReadSpec<unknown>): EndpointSpec[] {
+  return [
+    {
+      method: 'get',
+      path: spec.path,
+      summary: `List ${spec.noun.many}`,
+      tag: spec.tag,
+      query: listQuerySchema(spec) as unknown as z.ZodObject,
+      response: spec.response,
+      paged: true,
+    },
+    {
+      method: 'get',
+      path: `${spec.path}/{id}`,
+      summary: `Get one ${spec.noun.one}`,
+      tag: spec.tag,
+      query: getQuerySchema(spec.includes ?? []) as unknown as z.ZodObject,
+      response: spec.response,
+    },
+  ]
+}
