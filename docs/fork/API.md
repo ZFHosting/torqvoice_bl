@@ -45,7 +45,10 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
   $remote_addr`, for example): with the app's port open directly, as the shipped `docker-compose.yml`
   does, a caller can send any `X-Real-IP`. A request with no address is refused when the key has an
   allowlist. The settings screen says so under the field.
-- An address that fails authentication 30 times in a minute is refused (429) before any key lookup.
+- An address that fails authentication 30 times in a minute is refused (429) before any key lookup. It
+  reads the address the same way, so the same caveat holds: without a proxy that overwrites
+  `X-Real-IP`, a caller can spend another address's failures (and lock out a valid key using it) by
+  sending that address in the header.
 - Server-to-server only: no CORS headers.
 
 **New tables (`prisma/schema/fork.prisma`)**

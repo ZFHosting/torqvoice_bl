@@ -83,7 +83,8 @@ e522a3d2 (Settings → API keys), then docs and ledger.
    answer to a valid key. Should-fix taken too (Decisions log). After: public-api unit 7 files / 39 tests,
    db 2 files / 20 tests, i18n + settings folders pass (the PDF preset timeout passes alone, 14/14), `tsc`
    exit 0, Biome 14 (baseline).
-6. [ ] Reviewer pass 2, merge.
+6. [x] Reviewer pass 2 (2026-11-22): **ready for PR**. Its three non-blocking notes went into API.md §2 (the
+   failed-auth limit shares the address caveat) and A6 tasks 5 and 6. [ ] Merge.
 
 A1 acceptance:
 - [x] A valid key; revoked → 401; expired → 401; disallowed IP → 403; missing permission → 403; rate limit

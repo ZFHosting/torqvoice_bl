@@ -4,7 +4,8 @@
  *
  * - Per key: upstream counts per token **per path**, but an integration spreads its calls over many
  *   paths, so the API counts per key across all of them. A route that sets its own limit or window
- *   gets a bucket of its own, so it neither eats the key's default budget nor changes its window.
+ *   counts in a bucket for that setting (routes with the same setting share it), so it neither eats
+ *   the key's default budget nor changes its window.
  * - Per address, for failed authentication: a caller presenting bad keys is turned away before the
  *   key lookup and the HMAC, the cheap refusal first, as upstream's withApiAuth does.
  */
