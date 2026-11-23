@@ -17,9 +17,8 @@ import { once } from 'node:events'
 import { createReadStream } from 'node:fs'
 import { createInterface } from 'node:readline'
 import type { Readable } from 'node:stream'
-import type { Prisma } from '@/generated/prisma/client'
 import { db, type TxClient } from '@/lib/db'
-import { sourceRecordRow } from './fork-restore'
+import { isSourceRecordRow, sourceRecordColumns } from './fork-restore'
 import { assertNoForeignRows } from './tenancy'
 import type { OpenedZip } from './zip-file'
 
@@ -98,13 +97,15 @@ export async function restoreSourceArchive(
     input: await archive.open(),
     crlfDelay: Number.POSITIVE_INFINITY,
   })
-  let batch: Prisma.SourceRecordCreateManyInput[] = []
+  let batch: Record<string, unknown>[] = []
   let total = 0
   const flush = async () => {
     if (batch.length === 0) return
     const ids = new Set(batch.map((row) => row.id as string))
     await assertNoForeignRows(tx, organizationId, new Map([['SourceRecord', ids]]))
-    await tx.sourceRecord.createMany({ data: batch })
+    await tx.sourceRecord.createMany({
+      data: batch.map((r) => ({ ...sourceRecordColumns(r, organizationId) })),
+    })
     total += batch.length
     batch = []
   }
@@ -119,8 +120,8 @@ export async function restoreSourceArchive(
       throw new Error(`The import archive in this backup is damaged (line ${lineNumber})`)
     }
     if (!parsed || typeof parsed !== 'object') continue
-    const row = sourceRecordRow(parsed as Record<string, unknown>, organizationId)
-    if (row) batch.push(row)
+    if (isSourceRecordRow(parsed as Record<string, unknown>))
+      batch.push(parsed as Record<string, unknown>)
     if (batch.length >= BATCH) await flush()
   }
   await flush()

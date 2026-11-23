@@ -212,35 +212,41 @@ export async function restoreTechnicianShifts(
   })
 }
 
-/** One archived source payload (X1) as the restoring workshop's row, or null when it isn't one. */
-export function sourceRecordRow(
-  r: Row,
-  organizationId: string
-): Prisma.SourceRecordCreateManyInput | null {
-  if (
-    typeof r.id !== 'string' ||
-    typeof r.connectionId !== 'string' ||
-    typeof r.table !== 'string' ||
-    typeof r.remoteId !== 'string' ||
-    typeof r.payloadHash !== 'string' ||
-    json(r.payload) === undefined
-  ) {
-    return null
-  }
+/** Whether a row from a backup is an archived source payload (X1) a restore can write. */
+export function isSourceRecordRow(r: Row): boolean {
+  return (
+    typeof r.id === 'string' &&
+    typeof r.connectionId === 'string' &&
+    typeof r.table === 'string' &&
+    typeof r.remoteId === 'string' &&
+    typeof r.payloadHash === 'string' &&
+    json(r.payload) !== undefined
+  )
+}
+
+/**
+ * An archived source payload (X1) as the restoring workshop's row; check it with isSourceRecordRow
+ * first. Spread where it is written (`...sourceRecordColumns(r, organizationId)`), so the restore's
+ * column checks read every column at the create call (stubs/fork-import-source.ts). They inline one
+ * helper deep, on one line, so the body has no nested spread (the stamps are spelled out) and no
+ * comment.
+ */
+export function sourceRecordColumns(r: Row, organizationId: string) {
   return {
-    id: r.id,
+    id: r.id as string,
     organizationId,
-    connectionId: r.connectionId,
+    connectionId: r.connectionId as string,
     source: text(r.source) ?? 'shopmonkey',
-    table: r.table,
-    remoteId: r.remoteId,
+    table: r.table as string,
+    remoteId: r.remoteId as string,
     payload: json(r.payload) as Prisma.InputJsonValue,
-    payloadHash: r.payloadHash,
+    payloadHash: r.payloadHash as string,
     remoteUpdatedAt: date(r.remoteUpdatedAt),
     fetchedAt: date(r.fetchedAt) ?? undefined,
     remoteDeletedAt: date(r.remoteDeletedAt),
     childrenHash: text(r.childrenHash),
-    ...stamps(r),
+    createdAt: date(r.createdAt) ?? undefined,
+    updatedAt: date(r.updatedAt) ?? undefined,
   }
 }
 
@@ -256,10 +262,12 @@ export async function restoreForkArchive(
   memberUserIds: ReadonlySet<string>
 ) {
   // Backups since M3 carry the archive in its own file (fork-archive.ts); older ones carry it here.
-  const sources = rowsOf(data.sourceRecords)
-    .map((r) => sourceRecordRow(r, organizationId))
-    .filter((r): r is Prisma.SourceRecordCreateManyInput => r !== null)
-  if (sources.length > 0) await tx.sourceRecord.createMany({ data: sources })
+  const sources = rowsOf(data.sourceRecords).filter(isSourceRecordRow)
+  if (sources.length > 0) {
+    await tx.sourceRecord.createMany({
+      data: sources.map((r) => ({ ...sourceRecordColumns(r, organizationId) })),
+    })
+  }
 
   const tombstones = rowsOf(data.deletedRecords).filter(
     (r) =>
