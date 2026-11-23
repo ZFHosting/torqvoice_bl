@@ -206,7 +206,7 @@ describe('services that don’t count toward the totals', () => {
   it('leave out a service deferred but not declined, and make it a finding', () => {
     const services = services1003()
     const coolant = services.find((s) => s.id === 'syn_svc_1003_4') as Record<string, unknown>
-    coolant.authorizationStatus = 'Pending'
+    coolant.authorizationStatus = 'NotAuthorized'
     coolant.deferredReason = 'InvoicedNotAuthorized'
     const result = transform1003(services)
     const rows = asRecord(result.rows)
@@ -269,6 +269,8 @@ describe('EPA, shop supplies and fees', () => {
     ).toBe(500)
     expect(feeCents({ feeType: 'PercentService', percent: 10 }, 15_000)).toBe(1_500)
     expect(feeCents({ feeType: 'FixedCents', amountCents: 450 }, 15_000)).toBe(450)
+    // A percent fee stored with amountCents 0 carries no amount of its own.
+    expect(feeCents({ feeType: 'PercentService', percent: 10, amountCents: 0 }, 15_000)).toBe(1_500)
   })
 
   it('write sourceExtra the M1 schema reads', async () => {

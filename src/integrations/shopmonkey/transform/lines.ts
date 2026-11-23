@@ -193,10 +193,12 @@ function extra(line: Row, serviceId: string, keys: string[]): Row {
  * `percent` of the service's line base.
  */
 export function feeCents(fee: Row, serviceLineBase: number): number {
-  if (typeof fee.amountCents === 'number' && Number.isFinite(fee.amountCents)) {
+  const percent = num(fee.percent) ?? 0
+  // A percent fee stored with `amountCents: 0` (the column isn't nullable) carries no amount of its own.
+  const amountGiven = !(fee.amountCents === 0 && fee.feeType !== 'FixedCents' && percent > 0)
+  if (amountGiven && typeof fee.amountCents === 'number' && Number.isFinite(fee.amountCents)) {
     return Math.round(fee.amountCents)
   }
-  const percent = num(fee.percent) ?? 0
   const base = typeof fee.subtotalCents === 'number' ? fee.subtotalCents : serviceLineBase
   return Math.round((base * percent) / 100)
 }
@@ -569,7 +571,16 @@ export const LINE_FIELDS: Record<string, FieldSpec> = {
     archive: [...LINE_ARCHIVE, 'discountPercent', 'discountValueType'],
   },
   fees: {
-    mapped: ['id', 'name', 'feeType', 'amountCents', 'percent', 'lineItemEntity', 'inventoryFeeId'],
-    archive: [...LINE_ARCHIVE, 'laborId', 'partId', 'subcontractId', 'subtotalCents', 'tireId'],
+    mapped: [
+      'id',
+      'name',
+      'feeType',
+      'amountCents',
+      'percent',
+      'subtotalCents',
+      'lineItemEntity',
+      'inventoryFeeId',
+    ],
+    archive: [...LINE_ARCHIVE, 'laborId', 'partId', 'subcontractId', 'tireId'],
   },
 }
