@@ -22,8 +22,8 @@ resolved.
 | --- | --- | --- | --- |
 | M0 | provisional | fork/M0-setup-and-spikes | Merged 249e3dd3. S1–S12 from docs only and synthetic fixtures: re-verify with a key (B1). Reviewer: ready for PR after 3 passes. |
 | M1 | done | fork/M1-schema-extensions | Merged 5605175e. Reviewer: ready for PR after 2 passes. DoD evidence in the Decisions log (2026-11-22, M1). |
-| A1 | in_progress | fork/A1-api-foundation | |
-| A2 | todo | | |
+| A1 | done | fork/A1-api-foundation | Merged 1c81e08e. Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (A1 done). |
+| A2 | in_progress | fork/A2-domain-services | |
 | M2 | todo | | |
 | M3 | todo | | |
 | M4 | todo | | |
@@ -65,48 +65,24 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**A1 (API foundation), in progress** on `fork/A1-api-foundation` (from `fork/integration` at 75978b94, after a
-clean upstream merge 03619f67..94abda44). Commits 32afc651 (foundation + `/settings`), 31877f75 (purge cron),
-e522a3d2 (Settings → API keys), then docs and ledger.
-1. [x] `src/features/public-api/Lib/*`, `Schema/settings.ts`, `Schema/apiKeys.ts`, `Serializers/settings.ts`,
-   `GET /api/v1/settings`, `GET /api/v1/openapi.json`; `clientAddress` exported from `src/lib/rate-limit.ts`.
-2. [x] Tests: `features/public-api/{conventions,with-public-api,openapi,api-keys-settings}` (24 tests);
-   db `public-api-keys` (13) and `public-api-idempotency` (6). Mutation checks: dropping the allowlist check
-   or the `revokedAt` check fails a test.
-3. [x] Cron `purge-api-idempotency` (hourly at :17) in `cronTasks.ts` and `instrumentation.ts`.
-4. [x] Settings → API keys: actions, component, page, nav entry (`gate: 'api'`), icon, namespace `apiKeys`
-   in 14 locales, nav and audit labels in every locale.
-5. [x] DoD (below). [x] Reviewer pass 1 (2026-11-22): **needs changes**, four must-fix, all fixed at ca5428ff:
-   tests for the key actions (`api-key-actions.test.ts`, 7); `/settings` checked against its schema on the
-   real route with a secret in the same table that never appears, plus `settings-serializer.test.ts`; the
-   allowlist's `X-Real-IP` trust in API.md §2 and the field's hint (14 locales); rate-limit headers on every
-   answer to a valid key. Should-fix taken too (Decisions log). After: public-api unit 7 files / 39 tests,
-   db 2 files / 20 tests, i18n + settings folders pass (the PDF preset timeout passes alone, 14/14), `tsc`
-   exit 0, Biome 14 (baseline).
-6. [x] Reviewer pass 2 (2026-11-22): **ready for PR**. Its three non-blocking notes went into API.md §2 (the
-   failed-auth limit shares the address caveat) and A6 tasks 5 and 6. [ ] Merge.
-
-A1 acceptance:
-- [x] A valid key; revoked → 401; expired → 401; disallowed IP → 403; missing permission → 403; rate limit
-  → 429 with `Retry-After`; workshop A's key reads only A (`src/__tests__/db/public-api-keys.db.test.ts`:
-  "reads its own workshop's settings", "never sees another workshop's", "is refused with 401 once revoked",
-  "is refused with 401 once expired", "…off its allowlist…", "…lacks the permission", "…429 and Retry-After…").
-- [x] The plaintext key isn't stored or logged: test "is stored only as a hash, and never logged" (console
-  spies, row contents), and a grep of every A1 test log for `tvk_[a-z0-9]{8}_[A-Za-z0-9_-]{43}` finds 0.
-- [x] `openapi.json` validates: `features/public-api/openapi.test.ts` "is valid OpenAPI 3.1"
-  (`@apidevtools/swagger-parser`), plus "documents every public route and method".
-- [x] Revoking in the UI takes effect on the next request: the page's revoke calls `revokeApiKey`
-  (`api-keys-settings.test.tsx` "revokes after a confirmation…"), and the next request is 401 (db test above).
-
-A1 DoD (at e522a3d2 + docs):
-- `tsc --noEmit` exit 0. Biome (LF worktree): 14 errors = baseline, none in A1's files.
-- `npm test`, all 796 files in 8 chunks on Node 22.23.4 (the 7 chunks + the new `features/audit/` from
-  upstream): failing = the 14 Windows-only baseline files; plus, environment only, `lib/backup-manifest`
-  and `features/ai/workshop-columns` (CRLF working-tree copies of `build-data.ts` and the schema after
-  branch switches; both pass once converted to LF, 17/17 and 67/67) and two 5 s timeouts under load
-  (`integrations/registry` passes alone; `integrations/fiken`'s pure-computation case takes 5.8–6.5 s on
-  this machine today, untouched by the fork and by upstream's merge).
-- `npm run test:db` on `torqvoice_fork_test`: 16 files, 101 tests pass.
+**A2 (domain services), in progress** on `fork/A2-domain-services` (from `fork/integration` at the A1 merge).
+Method: `scratchpad/a2-final/extract_service.py` moves each write action's withAuth callback body, verbatim,
+into `src/features/<domain>/Lib/<domain>Service.server.ts` as `<action>Service(ctx: ServiceCtx, <same
+params>)`, with the helpers it uses; the action keeps its name, input, permissions and audit option and calls
+the service. Audit builders move to `<domain>AuditEvents.ts` so the API logs the same event. Deletes also
+write a `DeletedRecord`. Per domain: extractor → Biome (unsafe fix drops unused imports) → that domain's
+existing tests unchanged → a service test → `tsc` → commit. Order (brief):
+1. [ ] customers (+ contacts X4, custom fields)
+2. [ ] vehicles (+ notes)
+3. [ ] service records: draft, header, lines, status, jobs (X2)
+4. [ ] payments (+ the invoice issuing they trigger)
+5. [ ] quotes (+ convert to job)
+6. [ ] appointments
+7. [ ] technicians, time entries, shifts (X6)
+8. [ ] inventory (+ stock adjust), labor presets
+9. [ ] findings
+10. [ ] webhooks (subscription management)
+11. [ ] DoD, reviewer, merge.
 
 M0 acceptance:
 - [x] NOTICE-FORK.md, README link, CLAUDE.md import, docs/fork/UPSTREAM.md (commit 0c7ec939).
@@ -203,6 +179,8 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-22 | A1: `@apidevtools/swagger-parser@^13.1.0` added with npm 11.21.1 (the lockfile's own dialect); `ajv` moves 8.18 → 8.20 with it. | npm 10.9 rewrote the lockfile (dropped `libc`, changed `devOptional`), which would churn every upstream merge. |
 | 2026-11-22 | A1: the API keys page's strings in 13 languages besides English were written by Claude, not a translator. | The parity test needs every locale; they follow each locale's existing settings wording but deserve a native read before release. |
 | 2026-11-22 | A1: keys' service users show on Settings → Team and count as seats; left for A6 task 7 (label them, drop them from the seat count). | Self-hosted installs have every seat, so nothing is refused; editing a key's role on the Team page is how its scope is managed (API.md §2). |
+| 2026-11-22 | **A1 done.** DoD: `tsc` exit 0; Biome 14 (baseline); `npm test` all 796 files, failures = the 14 Windows-only baseline files plus environment-only ones (CRLF copies, load timeouts; Current step history); `test:db` 16 files / 101 tests, then the A1 db files 20 tests after review fixes. Acceptance 1–4 with test names in the A1 checklist. Reviewer pass 2: ready for PR. Merged into `fork/integration` at 1c81e08e. | Evidence for the definition of done and acceptance. |
+| 2026-11-22 | A2: a service takes the action's own parameters (raw input included) and validates inside, exactly as the action body did, instead of the brief's "action parses, service takes parsed input". | The body moves verbatim (no behaviour change, the brief's acceptance 3), and the API gets the very same validation, including messages the action words in the workshop's language (the vehicle fleet number). |
 | 2026-11-22 | A1 review: the IP allowlist keeps upstream's address rules (`X-Real-IP`, or Cloudflare's header when trusted) and says plainly, in API.md §2 and under the field, that it only holds behind a proxy that overwrites `X-Real-IP`. No new environment switch. | One source for "who is calling" across the limiter and the allowlist; the shipped compose file exposes the port directly, so the doc and the UI have to say it. An opt-in variable can come with A6's security review if needed. |
 | 2026-11-22 | A1 review: failed authentication is limited per address (30 a minute) before any key lookup; a route's own rate limit counts in its own bucket. | Upstream's withApiAuth refuses cheaply first; a bad-key flood shouldn't cost a database read and an HMAC each. A tight route mustn't eat or reshape the key's default budget. |
 | 2026-11-22 | A1 review: an Idempotency-Key claim still in flight after 5 minutes is treated as abandoned; a failure to store the response is logged and the real response returned. | A crash would otherwise lock the key for 24 hours, and a committed write answered with a 500 invites a duplicate. |
