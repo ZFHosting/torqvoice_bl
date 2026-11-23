@@ -81,6 +81,9 @@
       "labor": "Normtider på arbeidsordrer og tilbud",
       "fluids": "Væsketyper og mengder"
     },
+    "import": {
+      "shopmonkey": "Import fra Shopmonkey"
+    },
     "diagnostics": {
       "codes": "Betydning av feilkoder"
     }
@@ -1149,6 +1152,28 @@
         "keepWeekly": "Behold ukentlige sikkerhetskopier",
         "keepMonthly": "Behold månedlige sikkerhetskopier",
         "keepMonthlyHelp": "Eldre sikkerhetskopier fjernes etter hver kjøring, og de nyeste av hver type beholdes. Sett et tall til 0 for ikke å beholde noen av den typen."
+      }
+    },
+    "shopmonkey": {
+      "description": "Hent et verksteds historikk fra Shopmonkey: kunder, kjøretøy, ordrer, fakturaer, betalinger, inspeksjoner og filer. Bare lesing: ingenting endres noen gang i Shopmonkey.",
+      "fields": {
+        "apiKey": "Shopmonkey API-nøkkel",
+        "apiKeyHelp": "En Shopmonkey-administrator lager den under Settings, Integration, API Keys. Den handler med den personens tilgang, så vedkommende trenger tilgang til hver lokasjon du importerer."
+      },
+      "settings": {
+        "locationId": "Lokasjon",
+        "locationIdHelp": "Shopmonkey-lokasjonen som skal importeres.",
+        "includeFiles": "Importer filer",
+        "includeFilesHelp": "Bilder og dokumenter knyttet til ordrer og inspeksjoner.",
+        "downloadInvoicePdfs": "Opprinnelige faktura-PDF-er",
+        "downloadInvoicePdfsHelp": "Shopmonkeys egen PDF av hver faktura, lagret ved siden av den importerte fakturaen.",
+        "downloadInvoicePdfsNone": "Ingen",
+        "downloadInvoicePdfsLast2Years": "De siste 2 årene",
+        "downloadInvoicePdfsAll": "Alle",
+        "includeMessages": "Importer meldingshistorikk",
+        "includeMessagesHelp": "SMS og e-post med kunder. Avslått blir de liggende i importarkivet og API-et.",
+        "historyFrom": "Historikk fra",
+        "historyFromHelp": "La stå tomt for å importere alt."
       }
     },
     "torqvoice-codes": {

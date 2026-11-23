@@ -81,6 +81,9 @@
       "labor": "Normy czasowe w zleceniach i wycenach",
       "fluids": "Rodzaje i pojemności płynów"
     },
+    "import": {
+      "shopmonkey": "Import z Shopmonkey"
+    },
     "diagnostics": {
       "codes": "Znaczenia kodów usterek"
     }
@@ -1149,6 +1152,28 @@
         "keepWeekly": "Zachowaj kopie tygodniowe",
         "keepMonthly": "Zachowaj kopie miesięczne",
         "keepMonthlyHelp": "Starsze kopie są usuwane po każdym uruchomieniu, a najnowsze każdego rodzaju zostają. Ustaw liczbę na 0, aby nie zachowywać żadnej kopii danego rodzaju."
+      }
+    },
+    "shopmonkey": {
+      "description": "Przenieś historię warsztatu z Shopmonkey: klientów, pojazdy, zlecenia, faktury, płatności, przeglądy i pliki. Tylko odczyt: w Shopmonkey nic nie jest zmieniane.",
+      "fields": {
+        "apiKey": "Klucz API Shopmonkey",
+        "apiKeyHelp": "Tworzy go administrator Shopmonkey w Settings, Integration, API Keys. Działa z uprawnieniami tej osoby, więc musi ona mieć dostęp do każdej importowanej lokalizacji."
+      },
+      "settings": {
+        "locationId": "Lokalizacja",
+        "locationIdHelp": "Lokalizacja Shopmonkey do zaimportowania.",
+        "includeFiles": "Importuj pliki",
+        "includeFilesHelp": "Zdjęcia i dokumenty dołączone do zleceń i przeglądów.",
+        "downloadInvoicePdfs": "Oryginalne faktury PDF",
+        "downloadInvoicePdfsHelp": "PDF Shopmonkey każdej faktury, przechowywany obok zaimportowanej faktury.",
+        "downloadInvoicePdfsNone": "Brak",
+        "downloadInvoicePdfsLast2Years": "Ostatnie 2 lata",
+        "downloadInvoicePdfsAll": "Wszystkie",
+        "includeMessages": "Importuj historię wiadomości",
+        "includeMessagesHelp": "SMS-y i e-maile z klientami. Wyłączone pozostają w archiwum importu i w API.",
+        "historyFrom": "Historia od",
+        "historyFromHelp": "Pozostaw puste, aby zaimportować wszystko."
       }
     },
     "torqvoice-codes": {

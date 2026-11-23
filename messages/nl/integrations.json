@@ -81,6 +81,9 @@
       "labor": "Arbeidstijden op werkorders en offertes",
       "fluids": "Vloeistofsoorten en inhoud"
     },
+    "import": {
+      "shopmonkey": "Importeren uit Shopmonkey"
+    },
     "diagnostics": {
       "codes": "Betekenis van foutcodes"
     }
@@ -1149,6 +1152,28 @@
         "keepWeekly": "Wekelijkse back-ups bewaren",
         "keepMonthly": "Maandelijkse back-ups bewaren",
         "keepMonthlyHelp": "Oudere back-ups worden na elke run verwijderd, waarbij de nieuwste van elk soort blijven. Zet een aantal op 0 om van dat soort niets te bewaren."
+      }
+    },
+    "shopmonkey": {
+      "description": "Haal de geschiedenis van een werkplaats uit Shopmonkey: klanten, voertuigen, orders, facturen, betalingen, inspecties en bestanden. Alleen lezen: in Shopmonkey wordt nooit iets gewijzigd.",
+      "fields": {
+        "apiKey": "Shopmonkey-API-sleutel",
+        "apiKeyHelp": "Een Shopmonkey-beheerder maakt hem aan onder Settings, Integration, API Keys. Hij werkt met de rechten van die persoon, die dus toegang nodig heeft tot elke locatie die je importeert."
+      },
+      "settings": {
+        "locationId": "Locatie",
+        "locationIdHelp": "De Shopmonkey-locatie die wordt geïmporteerd.",
+        "includeFiles": "Bestanden importeren",
+        "includeFilesHelp": "Foto's en documenten bij orders en inspecties.",
+        "downloadInvoicePdfs": "Originele factuur-pdf's",
+        "downloadInvoicePdfsHelp": "De pdf van Shopmonkey van elke factuur, bewaard naast de geïmporteerde factuur.",
+        "downloadInvoicePdfsNone": "Geen",
+        "downloadInvoicePdfsLast2Years": "De laatste 2 jaar",
+        "downloadInvoicePdfsAll": "Alle",
+        "includeMessages": "Berichtgeschiedenis importeren",
+        "includeMessagesHelp": "Sms'jes en e-mails met klanten. Uitgeschakeld blijven ze in het importarchief en de API.",
+        "historyFrom": "Geschiedenis vanaf",
+        "historyFromHelp": "Laat leeg om alles te importeren."
       }
     },
     "torqvoice-codes": {

@@ -81,6 +81,9 @@
       "labor": "Labor times on work orders and quotes",
       "fluids": "Fluid types and capacities"
     },
+    "import": {
+      "shopmonkey": "Import from Shopmonkey"
+    },
     "diagnostics": {
       "codes": "Fault code meanings"
     }
@@ -1149,6 +1152,28 @@
         "keepWeekly": "Keep weekly backups",
         "keepMonthly": "Keep monthly backups",
         "keepMonthlyHelp": "Older backups are removed after each run, keeping the newest of each kind. Set a number to 0 to keep none of that kind."
+      }
+    },
+    "shopmonkey": {
+      "description": "Bring a workshop's history over from Shopmonkey: customers, vehicles, orders, invoices, payments, inspections and files. Read-only: nothing is ever changed in Shopmonkey.",
+      "fields": {
+        "apiKey": "Shopmonkey API key",
+        "apiKeyHelp": "A Shopmonkey admin creates it under Settings, Integration, API Keys. It acts with that person's access, so they need every location you import."
+      },
+      "settings": {
+        "locationId": "Location",
+        "locationIdHelp": "The Shopmonkey location to import.",
+        "includeFiles": "Import files",
+        "includeFilesHelp": "Photos and documents attached to orders and inspections.",
+        "downloadInvoicePdfs": "Original invoice PDFs",
+        "downloadInvoicePdfsHelp": "Shopmonkey's own PDF of each invoice, kept beside the imported invoice.",
+        "downloadInvoicePdfsNone": "None",
+        "downloadInvoicePdfsLast2Years": "The last 2 years",
+        "downloadInvoicePdfsAll": "All",
+        "includeMessages": "Import message history",
+        "includeMessagesHelp": "Texts and emails with customers. Left off, they stay in the import archive and the API.",
+        "historyFrom": "History from",
+        "historyFromHelp": "Leave empty to import everything."
       }
     },
     "torqvoice-codes": {
