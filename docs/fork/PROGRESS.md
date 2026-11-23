@@ -27,7 +27,7 @@ resolved.
 | M2 | provisional | fork/M2-connector-and-client | Merged 6318fb3f. Built on documented shapes only: re-verify with a key (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M2 provisional). |
 | M3 | provisional | fork/M3-extract-and-stage | Merged c79858fb. Built on documented shapes and synthetic fixtures: re-verify with a key (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M3 provisional). |
 | M4 | provisional | fork/M4-transform | Merged 634a6785. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M4 provisional). |
-| M5 | todo | | |
+| M5 | in_progress | fork/M5-load | |
 | A3 | todo | | |
 | A4 | todo | | |
 | M6 | todo | | |
@@ -65,8 +65,48 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**Next: M5 (load).** Design notes so far (links in the transaction, re-linking after a restore, undo scope, webhooks,
-the issue guard, files, line columns through app edits) are in the session scratchpad `m5-design.md`.
+**M5 (load), in progress** on `fork/M5-load` (from `fork/integration` at 04075abc; upstream had nothing new).
+Provisional (B1). Plan:
+1. [ ] Migration `fork_source_local_link`: `SourceRecord.localEntity`, `localId`, `loadedHash` (task 13: a backed-up
+   remote ↔ local mapping, so a load after a restore or a reconnect re-links instead of creating rows again).
+2. [ ] `load/links.ts`: links written through the order's transaction (`tx.integrationLink`, scoped by `connectionId`;
+   `ctx.links` writes with `db` outside any transaction), plus the SourceRecord mapping in the same transaction;
+   lookup by remote id, falling back to the SourceRecord's `localId` (checked to still be this workshop's row), which
+   rebuilds the link. Skip when the stored hash equals the source's (an order's hash covers its children).
+3. [ ] `load/context.ts`: `TransformContext.resolve` from the links (table → model per `transform/types.ts`; `order`
+   → work orders only), `statusStageMap` complete (operator over `defaultStages`).
+4. [ ] Loaders in plan order: technicians, workflow statuses, customers (+contacts, custom fields; numbers after
+   every numeric `publicId`), vehicles (+notes; `mileageUnit` from the oldest vehicle), inventory (+ one "import"
+   `StockMovement`; barcode only if unique), presets, orders (one transaction each: ServiceRecord or Quote, jobs,
+   lines with `jobId`/`lineKind`/X3 columns, quote lines `excluded = !counts`, concern, meta, helpers, payments
+   `provider: shopmonkey`, findings, custom field values), appointments (+ the order's `startDateTime`), inspection
+   templates, inspections, time entries and shifts. Workshop settings (tax, labor rate, name, time zone,
+   numbering) are proposed in the run's summary, applied only with `--apply-settings` / `--apply-numbering`.
+5. [ ] Files: staged files moved to `uploadsRoot()/<org>/services/<uuid>.<ext>` (what `isGeneratedName` accepts), then
+   `ServiceAttachment` rows; inspection photos into `imageUrls`; invoice PDFs as category `document`,
+   `includeInInvoice: false`, "Original Shopmonkey invoice"; the staging folder removed when its files are moved.
+6. [ ] ImportBatch per entity type (`source: shopmonkey`) on created customers, vehicles, service records,
+   inspections; undo = the spreadsheet undo's rules (`undoImportBatch`, importActions.ts) for those, plus the other
+   rows the run created (by its IntegrationLinks), then their links and SourceRecord mappings.
+7. [ ] `issueInvoice(id, org, 'backfill')` after each invoiced order commits; refuse to start while an active
+   connection's manifest subscribes to `service.update` (computed from the registry, not a fixed list).
+8. [ ] One `logAudit` per run (`shopmonkey.import`, counts in metadata; not in `WEBHOOK_EVENTS`, so no webhook).
+9. [ ] CLI `run.ts load --connection <id> [--dry-run] [--apply-numbering] [--apply-settings]` (dry run: every
+   transaction rolled back).
+10. [ ] Task 12: the work order and quote saves (A2 services `serviceRecordService.server.ts` ~560/644,
+    `quoteService.server.ts` ~189/199) carry the fork line columns across a save. The line schemas
+    (`vehicles/Schema/serviceSchema.ts`) have no `id` and the parts editor keys rows locally (`keysRef`): trace
+    `ServicePageClient.tsx` first; prefer an optional `id` (an old tab sends none), else match by position + name.
+11. [ ] Tests (db): load twice gives identical counts and no updates; one changed order updates only its rows; an
+    invoiced order is locked and its PDF prints Shopmonkey's number, lines and totals; unpaid/partly paid balances;
+    undo restores the per-table counts; no `WebhookDelivery` with an active `*` webhook; editing an imported work
+    order and quote keeps the fork columns; after a restore a second load creates no duplicates.
+12. [ ] DoD, reviewer, merge as provisional.
+Facts found while planning: `dispatchWebhookEvent` returns unless the event is in `WEBHOOK_EVENTS` (even for `*`);
+the issue guard's connectors today are fiken, google-calendar, microsoft-365, quickbooks, xero, zoho-books, zoom
+(manifest `subscriptions` with `service.update`); the upload route names files `<randomUUID>.<ext>` under
+`uploadsRoot()/<org>/services/` and returns `/api/protected/files/<org>/services/<name>`; the spreadsheet undo
+doesn't cover quotes, inspections, appointments, inventory, presets, technicians or statuses (no `importBatchId`).
 
 Notes for M5 (from M4's review): quote lines take `excluded = !job.counts` (§6.3); `ctx.resolve` must follow the
 table-to-model contract in `transform/types.ts` (`order` → work orders only); build `statusStageMap` complete
