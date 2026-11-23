@@ -11,7 +11,7 @@
   "roleHint": "Raktas gali daryti tai, ką leidžia šis vaidmuo, ir nieko daugiau.",
   "needRole": "Pirmiausia sukurkite vaidmenį skiltyje Nustatymai, Vaidmenys: raktas visada veikia su vaidmeniu.",
   "ipAllowlist": "Leidžiami IP adresai (neprivaloma)",
-  "ipAllowlistHint": "Adresus atskirkite kableliais arba tarpais. Palikite tuščią, kad būtų leidžiamas bet koks adresas.",
+  "ipAllowlistHint": "Adresus atskirkite kableliais arba tarpais. Palikite tuščią, kad būtų leidžiamas bet koks adresas. Tai patikima tik už atvirkštinio tarpinio serverio, kuris nustato X-Real-IP (arba Cloudflare su TRUST_CF_CONNECTING_IP).",
   "cancel": "Atšaukti",
   "shownTitle": "Jūsų naujas API raktas",
   "shownDescription": "Nukopijuokite jį dabar. Daugiau jo nebepamatysite.",
@@ -30,5 +30,6 @@
   "revokeDescription": "Viskas, kas naudoja šį raktą, iškart nustos veikti. To negalima atšaukti.",
   "revoked": "Raktas atšauktas",
   "revokeFailed": "Nepavyko atšaukti rakto.",
-  "ownerOnly": "API raktus gali tvarkyti tik savininkas arba administratorius."
+  "ownerOnly": "API raktus gali tvarkyti tik savininkas arba administratorius.",
+  "copyFailed": "Nepavyko nukopijuoti. Pažymėkite raktą ir nukopijuokite jį rankiniu būdu."
 }

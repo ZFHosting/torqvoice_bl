@@ -155,13 +155,13 @@
         "title": "Modelli email",
         "description": "Cosa dicono le email di fattura, preventivo e rapporto"
       },
-      "workOrderStatuses": {
-        "title": "Stati degli ordini",
-        "description": "I tuoi passaggi, e chi viene avvisato"
-      },
       "apiKeys": {
         "title": "Chiavi API",
         "description": "Chiavi per le integrazioni"
+      },
+      "workOrderStatuses": {
+        "title": "Stati degli ordini",
+        "description": "I tuoi passaggi, e chi viene avvisato"
       }
     },
     "pro": "PRO",

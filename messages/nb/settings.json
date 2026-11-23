@@ -155,13 +155,13 @@
         "title": "E-postmaler",
         "description": "Hva e-postene for faktura, tilbud og rapport sier"
       },
-      "workOrderStatuses": {
-        "title": "Statuser for arbeidsordre",
-        "description": "Dine egne steg, og hvem som får beskjed"
-      },
       "apiKeys": {
         "title": "API-nøkler",
         "description": "Nøkler for integrasjoner"
+      },
+      "workOrderStatuses": {
+        "title": "Statuser for arbeidsordre",
+        "description": "Dine egne steg, og hvem som får beskjed"
       }
     },
     "pro": "PRO",

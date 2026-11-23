@@ -11,7 +11,7 @@
   "roleHint": "Nøkkelen kan gjøre det denne rollen tillater, og ikke noe mer.",
   "needRole": "Opprett en rolle under Innstillinger, Roller først: en nøkkel handler alltid med en rolle.",
   "ipAllowlist": "Tillatte IP-adresser (valgfritt)",
-  "ipAllowlistHint": "Skill adressene med komma eller mellomrom. La feltet stå tomt for å tillate alle adresser.",
+  "ipAllowlistHint": "Skill adressene med komma eller mellomrom. La feltet stå tomt for å tillate alle adresser. Det holder bare bak en omvendt proxy som setter X-Real-IP (eller Cloudflare med TRUST_CF_CONNECTING_IP).",
   "cancel": "Avbryt",
   "shownTitle": "Din nye API-nøkkel",
   "shownDescription": "Kopier den nå. Du får ikke se den igjen.",
@@ -30,5 +30,6 @@
   "revokeDescription": "Alt som bruker denne nøkkelen, slutter å virke med en gang. Dette kan ikke angres.",
   "revoked": "Nøkkelen er tilbakekalt",
   "revokeFailed": "Nøkkelen kunne ikke tilbakekalles.",
-  "ownerOnly": "Bare en eier eller administrator kan administrere API-nøkler."
+  "ownerOnly": "Bare en eier eller administrator kan administrere API-nøkler.",
+  "copyFailed": "Kunne ikke kopiere. Merk nøkkelen og kopier den for hånd."
 }

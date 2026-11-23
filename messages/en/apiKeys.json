@@ -11,7 +11,7 @@
   "roleHint": "The key can do what this role allows, and nothing more.",
   "needRole": "Create a role under Settings, Roles first: a key always acts with a role.",
   "ipAllowlist": "Allowed IP addresses (optional)",
-  "ipAllowlistHint": "Separate addresses with commas or spaces. Leave empty to allow any address.",
+  "ipAllowlistHint": "Separate addresses with commas or spaces. Leave empty to allow any address. It only holds behind a reverse proxy that sets X-Real-IP (or Cloudflare with TRUST_CF_CONNECTING_IP).",
   "cancel": "Cancel",
   "shownTitle": "Your new API key",
   "shownDescription": "Copy it now. You won't be able to see it again.",
@@ -30,5 +30,6 @@
   "revokeDescription": "Anything using this key stops working at once. This can't be undone.",
   "revoked": "Key revoked",
   "revokeFailed": "The key could not be revoked.",
-  "ownerOnly": "Only an owner or administrator can manage API keys."
+  "ownerOnly": "Only an owner or administrator can manage API keys.",
+  "copyFailed": "Couldn't copy. Select the key and copy it by hand."
 }

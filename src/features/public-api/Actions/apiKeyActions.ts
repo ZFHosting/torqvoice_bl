@@ -7,16 +7,15 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { demoGuard } from '@/lib/demo'
 import { requireFeature } from '@/lib/features'
 import { withAuth } from '@/lib/with-auth'
-import { createApiKeySchema } from '../Schema/apiKeys'
+import { API_KEYS_OWNER_ONLY as OWNER_ONLY, createApiKeySchema } from '../Schema/apiKeys'
 import {
   ApiKeyRoleError,
   createApiKey as createKey,
   revokeApiKey as revokeKey,
 } from '../Lib/keys.server'
-
-const OWNER_ONLY = 'Only an owner or administrator can manage API keys.'
 
 export async function getApiKeys() {
   return withAuth(async ({ organizationId, isAdmin }) => {
@@ -74,6 +73,8 @@ export async function createApiKey(input: unknown) {
     async ({ organizationId, userId, isAdmin }) => {
       if (!isAdmin) throw new Error(OWNER_ONLY)
       await requireFeature(organizationId, 'api')
+      // A key is a login of sorts to the shared demo, which takes no new users either.
+      demoGuard()
       const data = createApiKeySchema.parse(input)
       try {
         const created = await createKey({

@@ -104,12 +104,18 @@ export function ApiKeysSettings({
 
   const copy = async () => {
     if (!shownKey) return
-    await navigator.clipboard.writeText(shownKey)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(shownKey)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // No clipboard on a plain-HTTP install, or the browser said no: the key is on screen.
+      toast.error(t('copyFailed'))
+    }
   }
 
-  // An instant, read by whoever is signed in: their own clock, as on the webhooks page.
+  // An instant, read by whoever is signed in: their own clock, as on the webhooks page. The server
+  // renders it in its own zone first, hence suppressHydrationWarning where it is shown.
   const when = (date: Date | null) => (date ? new Date(date).toLocaleString() : t('never'))
 
   return (
@@ -148,7 +154,7 @@ export function ApiKeysSettings({
                     )}
                   </div>
                   <p className="font-mono text-xs text-muted-foreground">tvk_{key.prefix}_…</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground" suppressHydrationWarning>
                     {t('created', { when: when(key.createdAt) })} ·{' '}
                     {t('lastUsed', { when: when(key.lastUsedAt) })}
                   </p>

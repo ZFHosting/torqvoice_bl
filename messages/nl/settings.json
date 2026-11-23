@@ -155,13 +155,13 @@
         "title": "E-mailsjablonen",
         "description": "Wat je e-mails voor factuur, offerte en rapport zeggen"
       },
-      "workOrderStatuses": {
-        "title": "Werkorderstatussen",
-        "description": "Uw eigen stappen, en wie bericht krijgt"
-      },
       "apiKeys": {
         "title": "API-sleutels",
         "description": "Sleutels voor integraties"
+      },
+      "workOrderStatuses": {
+        "title": "Werkorderstatussen",
+        "description": "Uw eigen stappen, en wie bericht krijgt"
       }
     },
     "pro": "PRO",

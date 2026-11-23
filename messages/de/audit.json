@@ -232,9 +232,9 @@
     "equipment_delete": "Ausrüstung gelöscht",
     "platform_deleteUser": "Benutzer gelöscht",
     "platform_grantSuperAdmin": "Super-Admin erteilt",
-    "platform_revokeSuperAdmin": "Super-Admin entzogen",
     "api_key_create": "API-Schlüssel erstellt",
-    "api_key_revoke": "API-Schlüssel widerrufen"
+    "api_key_revoke": "API-Schlüssel widerrufen",
+    "platform_revokeSuperAdmin": "Super-Admin entzogen"
   },
   "summary": {
     "auth_twoFactorEnabled": "Zwei-Faktor-Anmeldung aktiviert",
@@ -426,8 +426,8 @@
     "equipment_meter": "Zähler {meter} zu {name} an {vehicle} hinzugefügt",
     "platform_deleteUser": "Benutzer {name} ({email}) gelöscht",
     "platform_grantSuperAdmin": "{name} ({email}) zum Super-Admin gemacht",
-    "platform_revokeSuperAdmin": "{name} ({email}) den Super-Admin entzogen",
     "api_key_create": "API-Schlüssel {name} ({ref}) erstellt",
-    "api_key_revoke": "API-Schlüssel {name} ({ref}) widerrufen"
+    "api_key_revoke": "API-Schlüssel {name} ({ref}) widerrufen",
+    "platform_revokeSuperAdmin": "{name} ({email}) den Super-Admin entzogen"
   }
 }

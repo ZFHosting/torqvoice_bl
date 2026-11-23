@@ -232,9 +232,9 @@
     "equipment_delete": "Équipement supprimé",
     "platform_deleteUser": "Utilisateur supprimé",
     "platform_grantSuperAdmin": "Super administrateur accordé",
-    "platform_revokeSuperAdmin": "Super administrateur retiré",
     "api_key_create": "Clé d'API créée",
-    "api_key_revoke": "Clé d'API révoquée"
+    "api_key_revoke": "Clé d'API révoquée",
+    "platform_revokeSuperAdmin": "Super administrateur retiré"
   },
   "summary": {
     "auth_twoFactorEnabled": "A activé la connexion à deux facteurs",
@@ -426,8 +426,8 @@
     "equipment_meter": "A ajouté le compteur {meter} à {name} sur {vehicle}",
     "platform_deleteUser": "Utilisateur {name} ({email}) supprimé",
     "platform_grantSuperAdmin": "{name} ({email}) nommé super administrateur",
-    "platform_revokeSuperAdmin": "Rôle de super administrateur retiré à {name} ({email})",
     "api_key_create": "Clé d'API {name} ({ref}) créée",
-    "api_key_revoke": "Clé d'API {name} ({ref}) révoquée"
+    "api_key_revoke": "Clé d'API {name} ({ref}) révoquée",
+    "platform_revokeSuperAdmin": "Rôle de super administrateur retiré à {name} ({email})"
   }
 }

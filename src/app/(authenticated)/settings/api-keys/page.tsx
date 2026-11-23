@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getTranslations } from 'next-intl/server'
 import { getApiKeys } from '@/features/public-api/Actions/apiKeyActions'
 import { ApiKeysSettings } from '@/features/public-api/Components/ApiKeysSettings'
+import { API_KEYS_OWNER_ONLY } from '@/features/public-api/Schema/apiKeys'
 import { getFeatures, isCloudMode } from '@/lib/features'
 import { getLayoutData } from '@/lib/get-layout-data'
 import { settingsPageTitle } from '@/lib/page-title'
@@ -20,6 +21,9 @@ export default async function ApiKeysPage() {
   const t = await getTranslations('apiKeys')
   const result = await getApiKeys()
   if (!result.success || !result.data) {
+    // Anything but "not an owner" (a restore under way, a database error) is the error page's.
+    if (result.error !== API_KEYS_OWNER_ONLY)
+      throw new Error(result.error ?? 'Could not load API keys')
     return (
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold">{t('title')}</h1>

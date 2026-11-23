@@ -11,7 +11,7 @@
   "roleHint": "Klucz może robić to, na co pozwala ta rola, i nic więcej.",
   "needRole": "Najpierw utwórz rolę w Ustawienia, Role: klucz zawsze działa z rolą.",
   "ipAllowlist": "Dozwolone adresy IP (opcjonalnie)",
-  "ipAllowlistHint": "Oddziel adresy przecinkami lub spacjami. Pozostaw puste, aby zezwolić na każdy adres.",
+  "ipAllowlistHint": "Oddziel adresy przecinkami lub spacjami. Pozostaw puste, aby zezwolić na każdy adres. Działa to tylko za odwrotnym proxy, które ustawia X-Real-IP (lub Cloudflare z TRUST_CF_CONNECTING_IP).",
   "cancel": "Anuluj",
   "shownTitle": "Twój nowy klucz API",
   "shownDescription": "Skopiuj go teraz. Nie zobaczysz go ponownie.",
@@ -30,5 +30,6 @@
   "revokeDescription": "Wszystko, co używa tego klucza, natychmiast przestanie działać. Tej operacji nie można cofnąć.",
   "revoked": "Klucz unieważniony",
   "revokeFailed": "Nie udało się unieważnić klucza.",
-  "ownerOnly": "Kluczami API może zarządzać tylko właściciel lub administrator."
+  "ownerOnly": "Kluczami API może zarządzać tylko właściciel lub administrator.",
+  "copyFailed": "Nie udało się skopiować. Zaznacz klucz i skopiuj go ręcznie."
 }

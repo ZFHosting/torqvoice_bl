@@ -125,6 +125,25 @@ describe('Idempotency-Key', () => {
     expect(handler.runs).toBe(1)
   })
 
+  it('frees a key whose request died mid-flight, once the claim is old enough', async () => {
+    // What a crash leaves: a claim still in flight, never finished or given back.
+    await db.apiIdempotencyKey.create({
+      data: {
+        organizationId: scope.organizationId,
+        apiKeyId: scope.apiKeyId,
+        key: 'k-6',
+        requestHash: 'whatever',
+        responseStatus: 0,
+        responseBody: {},
+        createdAt: new Date(Date.now() - idem.IN_FLIGHT_ABANDONED_MS - 60_000),
+      },
+    })
+    const handler = counter()
+    const retried = await idem.withIdempotency(post('k-6', '{}'), scope, '{}', handler.run)
+    expect(retried.status).toBe(201)
+    expect(handler.runs).toBe(1)
+  })
+
   it('runs every request without a key', async () => {
     const handler = counter()
     await idem.withIdempotency(post(null, '{}'), scope, '{}', handler.run)

@@ -232,9 +232,9 @@
     "equipment_delete": "Equipamento eliminado",
     "platform_deleteUser": "Utilizador eliminado",
     "platform_grantSuperAdmin": "Super admin concedido",
-    "platform_revokeSuperAdmin": "Super admin removido",
     "api_key_create": "Chave de API criada",
-    "api_key_revoke": "Chave de API revogada"
+    "api_key_revoke": "Chave de API revogada",
+    "platform_revokeSuperAdmin": "Super admin removido"
   },
   "summary": {
     "auth_twoFactorEnabled": "Ativou o início de sessão em dois passos",
@@ -426,8 +426,8 @@
     "equipment_meter": "Adicionou o contador {meter} a {name} em {vehicle}",
     "platform_deleteUser": "Utilizador {name} ({email}) eliminado",
     "platform_grantSuperAdmin": "{name} ({email}) tornou-se super admin",
-    "platform_revokeSuperAdmin": "Super admin removido de {name} ({email})",
     "api_key_create": "Chave de API {name} ({ref}) criada",
-    "api_key_revoke": "Chave de API {name} ({ref}) revogada"
+    "api_key_revoke": "Chave de API {name} ({ref}) revogada",
+    "platform_revokeSuperAdmin": "Super admin removido de {name} ({email})"
   }
 }

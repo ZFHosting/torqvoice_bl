@@ -122,9 +122,53 @@ describe('withPublicApi', () => {
     spy.mockRestore()
   })
 
-  it('reports the key’s remaining budget on every answer', async () => {
-    const response = await withPublicApi(req(), async () => new Response('ok'))
-    expect(response.headers.get('X-RateLimit-Limit')).toBe('120')
-    expect(response.headers.get('X-RateLimit-Remaining')).toBe('119')
+  it('reports the key’s remaining budget on every answer, refusals included', async () => {
+    const ok = await withPublicApi(req(), async () => new Response('ok'))
+    expect(ok.headers.get('X-RateLimit-Limit')).toBe('120')
+    expect(ok.headers.get('X-RateLimit-Remaining')).toBe('119')
+
+    const denied = await withPublicApi(req(), async () => new Response('ok'), {
+      requiredPermissions: [{ action: 'delete', subject: 'customers' } as never],
+    })
+    expect(denied.status).toBe(403)
+    expect(denied.headers.get('X-RateLimit-Remaining')).toBe('118')
+
+    mocks.getFeatures.mockResolvedValue({ api: false })
+    const gated = await withPublicApi(req(), async () => new Response('ok'))
+    expect(gated.status).toBe(403)
+    expect(gated.headers.get('X-RateLimit-Remaining')).toBe('117')
+  })
+
+  it('gives a route with its own limit a bucket of its own', async () => {
+    const tight = { rateLimit: { limit: 1, windowMs: 60_000 } }
+    expect((await withPublicApi(req(), async () => new Response('ok'), tight)).status).toBe(200)
+    expect((await withPublicApi(req(), async () => new Response('ok'), tight)).status).toBe(429)
+    // The key's default budget is untouched by the tight route.
+    const other = await withPublicApi(req(), async () => new Response('ok'))
+    expect(other.status).toBe(200)
+    expect(other.headers.get('X-RateLimit-Remaining')).toBe('119')
+  })
+
+  it('turns away an address that keeps failing, before looking any key up', async () => {
+    mocks.verifyApiKey.mockResolvedValue({ ok: false, reason: 'unknown' })
+    const { FAILED_AUTH_LIMIT } = await import('@/features/public-api/Lib/rateLimit')
+    for (let i = 0; i < FAILED_AUTH_LIMIT; i++) {
+      expect((await withPublicApi(req(), async () => new Response())).status).toBe(401)
+    }
+    const blocked = await withPublicApi(req(), async () => new Response())
+    expect(blocked.status).toBe(429)
+    expect(Number(blocked.headers.get('Retry-After'))).toBeGreaterThan(0)
+    expect(mocks.verifyApiKey).toHaveBeenCalledTimes(FAILED_AUTH_LIMIT)
+  })
+
+  it('answers a database error before the handler in the same shape, saying nothing of it', async () => {
+    mocks.verifyApiKey.mockRejectedValue(new Error('connect ECONNREFUSED db:5432'))
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const response = await withPublicApi(req(), async () => new Response())
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body).toMatchObject({ error: { code: 'server_error' } })
+    expect(JSON.stringify(body)).not.toContain('ECONNREFUSED')
+    spy.mockRestore()
   })
 })

@@ -11,7 +11,7 @@
   "roleHint": "A chave pode fazer o que esta função permite, e nada mais.",
   "needRole": "Crie primeiro uma função em Configurações, Funções: uma chave sempre age com uma função.",
   "ipAllowlist": "Endereços IP permitidos (opcional)",
-  "ipAllowlistHint": "Separe os endereços com vírgulas ou espaços. Deixe em branco para permitir qualquer endereço.",
+  "ipAllowlistHint": "Separe os endereços com vírgulas ou espaços. Deixe em branco para permitir qualquer endereço. Só é confiável atrás de um proxy reverso que defina X-Real-IP (ou Cloudflare com TRUST_CF_CONNECTING_IP).",
   "cancel": "Cancelar",
   "shownTitle": "Sua nova chave de API",
   "shownDescription": "Copie-a agora. Você não poderá vê-la novamente.",
@@ -30,5 +30,6 @@
   "revokeDescription": "Tudo o que usa esta chave para de funcionar imediatamente. Isso não pode ser desfeito.",
   "revoked": "Chave revogada",
   "revokeFailed": "Não foi possível revogar a chave.",
-  "ownerOnly": "Somente um proprietário ou administrador pode gerenciar as chaves de API."
+  "ownerOnly": "Somente um proprietário ou administrador pode gerenciar as chaves de API.",
+  "copyFailed": "Não foi possível copiar. Selecione a chave e copie-a manualmente."
 }

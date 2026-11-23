@@ -27,7 +27,12 @@ export const LAST_USED_THROTTLE_MS = 60_000
  */
 function pepper(): string {
   const value = process.env.API_KEY_PEPPER
-  if (value && value.length >= 16) return value
+  if (value) {
+    // Set but too short is a mistake, not a choice: falling back silently would make every key
+    // stop working the day it is fixed.
+    if (value.length < 16) throw new Error('API_KEY_PEPPER must be at least 16 characters.')
+    return value
+  }
   const fallback = process.env.BETTER_AUTH_SECRET
   if (!fallback) throw new Error('Set API_KEY_PEPPER (openssl rand -hex 32) to use API keys.')
   return `torqvoice-api-key-pepper:${fallback}`

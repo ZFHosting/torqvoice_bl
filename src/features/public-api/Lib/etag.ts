@@ -15,8 +15,8 @@ export function etagFor(record: { id: string; updatedAt: Date }): string {
 
 /**
  * Whether a write may go ahead. No `If-Match` means the client didn't ask for the check (allowed);
- * `*` matches any existing record; otherwise one of the listed tags must be the current one. Weak
- * tags (`W/"..."`) compare by their value.
+ * `*` matches any existing record; otherwise one of the listed tags must be the current one, by
+ * strong comparison (RFC 9110 §13.1.1): a weak tag (`W/"..."`) never matches.
  */
 export function ifMatchSatisfied(
   header: string | null,
@@ -26,6 +26,6 @@ export function ifMatchSatisfied(
   const current = etagFor(record)
   return header
     .split(',')
-    .map((tag) => tag.trim().replace(/^W\//, ''))
+    .map((tag) => tag.trim())
     .some((tag) => tag === '*' || tag === current)
 }

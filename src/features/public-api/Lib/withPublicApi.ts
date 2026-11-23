@@ -21,7 +21,7 @@ import { documentLockedResponse } from '@/lib/with-api-auth'
 import { publicApiError } from './errors'
 import { verifyApiKey } from './keys.server'
 import { InvalidCursorError } from './pagination'
-import { consumeKeyBudget } from './rateLimit'
+import { type Budget, consumeKeyBudget, failedAuthRetryAfter, recordFailedAuth } from './rateLimit'
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
@@ -69,68 +69,98 @@ export async function withPublicApi(
   const token = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : ''
   if (!token.startsWith('tvk_')) return refuse('missing')
 
-  const ip = clientAddress(request)
-  const verified = await verifyApiKey(token, ip === 'unknown' ? null : ip)
-  if (!verified.ok) return refuse(verified.reason)
-
-  const budget = consumeKeyBudget(verified.apiKeyId, options.rateLimit)
-  if (!budget.allowed) {
-    return publicApiError(429, 'rate_limited', 'Too many requests for this API key.', undefined, {
-      'Retry-After': String(budget.retryAfterSeconds),
-      'X-RateLimit-Limit': String(budget.limit),
-      'X-RateLimit-Remaining': '0',
-    })
+  // Cheap refusal first: an address that keeps presenting bad keys gets no lookup at all.
+  const address = clientAddress(request)
+  const blockedFor = failedAuthRetryAfter(address)
+  if (blockedFor !== null) {
+    return publicApiError(
+      429,
+      'rate_limited',
+      'Too many failed attempts from this address.',
+      undefined,
+      {
+        'Retry-After': String(blockedFor),
+      }
+    )
   }
 
-  const { organizationId, serviceUserId: userId, apiKeyId } = verified
-  const features = await getFeatures(organizationId)
-  if (!features.api) {
-    return publicApiError(403, 'forbidden', "This workshop's plan does not include the API.", {
-      gate: 'api',
-    })
+  let budget: Budget | null = null
+  /** Every answer after the key's budget is counted says what is left of it (API.md §3). */
+  const withBudget = (response: Response) => {
+    if (budget) {
+      response.headers.set('X-RateLimit-Limit', String(budget.limit))
+      response.headers.set('X-RateLimit-Remaining', String(budget.remaining))
+    }
+    return response
   }
 
-  // The key's access is its service user's membership: revoking removes it, and the roles screen
-  // changes it, both on the next request.
-  const membership = await db.organizationMember.findFirst({
-    where: { organizationId, userId },
-    select: {
-      role: true,
-      customRole: {
-        select: { isAdmin: true, permissions: { select: { action: true, subject: true } } },
-      },
-    },
-  })
-  if (!membership) return refuse('revoked')
-  const isAdmin =
-    membership.role === 'owner' ||
-    membership.role === 'admin' ||
-    membership.customRole?.isAdmin === true
-  const permissions = membership.customRole?.permissions ?? []
-  if (
-    options.requiredPermissions?.length &&
-    !isAdmin &&
-    !hasAllPermissions(permissions, options.requiredPermissions)
-  ) {
-    return publicApiError(403, 'forbidden', "This API key's role does not allow this.")
-  }
-
-  if (!SAFE_METHODS.has(request.method) && isRestoring(organizationId)) {
-    return publicApiError(409, 'conflict', RESTORE_IN_PROGRESS_MESSAGE)
-  }
-
-  let response: Response
   try {
+    const verified = await verifyApiKey(token, address === 'unknown' ? null : address)
+    if (!verified.ok) {
+      recordFailedAuth(address)
+      return refuse(verified.reason)
+    }
+
+    budget = consumeKeyBudget(verified.apiKeyId, options.rateLimit)
+    if (!budget.allowed) {
+      return withBudget(
+        publicApiError(429, 'rate_limited', 'Too many requests for this API key.', undefined, {
+          'Retry-After': String(budget.retryAfterSeconds),
+        })
+      )
+    }
+
+    const { organizationId, serviceUserId: userId, apiKeyId } = verified
+    const features = await getFeatures(organizationId)
+    if (!features.api) {
+      return withBudget(
+        publicApiError(403, 'forbidden', "This workshop's plan does not include the API.", {
+          gate: 'api',
+        })
+      )
+    }
+
+    // The key's access is its service user's membership: revoking removes it, and the roles screen
+    // changes it, both on the next request.
+    const membership = await db.organizationMember.findFirst({
+      where: { organizationId, userId },
+      select: {
+        role: true,
+        customRole: {
+          select: { isAdmin: true, permissions: { select: { action: true, subject: true } } },
+        },
+      },
+    })
+    if (!membership) return withBudget(refuse('revoked'))
+    const isAdmin =
+      membership.role === 'owner' ||
+      membership.role === 'admin' ||
+      membership.customRole?.isAdmin === true
+    const permissions = membership.customRole?.permissions ?? []
+    if (
+      options.requiredPermissions?.length &&
+      !isAdmin &&
+      !hasAllPermissions(permissions, options.requiredPermissions)
+    ) {
+      return withBudget(
+        publicApiError(403, 'forbidden', "This API key's role does not allow this.")
+      )
+    }
+
+    if (!SAFE_METHODS.has(request.method) && isRestoring(organizationId)) {
+      return withBudget(publicApiError(409, 'conflict', RESTORE_IN_PROGRESS_MESSAGE))
+    }
+
     // Inside the actor, so the workshop's open screens learn of the change and who made it.
-    response = await runAsActor({ userId, name: null, source: 'system' }, () =>
+    const response = await runAsActor({ userId, name: null, source: 'system' }, () =>
       handler({ organizationId, userId, apiKeyId, permissions, isAdmin })
     )
+    return withBudget(response)
   } catch (err) {
-    response = errorResponse(request, err)
+    // The key lookup, the plan and the membership too: a database error before the handler is
+    // answered in the same shape as one inside it.
+    return withBudget(errorResponse(request, err))
   }
-  response.headers.set('X-RateLimit-Limit', String(budget.limit))
-  response.headers.set('X-RateLimit-Remaining', String(budget.remaining))
-  return response
 }
 
 /** A thrown error as a response: the caller's own mistakes said plainly, ours said not at all. */

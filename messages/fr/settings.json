@@ -155,13 +155,13 @@
         "title": "Modèles d'e-mail",
         "description": "Ce que disent vos e-mails de facture, devis et rapport"
       },
-      "workOrderStatuses": {
-        "title": "Statuts des ordres",
-        "description": "Vos propres étapes, et qui est prévenu"
-      },
       "apiKeys": {
         "title": "Clés d'API",
         "description": "Clés pour les intégrations"
+      },
+      "workOrderStatuses": {
+        "title": "Statuts des ordres",
+        "description": "Vos propres étapes, et qui est prévenu"
       }
     },
     "pro": "PRO",

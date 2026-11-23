@@ -1,6 +1,9 @@
 /** What Settings → API keys sends to create a key. Safe to import from the form. */
 import { z } from 'zod'
 
+/** What the actions answer a member who isn't an owner or admin; the page recognises it. */
+export const API_KEYS_OWNER_ONLY = 'Only an owner or administrator can manage API keys.'
+
 export const createApiKeySchema = z.object({
   name: z.string().trim().min(1).max(80),
   roleId: z.string().min(1),

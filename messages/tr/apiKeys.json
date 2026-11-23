@@ -11,7 +11,7 @@
   "roleHint": "Anahtar bu rolün izin verdiklerini yapabilir, fazlasını değil.",
   "needRole": "Önce Ayarlar, Roller altında bir rol oluşturun: bir anahtar her zaman bir rolle hareket eder.",
   "ipAllowlist": "İzin verilen IP adresleri (isteğe bağlı)",
-  "ipAllowlistHint": "Adresleri virgül veya boşlukla ayırın. Her adrese izin vermek için boş bırakın.",
+  "ipAllowlistHint": "Adresleri virgül veya boşlukla ayırın. Her adrese izin vermek için boş bırakın. Bu yalnızca X-Real-IP ayarlayan bir ters proxy arkasında (veya TRUST_CF_CONNECTING_IP ile Cloudflare) güvenilirdir.",
   "cancel": "İptal",
   "shownTitle": "Yeni API anahtarınız",
   "shownDescription": "Şimdi kopyalayın. Bir daha göremeyeceksiniz.",
@@ -30,5 +30,6 @@
   "revokeDescription": "Bu anahtarı kullanan her şey hemen çalışmayı durdurur. Bu işlem geri alınamaz.",
   "revoked": "Anahtar iptal edildi",
   "revokeFailed": "Anahtar iptal edilemedi.",
-  "ownerOnly": "API anahtarlarını yalnızca sahip veya yönetici yönetebilir."
+  "ownerOnly": "API anahtarlarını yalnızca sahip veya yönetici yönetebilir.",
+  "copyFailed": "Kopyalanamadı. Anahtarı seçip elle kopyalayın."
 }

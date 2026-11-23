@@ -11,7 +11,7 @@
   "roleHint": "La clé peut faire ce que ce rôle autorise, et rien de plus.",
   "needRole": "Créez d'abord un rôle dans Paramètres, Rôles : une clé agit toujours avec un rôle.",
   "ipAllowlist": "Adresses IP autorisées (facultatif)",
-  "ipAllowlistHint": "Séparez les adresses par des virgules ou des espaces. Laissez vide pour autoriser toute adresse.",
+  "ipAllowlistHint": "Séparez les adresses par des virgules ou des espaces. Laissez vide pour autoriser toute adresse. Cela ne tient que derrière un proxy inverse qui définit X-Real-IP (ou Cloudflare avec TRUST_CF_CONNECTING_IP).",
   "cancel": "Annuler",
   "shownTitle": "Votre nouvelle clé d'API",
   "shownDescription": "Copiez-la maintenant. Vous ne pourrez plus la voir.",
@@ -30,5 +30,6 @@
   "revokeDescription": "Tout ce qui utilise cette clé cesse de fonctionner immédiatement. Cette action est irréversible.",
   "revoked": "Clé révoquée",
   "revokeFailed": "La clé n'a pas pu être révoquée.",
-  "ownerOnly": "Seul un propriétaire ou un administrateur peut gérer les clés d'API."
+  "ownerOnly": "Seul un propriétaire ou un administrateur peut gérer les clés d'API.",
+  "copyFailed": "Impossible de copier. Sélectionnez la clé et copiez-la à la main."
 }

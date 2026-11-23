@@ -16,6 +16,8 @@ services:
       - BACKUP_MAX_DATA_FILE_MB=${BACKUP_MAX_DATA_FILE_MB:-}
       # Optional, see .env.example: error, warn, info (the default) or debug.
       - LOG_LEVEL=${LOG_LEVEL:-}
+      # fork: optional, see .env.example: the pepper for public API key hashes.
+      - API_KEY_PEPPER=${API_KEY_PEPPER:-}
     volumes:
       - uploads:/app/data/uploads
       - backups:/app/data/backups

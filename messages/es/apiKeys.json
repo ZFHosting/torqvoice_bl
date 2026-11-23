@@ -11,7 +11,7 @@
   "roleHint": "La clave puede hacer lo que este rol permite, y nada más.",
   "needRole": "Primero crea un rol en Ajustes, Roles: una clave siempre actúa con un rol.",
   "ipAllowlist": "Direcciones IP permitidas (opcional)",
-  "ipAllowlistHint": "Separa las direcciones con comas o espacios. Déjalo vacío para permitir cualquier dirección.",
+  "ipAllowlistHint": "Separa las direcciones con comas o espacios. Déjalo vacío para permitir cualquier dirección. Solo es fiable detrás de un proxy inverso que establezca X-Real-IP (o Cloudflare con TRUST_CF_CONNECTING_IP).",
   "cancel": "Cancelar",
   "shownTitle": "Tu nueva clave de API",
   "shownDescription": "Cópiala ahora. No podrás volver a verla.",
@@ -30,5 +30,6 @@
   "revokeDescription": "Todo lo que use esta clave dejará de funcionar de inmediato. No se puede deshacer.",
   "revoked": "Clave revocada",
   "revokeFailed": "No se pudo revocar la clave.",
-  "ownerOnly": "Solo un propietario o administrador puede gestionar las claves de API."
+  "ownerOnly": "Solo un propietario o administrador puede gestionar las claves de API.",
+  "copyFailed": "No se pudo copiar. Selecciona la clave y cópiala a mano."
 }

@@ -11,7 +11,7 @@
   "roleHint": "De sleutel mag wat deze rol toestaat, en niets meer.",
   "needRole": "Maak eerst een rol aan onder Instellingen, Rollen: een sleutel handelt altijd met een rol.",
   "ipAllowlist": "Toegestane IP-adressen (optioneel)",
-  "ipAllowlistHint": "Scheid adressen met komma's of spaties. Laat leeg om elk adres toe te staan.",
+  "ipAllowlistHint": "Scheid adressen met komma's of spaties. Laat leeg om elk adres toe te staan. Dit werkt alleen achter een reverse proxy die X-Real-IP zet (of Cloudflare met TRUST_CF_CONNECTING_IP).",
   "cancel": "Annuleren",
   "shownTitle": "Je nieuwe API-sleutel",
   "shownDescription": "Kopieer hem nu. Je kunt hem later niet meer zien.",
@@ -30,5 +30,6 @@
   "revokeDescription": "Alles wat deze sleutel gebruikt, werkt meteen niet meer. Dit kan niet ongedaan worden gemaakt.",
   "revoked": "Sleutel ingetrokken",
   "revokeFailed": "De sleutel kon niet worden ingetrokken.",
-  "ownerOnly": "Alleen een eigenaar of beheerder kan API-sleutels beheren."
+  "ownerOnly": "Alleen een eigenaar of beheerder kan API-sleutels beheren.",
+  "copyFailed": "Kopiëren is mislukt. Selecteer de sleutel en kopieer hem handmatig."
 }

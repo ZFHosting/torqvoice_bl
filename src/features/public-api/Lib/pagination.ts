@@ -1,10 +1,12 @@
 /**
  * Cursor paging for every public API list (docs/fork/API.md §3, "Paging" and "Sync").
  *
- * Lists are read in a stable order, `(updatedAt, id)` ascending, so a client walking the pages sees
- * every record exactly once even while records change: a record updated during the walk moves to the
- * end, where the walk reaches it again with its new state. The cursor is the last row's
- * `(updatedAt, id)`, base64url-encoded JSON, opaque to clients.
+ * Lists are read in a stable order, `(updatedAt, id)` ascending, so the pages neither skip nor
+ * repeat a record that doesn't change during the walk. One updated mid-walk moves to the end and is
+ * seen again with its new state; a write whose transaction commits late, with an earlier
+ * `updatedAt` than rows already read, can be missed, so a sync client starts its next
+ * `updatedSince` a little before the last `updatedAt` it saw (API.md §3). The cursor is the last
+ * row's `(updatedAt, id)`, base64url-encoded JSON, opaque to clients.
  */
 import { z } from 'zod'
 

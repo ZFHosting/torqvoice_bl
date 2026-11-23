@@ -232,9 +232,9 @@
     "equipment_delete": "Ekipman Silindi",
     "platform_deleteUser": "Kullanıcı silindi",
     "platform_grantSuperAdmin": "Süper yönetici yetkisi verildi",
-    "platform_revokeSuperAdmin": "Süper yönetici yetkisi kaldırıldı",
     "api_key_create": "API anahtarı oluşturuldu",
-    "api_key_revoke": "API anahtarı iptal edildi"
+    "api_key_revoke": "API anahtarı iptal edildi",
+    "platform_revokeSuperAdmin": "Süper yönetici yetkisi kaldırıldı"
   },
   "summary": {
     "auth_twoFactorEnabled": "İki adımlı giriş açıldı",
@@ -426,8 +426,8 @@
     "equipment_meter": "{vehicle} üzerindeki {name} için {meter} sayacı eklendi",
     "platform_deleteUser": "{name} ({email}) kullanıcısı silindi",
     "platform_grantSuperAdmin": "{name} ({email}) süper yönetici yapıldı",
-    "platform_revokeSuperAdmin": "{name} ({email}) kullanıcısının süper yöneticiliği kaldırıldı",
     "api_key_create": "API anahtarı {name} ({ref}) oluşturuldu",
-    "api_key_revoke": "API anahtarı {name} ({ref}) iptal edildi"
+    "api_key_revoke": "API anahtarı {name} ({ref}) iptal edildi",
+    "platform_revokeSuperAdmin": "{name} ({email}) kullanıcısının süper yöneticiliği kaldırıldı"
   }
 }

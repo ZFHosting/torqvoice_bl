@@ -11,7 +11,7 @@
   "roleHint": "Der Schlüssel darf, was diese Rolle erlaubt, und nicht mehr.",
   "needRole": "Legen Sie zuerst unter Einstellungen, Rollen eine Rolle an: Ein Schlüssel handelt immer mit einer Rolle.",
   "ipAllowlist": "Erlaubte IP-Adressen (optional)",
-  "ipAllowlistHint": "Adressen mit Kommas oder Leerzeichen trennen. Leer lassen, um jede Adresse zu erlauben.",
+  "ipAllowlistHint": "Adressen mit Kommas oder Leerzeichen trennen. Leer lassen, um jede Adresse zu erlauben. Das greift nur hinter einem Reverse Proxy, der X-Real-IP setzt (oder Cloudflare mit TRUST_CF_CONNECTING_IP).",
   "cancel": "Abbrechen",
   "shownTitle": "Ihr neuer API-Schlüssel",
   "shownDescription": "Kopieren Sie ihn jetzt. Sie können ihn später nicht mehr sehen.",
@@ -30,5 +30,6 @@
   "revokeDescription": "Alles, was diesen Schlüssel nutzt, funktioniert sofort nicht mehr. Das kann nicht rückgängig gemacht werden.",
   "revoked": "Schlüssel widerrufen",
   "revokeFailed": "Der Schlüssel konnte nicht widerrufen werden.",
-  "ownerOnly": "Nur Inhaber oder Administratoren können API-Schlüssel verwalten."
+  "ownerOnly": "Nur Inhaber oder Administratoren können API-Schlüssel verwalten.",
+  "copyFailed": "Kopieren fehlgeschlagen. Markieren Sie den Schlüssel und kopieren Sie ihn von Hand."
 }

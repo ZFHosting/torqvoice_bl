@@ -155,13 +155,13 @@
         "title": "Шаблоны писем",
         "description": "Что говорят письма о счёте, предложении и отчёте"
       },
-      "workOrderStatuses": {
-        "title": "Статусы заказ-нарядов",
-        "description": "Ваши этапы и кого уведомлять"
-      },
       "apiKeys": {
         "title": "API-ключи",
         "description": "Ключи для интеграций"
+      },
+      "workOrderStatuses": {
+        "title": "Статусы заказ-нарядов",
+        "description": "Ваши этапы и кого уведомлять"
       }
     },
     "pro": "PRO",

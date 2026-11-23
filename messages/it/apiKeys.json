@@ -11,7 +11,7 @@
   "roleHint": "La chiave può fare ciò che questo ruolo consente, e nient'altro.",
   "needRole": "Crea prima un ruolo in Impostazioni, Ruoli: una chiave agisce sempre con un ruolo.",
   "ipAllowlist": "Indirizzi IP consentiti (facoltativo)",
-  "ipAllowlistHint": "Separa gli indirizzi con virgole o spazi. Lascia vuoto per consentire qualsiasi indirizzo.",
+  "ipAllowlistHint": "Separa gli indirizzi con virgole o spazi. Lascia vuoto per consentire qualsiasi indirizzo. Funziona solo dietro un reverse proxy che imposta X-Real-IP (o Cloudflare con TRUST_CF_CONNECTING_IP).",
   "cancel": "Annulla",
   "shownTitle": "La tua nuova chiave API",
   "shownDescription": "Copiala ora. Non potrai più vederla.",
@@ -30,5 +30,6 @@
   "revokeDescription": "Tutto ciò che usa questa chiave smette subito di funzionare. L'operazione non può essere annullata.",
   "revoked": "Chiave revocata",
   "revokeFailed": "Impossibile revocare la chiave.",
-  "ownerOnly": "Solo un proprietario o un amministratore può gestire le chiavi API."
+  "ownerOnly": "Solo un proprietario o un amministratore può gestire le chiavi API.",
+  "copyFailed": "Impossibile copiare. Seleziona la chiave e copiala a mano."
 }

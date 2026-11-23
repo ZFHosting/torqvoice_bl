@@ -7,6 +7,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { settingsResponseSchema } from '@/features/public-api/Schema/settings'
 
 const url = process.env.E2E_DATABASE_URL ?? ''
 const databaseName = url.split('/').pop()?.split('?')[0]?.toLowerCase() ?? ''
@@ -106,11 +107,23 @@ afterAll(async () => {
 })
 
 describe('an API key', () => {
-  it('reads its own workshop’s settings', async () => {
+  it('reads its own workshop’s settings, in the published shape and nothing secret', async () => {
+    // A secret in the same table: the route must never read it, let alone send it.
+    await db.appSetting.create({
+      data: {
+        organizationId: A.org,
+        userId: A.owner,
+        key: 'payment.stripe.secretKey',
+        value: `sk_live_sentinel_${stamp}`,
+      },
+    })
     const { key } = await newKey(A)
     const response = await GET(settingsRequest(key))
     expect(response.status).toBe(200)
-    const body = await response.json()
+    const text = await response.text()
+    expect(text).not.toContain(`sentinel_${stamp}`)
+    const body = JSON.parse(text)
+    expect(settingsResponseSchema.parse(body.data)).toEqual(body.data)
     expect(body.data.currency).toBe('NOK')
     expect(response.headers.get('X-RateLimit-Limit')).toBe('120')
   })

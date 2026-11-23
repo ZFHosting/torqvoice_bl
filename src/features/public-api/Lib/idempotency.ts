@@ -5,7 +5,8 @@
  * first), runs, and stores its response; the same key with the same request within 24 hours gets
  * that response again and nothing is created twice. The same key with a different request is
  * refused with 409 `idempotency_conflict`, and so is a repeat that arrives while the first is still
- * running. A request that fails with a server error gives the key back, so the client can retry.
+ * running. A request that fails with a server error gives the key back, so the client can retry; so
+ * does one whose process died mid-request, once its claim is IN_FLIGHT_ABANDONED_MS old.
  */
 import 'server-only'
 import { createHash } from 'node:crypto'
@@ -17,10 +18,14 @@ export const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000
 const MAX_KEY_LENGTH = 255
 /** `responseStatus` of a claim whose request hasn't finished. */
 const IN_FLIGHT = 0
+/** A claim still in flight after this long belongs to a request whose process died. */
+export const IN_FLIGHT_ABANDONED_MS = 5 * 60 * 1000
 
 function requestHash(request: Request, body: string): string {
   const url = new URL(request.url)
-  return createHash('sha256').update(`${request.method} ${url.pathname}\n${body}`).digest('hex')
+  return createHash('sha256')
+    .update(`${request.method} ${url.pathname}${url.search}\n${body}`)
+    .digest('hex')
 }
 
 const conflict = (message: string) => publicApiError(409, 'idempotency_conflict', message)
@@ -49,9 +54,19 @@ export async function withIdempotency(
   const hash = requestHash(request, body)
   const where = { apiKeyId: scope.apiKeyId, key, organizationId: scope.organizationId }
 
-  // An expired claim is as good as none: drop it so this request can claim the key afresh.
+  // An expired response, or a claim abandoned mid-request, is as good as none: drop it so this
+  // request can claim the key afresh.
   await db.apiIdempotencyKey.deleteMany({
-    where: { ...where, createdAt: { lt: new Date(now.getTime() - IDEMPOTENCY_TTL_MS) } },
+    where: {
+      ...where,
+      OR: [
+        { createdAt: { lt: new Date(now.getTime() - IDEMPOTENCY_TTL_MS) } },
+        {
+          responseStatus: IN_FLIGHT,
+          createdAt: { lt: new Date(now.getTime() - IN_FLIGHT_ABANDONED_MS) },
+        },
+      ],
+    },
   })
 
   let claimId: string
@@ -92,10 +107,16 @@ export async function withIdempotency(
     .clone()
     .json()
     .catch(() => null)) as Prisma.InputJsonValue | null
-  await db.apiIdempotencyKey.updateMany({
-    where: { id: claimId, organizationId: scope.organizationId },
-    data: { responseStatus: response.status, responseBody: stored ?? {} },
-  })
+  try {
+    await db.apiIdempotencyKey.updateMany({
+      where: { id: claimId, organizationId: scope.organizationId },
+      data: { responseStatus: response.status, responseBody: stored ?? {} },
+    })
+  } catch (err) {
+    // The write itself committed: answer as it did, rather than a 500 that invites a retry. The
+    // claim stays in flight until it counts as abandoned, then the key is free again.
+    console.error('[public-api] storing an idempotent response failed', { claimId }, err)
+  }
   return response
 }
 

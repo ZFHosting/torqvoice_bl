@@ -81,7 +81,8 @@ describe('ETags', () => {
     expect(ifMatchSatisfied(null, record)).toBe(true)
     expect(ifMatchSatisfied('*', record)).toBe(true)
     expect(ifMatchSatisfied(etagFor(record), record)).toBe(true)
-    expect(ifMatchSatisfied(`W/${etagFor(record)}`, record)).toBe(true)
+    // If-Match compares strongly: a weak tag never matches (RFC 9110 §13.1.1).
+    expect(ifMatchSatisfied(`W/${etagFor(record)}`, record)).toBe(false)
     expect(ifMatchSatisfied(`"old", ${etagFor(record)}`, record)).toBe(true)
     expect(ifMatchSatisfied('"old"', record)).toBe(false)
   })
