@@ -28,7 +28,7 @@ resolved.
 | M3 | provisional | fork/M3-extract-and-stage | Merged c79858fb. Built on documented shapes and synthetic fixtures: re-verify with a key (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M3 provisional). |
 | M4 | provisional | fork/M4-transform | Merged 634a6785. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M4 provisional). |
 | M5 | provisional | fork/M5-load | Merged 40e49b36. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 4 passes. Evidence in the Decisions log (M5 provisional). |
-| A3 | in_progress | fork/A3-read-endpoints | |
+| A3 | done | fork/A3-read-endpoints | Merged c7770ecc. Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (A3 done). |
 | A4 | todo | | |
 | M6 | todo | | |
 | M7 | todo | | |
@@ -69,41 +69,9 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**A3 (read endpoints), in progress** on `fork/A3-read-endpoints` (from `fork/integration` at 6f7fb226). The upstream
-merge at the start conflicted (B15) and was aborted; A3 carries on without it. Plan:
-1. [x] `Lib/readResource.ts` (793352f3): a resource declares its path, tag, READ permission, workshop `scope` (on every query,
-   lookups by id included), filters, includes, Prisma `select` and serializer; `listRoute` / `getRoute` build the
-   handlers (paged over `(updatedAt, id)`, `updatedSince`, `?include=` checked against an allowlist, `ETag` on a
-   get, another workshop's id = 404) and `readEndpoints` the OpenAPI entries. `Lib/serializeContext.ts`: currency
-   and time zone once per request, `money()` (2 decimals as printed), `iso()`, `day()` (workshop calendar date).
-   From the scratchpad drafts (`a3-final/`).
-2. [x] (793352f3, f0da7257, 1fb34154) Per resource: `Schema/<r>.ts` (response + filter zod, endpoints), `Serializers/<r>.ts` (select + field by
-   field serializer, never a spread row), `Resources/<r>.ts` (the declaration; API.md §6 gains the folder).
-   Routes `src/app/api/v1/<r>/route.ts` and `[id]/route.ts`, thin. Resources: customers (+contacts,
-   customFields), vehicles (+customFields, notes), work-orders (+jobs, lines, concerns, payments, attachments,
-   timeEntries, meta, customFields), quotes (+jobs, lines), appointments, technicians, time-entries, shifts,
-   inventory-parts, labor-presets, inspections (+items), findings, work-order-statuses, payments, webhooks; nested
-   reads `customers/{id}/contacts`, `work-orders/{id}/jobs|lines|payments|attachments`; the attachment download
-   `work-orders/{id}/attachments/{attachmentId}/content` (the protected files route's checks).
-3. [x] The carry-over (91a00fcf): `sourceExtra` readers lenient per key before lines are served
-   (`sourceExtra.test.ts` "keeps every other key when one value is malformed").
-4. [x] Tests (d1231d96): `db/public-api-read.db.test.ts`: every list and get of 15 resources with each workshop's
-   key (own records, published shape, ETag; the other's id 404; it fails with the scope removed), no webhook secret
-   or share token sent, includes and an unknown include (400), nested reads and the attachment download (own only),
-   403 without READ, 500 records paged with changes mid-walk (each once, a changed one again with its new state),
-   `updatedSince`. `features/public-api/serializers-no-spread.test.ts`; `openapi.test.ts` now finds the thin routes
-   too, so every endpoint is checked to be in `openapi.json` (valid OpenAPI 3.1).
-5. [~] DoD at 2fba685f (tsc 0, Biome 14, chunks = Windows baseline, `test:db` 26/151). Reviewer pass 1: needs changes, 2 must-fix, both fixed with tests:
-   (1) `?customerId=` on work orders and quotes reads a customer's records as the app does (billed to them, or on
-   a vehicle they own); (2) the `updatedSince` test now has an unchanged vehicle that must be left out. Should-fix
-   taken: nested responses checked against their schemas; a key that may read nothing is refused by every
-   endpoint; calendar days tested in a workshop on Pacific/Kiritimati (+14); quotes gain `validUntilDay`; unknown
-   query parameters are a 400 (`.strict()`); API.md §3–4 list every filter, which date `from`/`to` use, that
-   there's no `sort=`, that an included child's change doesn't move its parent's `updatedAt`, and how custom
-   fields come back; the download streams and only passes a plain `type/subtype`; the jobs query carries the
-   workshop. DoD again at 1300da97: `tsc` 0, Biome 14, public-api unit tests 52, `test:db` 26 / 155. Reviewer pass 2: ready for
-   PR (its should-fixes taken: the quote half and the counter-sale branch of the customer filter tested, a
-   charset kept in a stored type, SVG headers by stored type too). Next: merge.
+**Next: A4 (write endpoints)**, from `fork/integration` at the A3 merge. Its first commit is the A2-review prerequisite:
+`updateTechnicianService` checks the workshop-scoped update's count and scopes the `techName` sync by
+`organizationId` (A4 brief, "From the A2 review"). Upstream merges stay blocked on B15 until it's resolved.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
@@ -283,6 +251,7 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | M5 review: an estimate that becomes a repair order converts its quote (`status: converted`, `convertedToId`, as `quoteService` does); one that turns back keeps its work order (warned); a timesheet moving between shift and time entry replaces the importer's other row. | Shopmonkey's normal flow during the sync window would otherwise leave two documents for one order. Estimate files stay archive-only until the estimate becomes a work order (MAPPING §9.2) rather than going to `QuoteAttachment`: fewer moving parts, and nothing is lost. |
 | 2026-11-23 | M5 review: undo keeps created rows the workshop uses since (and their links), removes only the custom fields the run defined (now linked as `CustomFieldDefinition`), and finds a run's batches by `ImportBatch.mapping.shopmonkeyRunId`; the batch's `fileName` is a translated label. Settings → Data hides the spreadsheet Undo on Shopmonkey batches and the action refuses it (marked `// fork:` in `ImportHistoryCard.tsx`, `importActions.ts`). | A restrict FK (templates) made undo impossible once the app used an imported template; cascades would have taken the workshop's time entries and statuses; the time-window sweep deleted fields made in Settings; the spreadsheet undo covers only three of the tables a load writes. |
 | 2026-11-23 | M5 review pass 2: undo removes the run's vehicle notes, records `shopmonkey.import_undo` (labels in 14 locales), clears any link or mapping of the connection whose row is gone, and clears the pointer of a quote converted into a removed work order; a technician the workshop had is never renamed from Shopmonkey; the issue guard runs again before issuing (`issue_postponed`). Undoing a run from before a restore is partial (MAPPING §9.2). | The reviewer's probes: a restore followed by an estimate turning into a repair order left two documents; an undone run left its note and then duplicated it; undo of an older run left stale links that read as "deleted in Torqvoice". |
+| 2026-11-23 | **A3 done.** DoD: `tsc` exit 0 and Biome 14 (baseline, LF worktree) at 86067962; `npm test` in chunks at 2fba685f, failures only the Windows baseline files; public-api unit tests 52 / `public-api-read.db.test.ts` 12 at 86067962; `test:db` 26 files / 155 tests at 1300da97. Reviewer: needs changes (pass 1, 2 must-fix), ready for PR (pass 2). Merged at c7770ecc. | Acceptance evidence (`db/public-api-read.db.test.ts`): tenant isolation table over 15 resources, the nested reads and the download ("serves its own workshop’s records…", "answer for the key’s own workshop…", "streams an attachment’s file only…"); paging 500 with changes ("walks 500 records…", read as recorded in the row below); `updatedSince` ("lists only what changed…", fails without the filter); schemas on every response and every endpoint in `openapi.json` (`openapi.test.ts`); no spread rows (`serializers-no-spread.test.ts`). |
 | 2026-11-23 | A3: the brief's "each record exactly once" while records change is read as API.md §3 has it since A1: a record changed during a walk is read once more at the end with its new state (one not read yet, once); everything unchanged, exactly once. Lists refuse unknown query parameters (400). | A cursor over `(updatedAt, id)` can't hide a change without missing it; a client de-duplicates by `id` (API.md §3). A silently ignored filter (an old `?technicianId=` on appointments) handed back the whole list. |
 | 2026-11-23 | A3 (API.md corrected): a read resource is one declaration in `Resources/<resource>.ts` built from `Schema/` (its `ReadSpec`: path, response, filters, includes) and `Serializers/` (Prisma select and field-by-field serializer); `Lib/readResource.ts` makes its handlers and `Lib/readSpec.ts` its OpenAPI entries. One record's own lists (contacts, a work order's jobs, lines, payments, attachments) aren't paged; appointments have no `?technicianId=` (no technician column); quotes also include `customFields`; inspections serve items with a photo count, templates and photo downloads later. | API.md §6 had no place for the per-resource wiring (permission, scope, reads), and routes stay one line. The rest is what the models hold. |
 | 2026-11-23 | M5 review pass 3: a vehicle note whose link is gone is matched by its title on the vehicle; a technician re-linked after a restore is the workshop's (never renamed); an undone conversion puts the quote back to `accepted`. Deferred to M8: an operator's `'create'` choice for a user matched earlier is ignored (the match stands). | A note has no archive record to re-link from; MAPPING §9.2 already promised the technician rule; a `converted` quote with no pointer can't be converted in the app. |
