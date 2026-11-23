@@ -9,7 +9,7 @@ import type { Row } from '../transform/types'
 import { countsFor, type LoadContext, loadOne } from './context'
 import { placeFile, stagedFile } from './files'
 import { stagedAll } from './people'
-import { markLoaded } from './links'
+import { foreignKeys, linkedRow, markLoaded, unlink } from './links'
 import { upsertLinked } from './upsert'
 
 export async function loadAppointments(lc: LoadContext): Promise<void> {
@@ -21,6 +21,8 @@ export async function loadAppointments(lc: LoadContext): Promise<void> {
       countsFor(lc, 'appointment').skipped++
       continue
     }
+    // The work order it was booked for, as loaded: part of the hash, so a work order loaded late gets its start.
+    const orderId = rows.orderRemoteId ? lc.resolver.resolve('order', rows.orderRemoteId) : null
     await loadOne(lc, 'appointment', record.remoteId, async (tx) => {
       const { localId, result: outcome } = await upsertLinked(
         tx,
@@ -29,7 +31,7 @@ export async function loadAppointments(lc: LoadContext): Promise<void> {
           table: 'appointment',
           model: 'Appointment',
           remoteId: record.remoteId,
-          hash: record.payloadHash,
+          hash: payloadHash({ source: record.payloadHash, ids: foreignKeys(rows), orderId }),
         },
         {
           create: async () =>
@@ -49,7 +51,6 @@ export async function loadAppointments(lc: LoadContext): Promise<void> {
         }
       )
       // §3: the work order the appointment was booked for starts when it does.
-      const orderId = rows.orderRemoteId ? lc.resolver.resolve('order', rows.orderRemoteId) : null
       if (orderId && outcome !== 'unchanged') {
         await tx.serviceRecord.updateMany({
           where: { id: orderId, organizationId: lc.scope.organizationId },
@@ -141,6 +142,8 @@ export async function loadInspections(lc: LoadContext): Promise<number> {
       continue
     }
     const pending: string[] = []
+    let createdHere = false
+    const orderId = rows.orderRemoteId ? lc.resolver.resolve('order', rows.orderRemoteId) : null
     const committed = await loadOne(lc, 'inspection', record.remoteId, async (tx) => {
       const photos = rows.items.flatMap((i) => i.photoRemoteIds)
       const files = photos.length
@@ -180,9 +183,12 @@ export async function loadInspections(lc: LoadContext): Promise<number> {
         table: 'inspection',
         model: 'Inspection' as const,
         remoteId: record.remoteId,
-        // Its photos too: one staged (or forgotten) since makes the items be written again.
+        // Its photos too: one staged (or forgotten) since makes the items be written again; and the rows it
+        // points at (vehicle, template, work order).
         hash: payloadHash({
           inspection: record.payloadHash,
+          ids: foreignKeys(rows),
+          orderId,
           photos: files
             .map((f) => [f.remoteId, f.payloadHash])
             .sort((a, b) => (a[0] < b[0] ? -1 : 1)),
@@ -194,7 +200,7 @@ export async function loadInspections(lc: LoadContext): Promise<number> {
             data: { ...rows.inspection, importBatchId: lc.batches.inspections ?? null },
             select: { id: true },
           })
-          created++
+          createdHere = true
           await writeItems(inspection.id)
           return inspection.id
         },
@@ -209,7 +215,6 @@ export async function loadInspections(lc: LoadContext): Promise<number> {
         },
       })
       // The work order it was done on points at it, unless the workshop has linked another since.
-      const orderId = rows.orderRemoteId ? lc.resolver.resolve('order', rows.orderRemoteId) : null
       if (orderId) {
         await tx.serviceRecord.updateMany({
           where: { id: orderId, organizationId: lc.scope.organizationId, inspectionId: null },
@@ -227,7 +232,10 @@ export async function loadInspections(lc: LoadContext): Promise<number> {
       lc.resolver.set('inspection', record.remoteId, localId)
       return outcome
     })
-    if (committed) lc.placedFiles.push(...pending)
+    if (committed) {
+      lc.placedFiles.push(...pending)
+      if (createdHere) created++
+    }
   }
   return created
 }
@@ -243,7 +251,27 @@ export async function loadTime(lc: LoadContext): Promise<void> {
       continue
     }
     await loadOne(lc, 'timesheet', record.remoteId, async (tx) => {
-      const scope = { table: 'timesheet', remoteId: record.remoteId, hash: record.payloadHash }
+      const scope = {
+        table: 'timesheet',
+        remoteId: record.remoteId,
+        hash: payloadHash({ source: record.payloadHash, ids: foreignKeys(rows) }),
+      }
+      // A timesheet loaded as the other kind before (its order became, or stopped being, a loaded work order):
+      // that row was the importer's stand-in for this same record, and goes.
+      const other = rows.kind === 'timeEntry' ? 'TechnicianShift' : 'TimeEntry'
+      const before = await linkedRow(tx, lc.scope, 'timesheet', other, record.remoteId)
+      if (before) {
+        if (other === 'TechnicianShift') {
+          await tx.technicianShift.deleteMany({
+            where: { id: before, organizationId: lc.scope.organizationId },
+          })
+        } else {
+          await tx.timeEntry.deleteMany({
+            where: { id: before, organizationId: lc.scope.organizationId },
+          })
+        }
+        await unlink(tx, lc.scope, 'timesheet', other, record.remoteId, before)
+      }
       if (rows.kind === 'timeEntry') {
         const { result: outcome } = await upsertLinked(
           tx,

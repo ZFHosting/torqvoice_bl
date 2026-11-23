@@ -3,6 +3,7 @@
  * one "import" `StockMovement` that explains its count, and canned services and catalog labor and fees as
  * `LaborPreset`s.
  */
+import { payloadHash } from '../extract/stage'
 import {
   transformCannedService,
   transformCatalogLine,
@@ -10,6 +11,7 @@ import {
 } from '../transform/catalog'
 import type { PresetRows } from '../transform/catalog'
 import { clientOf, countsFor, type LoadContext, loadOne, type Tx } from './context'
+import { foreignKeys } from './links'
 import { stagedAll } from './people'
 import { upsertLinked } from './upsert'
 
@@ -179,7 +181,8 @@ export async function loadPresets(lc: LoadContext): Promise<void> {
           table: source.table,
           model: 'LaborPreset',
           remoteId: source.remoteId,
-          hash: source.payloadHash,
+          // The inventory parts it points at, as loaded.
+          hash: payloadHash({ source: source.payloadHash, ids: foreignKeys(rows) }),
         },
         {
           create: async () => {

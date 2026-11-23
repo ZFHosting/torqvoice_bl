@@ -12,7 +12,7 @@ import { currentOwner, transformVehicle } from '../transform/vehicle'
 import type { Row } from '../transform/types'
 import { payloadHash } from '../extract/stage'
 import { clientOf, countsFor, type LoadContext, loadOne, type Tx } from './context'
-import { markLoaded } from './links'
+import { findLoaded, foreignKeys, markLoaded } from './links'
 import { upsertLinked } from './upsert'
 
 export interface StagedRecord {
@@ -139,15 +139,18 @@ export async function loadTechnicians(lc: LoadContext): Promise<void> {
           select: { id: true },
         })
         if (own) {
+          lc.resolver.set('user', user.remoteId, own.id)
+          const hash = payloadHash({ user: user.payloadHash, mappedTo: own.id })
+          const found = await findLoaded(tx, lc.scope, 'user', 'Technician', user.remoteId)
+          if (found?.localId === own.id && found.hash === hash) return 'unchanged'
           await markLoaded(tx, lc.scope, {
             table: 'user',
             model: 'Technician',
             remoteId: user.remoteId,
             localId: own.id,
-            hash: user.payloadHash,
+            hash,
             created: false,
           })
-          lc.resolver.set('user', user.remoteId, own.id)
           return 'updated'
         }
       }
@@ -264,7 +267,8 @@ export async function loadCustomers(lc: LoadContext): Promise<number> {
       countsFor(lc, 'customer').skipped++
       continue
     }
-    await loadOne(lc, 'customer', record.remoteId, async (tx) => {
+    let createdHere = false
+    const committed = await loadOne(lc, 'customer', record.remoteId, async (tx) => {
       const { localId, result: outcome } = await upsertLinked(
         tx,
         lc.scope,
@@ -290,7 +294,7 @@ export async function loadCustomers(lc: LoadContext): Promise<number> {
               },
               select: { id: true },
             })
-            created++
+            createdHere = true
             return row.id
           },
           update: async (id) => {
@@ -325,6 +329,7 @@ export async function loadCustomers(lc: LoadContext): Promise<number> {
       lc.resolver.set('customer', record.remoteId, localId)
       return outcome
     })
+    if (committed && createdHere) created++
   }
   return created
 }
@@ -363,8 +368,11 @@ export async function loadVehicles(
     const hash = payloadHash({
       vehicle: record.payloadHash,
       owner: currentOwner(ownerRows).customerId,
+      // The owner as loaded: a customer created again re-points the vehicle.
+      ids: foreignKeys(rows.vehicle),
     })
-    await loadOne(lc, 'vehicle', record.remoteId, async (tx) => {
+    let createdHere = false
+    const committed = await loadOne(lc, 'vehicle', record.remoteId, async (tx) => {
       const { localId, result: outcome } = await upsertLinked(
         tx,
         lc.scope,
@@ -375,8 +383,7 @@ export async function loadVehicles(
               data: { ...rows.vehicle, importBatchId: lc.batches.vehicles ?? null },
               select: { id: true },
             })
-            created++
-            if (rows.note) await tx.note.create({ data: { ...rows.note, vehicleId: row.id } })
+            createdHere = true
             return row.id
           },
           update: async (id) => {
@@ -393,10 +400,54 @@ export async function loadVehicles(
           },
         }
       )
-      if (outcome !== 'unchanged') await writeCustomFields(tx, lc, localId, rows.customFields)
+      if (outcome !== 'unchanged') {
+        await writeVehicleNote(tx, lc, record.remoteId, localId, rows.note)
+        await writeCustomFields(tx, lc, localId, rows.customFields)
+      }
       lc.resolver.set('vehicle', record.remoteId, localId)
       return outcome
     })
+    if (committed && createdHere) created++
   }
   return { created, mileageUnit }
+}
+
+/**
+ * The vehicle's Shopmonkey note (MAPPING §5), linked so a changed note updates it. One removed in Shopmonkey is
+ * left as it is: the workshop may have added to it.
+ */
+async function writeVehicleNote(
+  tx: Tx,
+  lc: LoadContext,
+  vehicleRemoteId: string,
+  vehicleId: string,
+  note: { title: string; content: string } | null
+): Promise<void> {
+  if (!note) return
+  const title = lc.label(note.title)
+  const found = await findLoaded(tx, lc.scope, 'vehicle_note', 'Note', vehicleRemoteId)
+  const hash = payloadHash({ title, content: note.content })
+  if (found?.hash === hash) return
+  let id = found?.localId
+  if (id) {
+    await tx.note.updateMany({
+      where: { id, vehicle: { organizationId: lc.scope.organizationId } },
+      data: { title, content: note.content },
+    })
+  } else {
+    id = (
+      await tx.note.create({
+        data: { title, content: note.content, vehicleId },
+        select: { id: true },
+      })
+    ).id
+  }
+  await markLoaded(tx, lc.scope, {
+    table: 'vehicle_note',
+    model: 'Note',
+    remoteId: vehicleRemoteId,
+    localId: id,
+    hash,
+    created: !found,
+  })
 }

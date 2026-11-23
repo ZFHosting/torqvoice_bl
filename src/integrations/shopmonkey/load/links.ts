@@ -16,6 +16,35 @@ export interface LoadScope {
   connectionId: string
   /** The load run, kept on the links it creates so undo knows what this run made. */
   runId: string
+  /** Told when a record's row was deleted in the app and is about to be created again (M5 task 1: warned). */
+  onRecreate?: (table: string, model: LocalModel, remoteId: string) => void
+}
+
+/** Keys that hold the run's own ids, not what a record points at: left out of `foreignKeys`. */
+const OWN_KEYS = new Set(['organizationId', 'userId', 'createdById'])
+
+/**
+ * The ids a record's rows point at (`vehicleId`, `customerId`, `technicianId`, `inventoryPartId`, and lists like
+ * `helperTechnicianIds`), with where they sit: part of a record's load hash, so a dependency created again (deleted
+ * in the app) or loaded late re-points the rows that use it on the next run instead of leaving a stale or empty
+ * foreign key.
+ */
+export function foreignKeys(value: unknown, at = ''): string[] {
+  if (Array.isArray(value)) return value.flatMap((v, i) => foreignKeys(v, `${at}[${i}]`))
+  if (!value || typeof value !== 'object' || value instanceof Date) return []
+  const out: string[] = []
+  for (const [key, v] of Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
+    a < b ? -1 : a > b ? 1 : 0
+  )) {
+    const path = at ? `${at}.${key}` : key
+    if (/Ids?$/.test(key) && !OWN_KEYS.has(key)) {
+      if (typeof v === 'string' || v === null) out.push(`${path}=${v}`)
+      else if (Array.isArray(v)) out.push(`${path}=${v.join(',')}`)
+      continue
+    }
+    if (v && typeof v === 'object') out.push(...foreignKeys(v, path))
+  }
+  return out
 }
 
 type Tx = Prisma.TransactionClient
@@ -37,6 +66,8 @@ export type LocalModel =
   | 'TechnicianShift'
   | 'ServiceAttachment'
   | 'VehicleFinding'
+  | 'Note'
+  | 'CustomFieldDefinition'
 
 export const linkRemoteId = (table: string, remoteId: string) => `${table}:${remoteId}`
 
@@ -88,6 +119,13 @@ async function ownRowExists(
           where: { id, vehicle: { organizationId } },
           select: { id: true },
         })
+      case 'Note':
+        return tx.note.findFirst({
+          where: { id, vehicle: { organizationId } },
+          select: { id: true },
+        })
+      case 'CustomFieldDefinition':
+        return tx.customFieldDefinition.findFirst({ where, select: { id: true } })
     }
   })()
   return !!found
@@ -123,10 +161,12 @@ export async function findLoaded(
     if (await ownRowExists(tx, model, link.entityId, scope.organizationId)) {
       return { localId: link.entityId, hash: link.checksum }
     }
-    // Its row was deleted in the app: the link goes, and the row is created again.
+    // Its row was deleted in the app: the link goes, and the row is created again (warned).
     await tx.integrationLink.deleteMany({
       where: { connectionId: scope.connectionId, entityType: model, entityId: link.entityId },
     })
+    scope.onRecreate?.(table, model, remoteId)
+    return null
   }
   const source = await tx.sourceRecord.findUnique({
     where: {
@@ -147,7 +187,74 @@ export async function findLoaded(
     await writeLink(tx, scope, table, model, remoteId, source.localId, source.loadedHash, false)
     return { localId: source.localId, hash: source.loadedHash }
   }
+  // Loaded once (the archive says so), and the row is gone: created again, warned.
+  if (source?.localEntity === model && source.localId) scope.onRecreate?.(table, model, remoteId)
   return null
+}
+
+/**
+ * The row a record is linked to as this model, if it still exists: no re-linking, no warning. For asking whether a
+ * record was loaded as another model before (an estimate that became a repair order).
+ */
+export async function linkedRow(
+  tx: Tx,
+  scope: LoadScope,
+  table: string,
+  model: LocalModel,
+  remoteId: string
+): Promise<string | null> {
+  const link = await tx.integrationLink.findFirst({
+    where: {
+      connectionId: scope.connectionId,
+      entityType: model,
+      remoteId: linkRemoteId(table, remoteId),
+    },
+    select: { entityId: true },
+  })
+  if (link && (await ownRowExists(tx, model, link.entityId, scope.organizationId))) {
+    return link.entityId
+  }
+  const source = await tx.sourceRecord.findUnique({
+    where: {
+      organizationId_source_table_remoteId: {
+        organizationId: scope.organizationId,
+        source: SOURCE,
+        table,
+        remoteId,
+      },
+    },
+    select: { localEntity: true, localId: true },
+  })
+  return source?.localEntity === model &&
+    source.localId &&
+    (await ownRowExists(tx, model, source.localId, scope.organizationId))
+    ? source.localId
+    : null
+}
+
+/** Forgets a record's row as this model: its link, and the archive's mapping if it names that row. */
+export async function unlink(
+  tx: Tx,
+  scope: LoadScope,
+  table: string,
+  model: LocalModel,
+  remoteId: string,
+  localId: string
+): Promise<void> {
+  await tx.integrationLink.deleteMany({
+    where: { connectionId: scope.connectionId, entityType: model, entityId: localId },
+  })
+  await tx.sourceRecord.updateMany({
+    where: {
+      organizationId: scope.organizationId,
+      source: SOURCE,
+      table,
+      remoteId,
+      localEntity: model,
+      localId,
+    },
+    data: { localEntity: null, localId: null, loadedHash: null },
+  })
 }
 
 async function writeLink(
@@ -167,6 +274,15 @@ async function writeLink(
       entityId: localId,
     },
   }
+  // One link per record and model: a user mapped to another technician since, say, leaves no second link.
+  await tx.integrationLink.deleteMany({
+    where: {
+      connectionId: scope.connectionId,
+      entityType: model,
+      remoteId: linkRemoteId(table, remoteId),
+      entityId: { not: localId },
+    },
+  })
   await tx.integrationLink.upsert({
     where: key,
     create: {

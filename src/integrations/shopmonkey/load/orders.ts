@@ -15,7 +15,7 @@ import { userName } from '../transform/staff'
 import type { Row } from '../transform/types'
 import { clientOf, countsFor, type LoadContext, loadOne, type Tx } from './context'
 import { attachOrderFiles, indexOrderFiles } from './files'
-import { findLoaded, markLoaded } from './links'
+import { findLoaded, foreignKeys, linkedRow, markLoaded } from './links'
 import { staged, stagedAll, writeCustomFields } from './people'
 import { upsertLinked } from './upsert'
 
@@ -159,15 +159,6 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
     const owner = vehicleRemote ? (owners.get(vehicleRemote)?.customerId ?? null) : null
     const workflow =
       typeof order.payload.workflowStatusId === 'string' ? order.payload.workflowStatusId : ''
-    // Everything the rows depend on: the order, its children, the vehicle's owner, its status's stage.
-    const hash = payloadHash({
-      order: order.payloadHash,
-      services: children(index.services).map((c) => c.hash),
-      payments: children(index.payments).map((c) => c.hash),
-      authorizations: children(index.authorizations).map((c) => c.hash),
-      owner,
-      stage: lc.transform.settings.statusStageMap[workflow] ?? null,
-    })
     const services = await payloads(
       lc,
       'order_service',
@@ -190,6 +181,17 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
       countsFor(lc, 'order').skipped++
       continue
     }
+    // Everything the rows depend on: the order, its children, the vehicle's owner, its status's stage, and the
+    // local rows it points at (a vehicle or technician created again re-points it).
+    const hash = payloadHash({
+      order: order.payloadHash,
+      services: children(index.services).map((c) => c.hash),
+      payments: children(index.payments).map((c) => c.hash),
+      authorizations: children(index.authorizations).map((c) => c.hash),
+      owner,
+      stage: lc.transform.settings.statusStageMap[workflow] ?? null,
+      ids: foreignKeys(rows),
+    })
     const paymentRows = await payloads(
       lc,
       'payment',
@@ -198,9 +200,21 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
 
     const pending: string[] = []
     let invoiceId: string | null = null
+    let createdRecord = false
     const committed = await loadOne(lc, 'order', order.remoteId, async (tx) => {
       const organizationId = lc.scope.organizationId
       if (rows.kind === 'quote') {
+        // Back to an estimate after it was loaded as a work order: the work order stays as it is (warned).
+        if (await linkedRow(tx, lc.scope, 'order', 'ServiceRecord', order.remoteId)) {
+          lc.warnings.push({
+            code: 'order_back_to_estimate',
+            table: 'order',
+            remoteId: order.remoteId,
+            message:
+              'An order loaded as a work order is an estimate again; the work order is kept.',
+          })
+          return 'skipped'
+        }
         const { localId, result: outcome } = await upsertLinked(
           tx,
           lc.scope,
@@ -278,6 +292,15 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
         }
       )
       lc.resolver.set('order', order.remoteId, localId)
+      // An estimate that became a repair order (Shopmonkey's usual flow during the sync window): its quote is
+      // converted into this work order, as the app's own conversion does, instead of staying a second document.
+      const quoteId = await linkedRow(tx, lc.scope, 'order', 'Quote', order.remoteId)
+      if (quoteId) {
+        await tx.quote.updateMany({
+          where: { id: quoteId, organizationId, convertedToId: null },
+          data: { status: 'converted', convertedToId: localId },
+        })
+      }
       // Every imported invoice is offered for issuing, changed or not: one a past run didn't get to is issued now.
       if (rows.issueAsInvoice) invoiceId = localId
       // Files may arrive after the order did (an extract with files turned on later): attached either way, once.
@@ -290,7 +313,7 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
         pending
       )
       if (outcome === 'unchanged') return outcome
-      if (created) createdServiceRecords++
+      createdRecord = created
 
       await writeJobs(tx, lc, { serviceRecordId: localId }, rows.jobs)
       await tx.serviceRecordMeta.upsert({
@@ -411,6 +434,7 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
     if (committed) {
       lc.placedFiles.push(...pending)
       if (invoiceId) lc.toIssue.push(invoiceId)
+      if (createdRecord) createdServiceRecords++
     }
   }
   return { createdServiceRecords }

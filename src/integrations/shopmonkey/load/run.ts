@@ -33,6 +33,7 @@ import {
 } from './people'
 import { applySettingChanges, type Proposals, proposeNumbering, proposeSettings } from './proposals'
 import { importLabeler } from './labels'
+import type { LoadScope } from './links'
 import { loadResolver } from './resolver'
 
 export interface LoadOptions {
@@ -129,8 +130,15 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
     },
     select: { value: true },
   })
+  const warnRecreated: NonNullable<LoadScope['onRecreate']> = (table, model, remoteId) =>
+    lc.warnings.push({
+      code: 'row_recreated',
+      table,
+      remoteId,
+      message: `Its ${model} was deleted in Torqvoice and is created again.`,
+    })
   const lc = createLoadContext({
-    scope,
+    scope: { ...scope, onRecreate: warnRecreated },
     runUserId: options.runUserId,
     resolver,
     timeZone: options.timeZone ?? (await workshopTimeZone(scope.organizationId)),
