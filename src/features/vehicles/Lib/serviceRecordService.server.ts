@@ -669,10 +669,12 @@ export async function updateServiceRecordService(ctx: ServiceCtx, input: unknown
       if (taxedLabor && taxedLabor.length > 0) {
         await tx.serviceLabor.createMany({
           // fork: carryLineColumns
-          data: carryLineColumns(forkLabor, taxedLabor, LABOR_MATCH, LABOR_LINE_COLUMNS).map((l) => ({
-            ...l,
-            serviceRecordId: id,
-          })),
+          data: carryLineColumns(forkLabor, taxedLabor, LABOR_MATCH, LABOR_LINE_COLUMNS).map(
+            (l) => ({
+              ...l,
+              serviceRecordId: id,
+            })
+          ),
         })
       }
     }
