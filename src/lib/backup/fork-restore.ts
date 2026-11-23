@@ -246,6 +246,7 @@ export async function restoreForkArchive(
         remoteUpdatedAt: date(r.remoteUpdatedAt),
         fetchedAt: date(r.fetchedAt) ?? undefined,
         remoteDeletedAt: date(r.remoteDeletedAt),
+        childrenHash: text(r.childrenHash),
         ...stamps(r),
       })),
     })
