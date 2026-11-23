@@ -75,31 +75,31 @@ Provisional (B1). Plan:
    rebuilds the link. Skip when the stored hash equals the source's (an order's hash covers its children).
 3. [x] `load/resolver.ts` + `load/context.ts`: `TransformContext.resolve` from the links (table → model per `transform/types.ts`; `order`
    → work orders only), `statusStageMap` complete (operator over `defaultStages`).
-4. [~] Loaders in plan order (done: technicians, statuses, customers, vehicles, orders: 342da595; db test
-   `db/shopmonkey-load.db.test.ts` dry run, twice, balances, one changed order; to do: inventory, presets,
-   appointments, templates, inspections, time): technicians, workflow statuses, customers (+contacts, custom fields; numbers after
+4. [x] Loaders in plan order (342da595, 71760c9f; `db/shopmonkey-load.db.test.ts`: dry run keeps nothing, twice is
+   identical across every table, balances, one changed order updates only itself): technicians, workflow statuses, customers (+contacts, custom fields; numbers after
    every numeric `publicId`), vehicles (+notes; `mileageUnit` from the oldest vehicle), inventory (+ one "import"
    `StockMovement`; barcode only if unique), presets, orders (one transaction each: ServiceRecord or Quote, jobs,
    lines with `jobId`/`lineKind`/X3 columns, quote lines `excluded = !counts`, concern, meta, helpers, payments
    `provider: shopmonkey`, findings, custom field values), appointments (+ the order's `startDateTime`), inspection
    templates, inspections, time entries and shifts. Workshop settings (tax, labor rate, name, time zone,
    numbering) are proposed in the run's summary, applied only with `--apply-settings` / `--apply-numbering`.
-5. [ ] Files: staged files moved to `uploadsRoot()/<org>/services/<uuid>.<ext>` (what `isGeneratedName` accepts), then
+5. [x] Files (71760c9f; a db test with real staged files is still to write): staged files moved to `uploadsRoot()/<org>/services/<uuid>.<ext>` (what `isGeneratedName` accepts), then
    `ServiceAttachment` rows; inspection photos into `imageUrls`; invoice PDFs as category `document`,
    `includeInInvoice: false`, "Original Shopmonkey invoice"; the staging folder removed when its files are moved.
-6. [ ] ImportBatch per entity type (`source: shopmonkey`) on created customers, vehicles, service records,
+6. [x] ImportBatch per entity type (`source: shopmonkey`) on created customers, vehicles, service records,
    inspections; undo = the spreadsheet undo's rules (`undoImportBatch`, importActions.ts) for those, plus the other
    rows the run created (by its IntegrationLinks), then their links and SourceRecord mappings.
-7. [ ] `issueInvoice(id, org, 'backfill')` after each invoiced order commits; refuse to start while an active
+7. [x] `issueInvoice(id, org, 'backfill')` after each invoiced order commits; refuse to start while an active
    connection's manifest subscribes to `service.update` (computed from the registry, not a fixed list).
-8. [ ] One `logAudit` per run (`shopmonkey.import`, counts in metadata; not in `WEBHOOK_EVENTS`, so no webhook).
+8. [x] One `logAudit` per run (`shopmonkey.import`, counts in metadata; not in `WEBHOOK_EVENTS`, so no webhook).
 9. [ ] CLI `run.ts load --connection <id> [--dry-run] [--apply-numbering] [--apply-settings]` (dry run: every
    transaction rolled back).
 10. [ ] Task 12: the work order and quote saves (A2 services `serviceRecordService.server.ts` ~560/644,
     `quoteService.server.ts` ~189/199) carry the fork line columns across a save. The line schemas
     (`vehicles/Schema/serviceSchema.ts`) have no `id` and the parts editor keys rows locally (`keysRef`): trace
     `ServicePageClient.tsx` first; prefer an optional `id` (an old tab sends none), else match by position + name.
-11. [ ] Tests (db): load twice gives identical counts and no updates; one changed order updates only its rows; an
+11. [~] Tests (db; done: load twice, one changed order, invoice issued + sheet, balances, no webhooks, guard, undo
+    (`db/shopmonkey-undo.db.test.ts`), re-link after a restore; to do: edit keeps fork columns, staged files): load twice gives identical counts and no updates; one changed order updates only its rows; an
     invoiced order is locked and its PDF prints Shopmonkey's number, lines and totals; unpaid/partly paid balances;
     undo restores the per-table counts; no `WebhookDelivery` with an active `*` webhook; editing an imported work
     order and quote keeps the fork columns; after a restore a second load creates no duplicates.
