@@ -30,7 +30,7 @@ resolved.
 | M5 | provisional | fork/M5-load | Merged 40e49b36. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 4 passes. Evidence in the Decisions log (M5 provisional). |
 | A3 | done | fork/A3-read-endpoints | Merged c7770ecc. Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (A3 done). |
 | A4 | done | fork/A4-write-endpoints | Merged c28b98d4. Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (A4 done). |
-| M6 | todo | | |
+| M6 | in_progress | fork/M6-reconcile | |
 | M7 | todo | | |
 | M8 | todo | | |
 | A5 | todo | | |
@@ -69,10 +69,27 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**Next: M6 (reconcile)**, from `fork/integration` after A4's merge. Its plan goes here when it starts. Found while
-A4 ran (read-only): the M5 load still loads orders created before `historyFrom` (staged without services,
-payments or files), as header-only work orders that would read unpaid; the setting's help text ("Leave empty to
-import everything") and M6's skip bucket say they aren't imported. M6 fixes that first.
+**M6 (reconcile), in progress** on `fork/M6-reconcile` (from `fork/integration` at 12dea9dc; the upstream merge still
+conflicts, B15, same upstream commit). Built on M5's synthetic fixtures, so it ends `provisional` (B1). Plan:
+0. [ ] The load leaves out orders created before `historyFrom` (staged without children; "Leave empty to import
+   everything"): counted skipped, kept in the archive. Same date rule as the extract (`beforeHistory`).
+1. [ ] Why a record wasn't loaded, recorded where the load decides it: `SourceRecord.loadSkip` (reason code; migration
+   `fork_source_load_skip`), set for history, deleted, transform and rule skips and failures, cleared when the record
+   is linked. The load's warnings (by code, count and first 20 examples), failures and counts kept in the
+   connection's `state.lastLoad`.
+2. [ ] `src/integrations/shopmonkey/reconcile/`: counts per table (Shopmonkey's `meta.total` and the extract's
+   location skips from `state.extract`; staged; loaded = linked row present; missing = linked row gone; skipped by
+   reason; archive-only and folded tables; unaccounted = none of these, named); money per work order (Torqvoice's
+   counted lines, MAPPING §6.3, vs Shopmonkey's subtotal; lines − discount + tax and the stored total vs
+   `totalCostCents`; payments vs `paidCostCents`; balance vs `remainingCostCents`; over $0.01 listed; explained only
+   by a rule named in MAPPING and in code); by month on the workshop's clock (invoiced, tax, discounts, payments,
+   open receivables at month end, both sides); 25 spot checks (seeded); warnings; unmapped fields (TABLE_SPECS /
+   NESTED_SPECS); gates (counts accounted, no unexplained money difference, receivables to the cent, no failed
+   orders).
+3. [ ] Stored as `state.lastReconciliation`; `scripts/shopmonkey/run.ts reconcile --connection <id> [--json]`.
+4. [ ] Tests (db): the fixture set passes every gate; a corrupted line total fails the money gate naming the order; a
+   deleted imported customer fails the count gate naming it; 50,000 generated orders reconcile in under a minute.
+5. [ ] MAPPING (explained-difference rules, historyFrom), brief, DoD, reviewer, merge.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
@@ -130,7 +147,7 @@ M0 acceptance:
 | B12 | M1 (and everything after it) | ~~Re-run M1's checks.~~ **Resolved 2026-11-22:** rerunning `/autopilot` was the go-ahead; the checks ran one at a time in the foreground with two test workers, and pass (Current step). | 2026-11-22 |
 | B13 | All (not blocking) | **Upgrade Node on this machine to 22.23.4** (what CI, the Dockerfile and the devcontainer pin), or at least ≥22.19. With the installed 22.14, `npm test` silently runs only 141 of 775 test files: `jsdom` 30 pulls `undici` 8, which needs `zlib.createZstdDecompress`, and the other 634 files' workers crash on start without counting as failures. The build carries on with a checksum-verified portable Node 22.23.4 in the session scratchpad, so nothing waits on this. | 2026-11-22 |
 | B14 | None (local housekeeping) | **Reset or drop the old local databases** `torqvoice` (what `.env`'s `DATABASE_URL` points at) and `torqvoice_test` in the `torqvoice-bl-db` container: they hold the pre-review version of M1's migration, so `prisma migrate dev` against them now wants a reset, and Prisma refuses `migrate reset` from an AI agent without your explicit consent. Either run `npx prisma migrate reset` against each yourself, or tell me to, or point `.env` at `torqvoice_fork_test`. Tests already use `torqvoice_fork_test`, so nothing waits on this. | 2026-11-22 |
-| B15 | All (not blocking) | **Upstream merge conflict.** `git merge upstream/main` at the start of A3 (upstream f620cbda, "Refuse an uploaded backup whose record ids cannot sit in a link", #672) conflicts in `src/app/api/protected/backup/import/route.ts`, where M3 marked its archive edits. Aborted, per the rules; the fork carries on without it. The conflict is small (an import line and one `assertUrlSafeIds(backup.data)` call next to the fork's archive lines): merge it by hand, or tell me to resolve conflicts that are this mechanical. | 2026-11-23 |
+| B15 | All (not blocking) | **Upstream merge conflict.** `git merge upstream/main` at the start of A3 (upstream f620cbda, "Refuse an uploaded backup whose record ids cannot sit in a link", #672) conflicts in `src/app/api/protected/backup/import/route.ts`, where M3 marked its archive edits. Aborted, per the rules; the fork carries on without it. Still the same conflict at the start of M6 (2026-11-23). The conflict is small (an import line and one `assertUrlSafeIds(backup.data)` call next to the fork's archive lines): merge it by hand, or tell me to resolve conflicts that are this mechanical. | 2026-11-23 |
 
 ## Re-verify with real Shopmonkey data
 
