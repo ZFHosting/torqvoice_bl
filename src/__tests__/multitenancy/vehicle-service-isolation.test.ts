@@ -71,6 +71,8 @@ vi.mock('@/lib/db', () => ({
     // A deleted work order or quote takes its custom field values with it.
     customFieldValue: { deleteMany: vi.fn() },
     inventoryPart: { updateMany: vi.fn() },
+    // fork: a delete also leaves tombstones for API sync (A2); the expectations are unchanged.
+    deletedRecord: { create: vi.fn(), createMany: vi.fn() },
     $transaction: vi.fn(),
   },
 }))

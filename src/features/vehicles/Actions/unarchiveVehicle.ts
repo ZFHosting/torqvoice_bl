@@ -1,36 +1,21 @@
 'use server'
 
-import { db } from '@/lib/db'
 import { withAuth } from '@/lib/with-auth'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
-import { revalidatePath } from 'next/cache'
+// fork: the body and its audit event live beside the vehicle service (A2)
+import { vehicleUnarchivedEvent } from '../Lib/vehicleAuditEvents'
+import { unarchiveVehicleService } from '../Lib/vehicleArchiveService.server'
 
 export async function unarchiveVehicle(vehicleId: string) {
   return withAuth(
-    async ({ organizationId }) => {
-      const result = await db.vehicle.updateMany({
-        where: { id: vehicleId, organizationId },
-        data: { isArchived: false, archiveReason: null },
-      })
-      if (result.count === 0) throw new Error('Vehicle not found')
-
-      revalidatePath('/')
-      revalidatePath('/vehicles')
-      revalidatePath(`/vehicles/${vehicleId}`)
-
-      return { success: true as const, vehicleId }
-    },
+    // fork: the body is unarchiveVehicleService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      unarchiveVehicleService({ organizationId, userId, actor: 'user' }, vehicleId),
     {
       requiredPermissions: [
         { action: PermissionAction.UPDATE, subject: PermissionSubject.VEHICLES },
       ],
-      audit: ({ result }) => ({
-        action: 'vehicle.unarchive',
-        entity: 'Vehicle',
-        entityId: result.vehicleId,
-        details: { key: 'vehicle_unarchive', params: { id: result.vehicleId } },
-        metadata: { vehicleId: result.vehicleId },
-      }),
+      audit: ({ result }) => vehicleUnarchivedEvent(result),
     }
   )
 }
