@@ -72,8 +72,12 @@ params>)`, with the helpers it uses; the action keeps its name, input, permissio
 the service. Audit builders move to `<domain>AuditEvents.ts` so the API logs the same event. Deletes also
 write a `DeletedRecord`. Per domain: extractor → Biome (unsafe fix drops unused imports) → that domain's
 existing tests unchanged → a service test → `tsc` → commit. Order (brief):
-1. [ ] customers (+ contacts X4, custom fields)
-2. [ ] vehicles (+ notes)
+1. [x] customers (80787391): `customerService.server.ts`, `customerAuditEvents.ts`; test
+   `features/customers/customer-service.test.ts`; customer-related tests unchanged and passing (49 files).
+   Contacts (X4) move to A4 (nothing to extract; brief updated).
+2. [x] vehicles + notes + archive (349f3bdc): `vehicleService`, `vehicleArchiveService`, `noteService`,
+   `vehicleAuditEvents.ts`; test `features/vehicles/vehicle-service.test.ts`; vehicle-related folders pass
+   (only the Windows baseline file tests fail); `tsc` exit 0.
 3. [ ] service records: draft, header, lines, status, jobs (X2)
 4. [ ] payments (+ the invoice issuing they trigger)
 5. [ ] quotes (+ convert to job)
@@ -180,6 +184,9 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-22 | A1: the API keys page's strings in 13 languages besides English were written by Claude, not a translator. | The parity test needs every locale; they follow each locale's existing settings wording but deserve a native read before release. |
 | 2026-11-22 | A1: keys' service users show on Settings → Team and count as seats; left for A6 task 7 (label them, drop them from the seat count). | Self-hosted installs have every seat, so nothing is refused; editing a key's role on the Team page is how its scope is managed (API.md §2). |
 | 2026-11-22 | **A1 done.** DoD: `tsc` exit 0; Biome 14 (baseline); `npm test` all 796 files, failures = the 14 Windows-only baseline files plus environment-only ones (CRLF copies, load timeouts; Current step history); `test:db` 16 files / 101 tests, then the A1 db files 20 tests after review fixes. Acceptance 1–4 with test names in the A1 checklist. Reviewer pass 2: ready for PR. Merged into `fork/integration` at 1c81e08e. | Evidence for the definition of done and acceptance. |
+| 2026-11-23 | A2: tombstone `entityType`s are the API's resource names in the singular, snake case: `customer`, `vehicle`, `work_order`, `note` (and so on). A deleted vehicle also leaves tombstones for its work orders, which go with it by cascade; other cascades (notes, reminders) follow their parent, for A5 to document at `/deleted`. | `/api/v1/deleted?entityType=` is read by API clients, which know resources, not Prisma models. |
+| 2026-11-23 | A2: the vehicle page's own `deleteVehicle` (`Actions/deleteVehicle.ts`, separate from the list's) keeps its body and gains the tombstones in its transaction, rather than calling `deleteVehicleService`. | The service looks the vehicle up first (as the list's action always did); upstream's tests mock the page action's exact queries, and A2 must leave existing tests' expectations alone. |
+| 2026-11-23 | A2: upstream tests whose hand-written database mock lacks `deletedRecord` get it added (`// fork:`), expectations untouched. | A delete now writes a tombstone in its transaction (the brief's "deletes also write DeletedRecord"). |
 | 2026-11-22 | A2: a service takes the action's own parameters (raw input included) and validates inside, exactly as the action body did, instead of the brief's "action parses, service takes parsed input". | The body moves verbatim (no behaviour change, the brief's acceptance 3), and the API gets the very same validation, including messages the action words in the workshop's language (the vehicle fleet number). |
 | 2026-11-22 | A1 review: the IP allowlist keeps upstream's address rules (`X-Real-IP`, or Cloudflare's header when trusted) and says plainly, in API.md §2 and under the field, that it only holds behind a proxy that overwrites `X-Real-IP`. No new environment switch. | One source for "who is calling" across the limiter and the allowlist; the shipped compose file exposes the port directly, so the doc and the UI have to say it. An opt-in variable can come with A6's security review if needed. |
 | 2026-11-22 | A1 review: failed authentication is limited per address (30 a minute) before any key lookup; a route's own rate limit counts in its own bucket. | Upstream's withApiAuth refuses cheaply first; a bad-key flood shouldn't cost a database read and an HMAC each. A tight route mustn't eat or reshape the key's default budget. |
