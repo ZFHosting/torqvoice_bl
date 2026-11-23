@@ -76,6 +76,18 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
 | Rate limit | Per key, across every path: 120 requests a minute; a route that sets its own limit counts in a bucket of its own. Every answer to a valid key (success or refusal) carries `X-RateLimit-Limit` and `X-RateLimit-Remaining`; past the limit, 429 `rate_limited` with `Retry-After`. An invalid key has no budget to report. In-process, like upstream's limiter; that's fine for a single container. |
 | Versioning | Within v1, changes are additive only. Removing or renaming a field means v2. |
 
+### 3.1 Writes (A4)
+
+| Topic | Rule |
+| --- | --- |
+| Bodies | JSON, validated by the service the app's own action runs, so the fields and limits are the app's (`openapi.json` lists each). An unknown key is refused (400) where the API has its own body (appointments, time entries, findings, lines, the action endpoints); a service's own schema ignores one. A field naming another record (`customerId`, `vehicleId`, `workOrderId`, `technicianId`, `inventoryPartId`, …) must name one of the key's workshop, or the write is a 404. |
+| Answers | A create is 201 with the record as its `GET` returns it, and its `ETag`; a change is 200 with the same. A delete is 200 with `{ "data": { "id", "deleted": true } }` and leaves a tombstone in `/deleted`. Deleting a technician deactivates them, as the app does (their clocked hours stay); they read on with `active=false`. |
+| Changes | `PATCH` changes only the fields sent: what's left out stays as it is, and `null` clears a field that can be empty. The services the app's forms use for whole-record saves were made to work this way (the forms send every field, so the app is unchanged). |
+| Errors | A body that fails validation: 400 `invalid_request` with `details` as `[{ path, message }]`. A record of another workshop, or none: 404. An issued or locked invoice: 409 `document_locked` with `details.reason`. A plan limit: 403 `forbidden` with `details.gate`. A restore in progress: 409 `conflict`. A refusal the app would show the person ("This part does not track stock"): 400 with its message. |
+| Audit and webhooks | Each write logs the audit event the app's action logs, so the webhooks that event fans out to fire as they do for a click. Where the app's action logs none, neither does the API: a stock adjustment and a work order attachment are in the part's stock history and the work order, not the audit log. A line changed one at a time is the work order changed (`service.update`). Starting a clock (`/time-entries/start`) logs `time_entry.start`, which A5 adds to the webhook events. |
+| Times typed in | Appointments and time entries take the workshop's wall clock, as their dialogs do: `startDate` `YYYY-MM-DD` with `startTime` `HH:MM`, or `YYYY-MM-DDTHH:MM`, to the minute. Shifts (the fork's own) take ISO 8601 instants. Everything comes back as ISO 8601 UTC. |
+| Uploads | `POST /work-orders/{id}/attachments` is `multipart/form-data`: the file in `file` (JPEG, PNG, WebP or HEIC up to 60 MB; PDF, text or CSV up to 25 MB; MP4, MOV or WebM up to 250 MB, checked by their bytes), with `category`, `description` and `includeInInvoice` beside it. The stored name is made by the server. `Idempotency-Key` compares the fields and files, not the multipart boundary, so a retry is a replay. |
+
 ## 4. Resources
 
 `R` = read (list + get), `W` = create / update / delete, `A` = action endpoint.
@@ -90,23 +102,24 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
 | `/work-orders/{id}/lines` | R W | Labor and part lines, one list with `kind` (`labor`, `fee`, `epa`, `shopSupplies`, `part`, `tire`, `subcontract`), `jobId`, `technicianId`, `completed`. |
 | `/work-orders/{id}/status` | A | `POST { status, customStatusId? }`, through the same service as the work board, so the clock-stop and portal rules apply. |
 | `/work-orders/{id}/payments` | R W | Record a payment, which issues the invoice the way the UI does. |
-| `/work-orders/{id}/attachments` | R W | Multipart upload; each attachment's `contentUrl` downloads it. |
+| `/work-orders/{id}/attachments` | R W | Multipart upload (§3.1); each attachment's `contentUrl` downloads it. `DELETE /work-orders/{id}/attachments/{attachmentId}` removes one, and its file unless something else uses it. |
 | `/work-orders/{id}/attachments/{attachmentId}/content` | R | The file itself (its own `Content-Type`), with the same key; only the workshop's own uploads. |
 | `/quotes` | R W | `?status=`, `?customerId=` (made out to them, or on a vehicle they own), `?vehicleId=`. `validUntilDay` is the last valid day on the workshop's calendar. Can include `jobs`, `lines` (declined lines carry `excluded: true`), `customFields`. |
 | `/quotes/{id}/convert` | A | Quote to work order, through the existing conversion code. |
-| `/appointments` | R W | `?from=&to=` (by start). An appointment has no technician of its own. |
-| `/technicians` | R W | `?active=true\|false`. |
+| `/appointments` | R W | `?from=&to=` (by start). An appointment has no technician of its own. Booked on the workshop's clock (§3.1), with optional `notifications` (the dialog's reminders; a change that leaves them out keeps them). |
+| `/technicians` | R W | `?active=true\|false`. A `userId` links a login of the workshop's own team. `DELETE` deactivates. |
 | `/time-entries` | R W | `?technicianId=`, `?workOrderId=`, `?from=&to=` (by `startedAt`). |
-| `/time-entries/start`, `/time-entries/{id}/stop` | A | Same rules as the technician app (one open entry per technician). |
+| `/time-entries/start`, `/time-entries/{id}/stop` | A | Same rules as the technician app (one open entry per technician). `POST /time-entries/start { technicianId, workOrderId }` stops a clock running on another job and moves a job that hadn't started to in progress; on the job already running it answers 200 with that entry. Entries it starts have `source: "api"`. |
 | `/shifts` | R W | TechnicianShift (X6). `?technicianId=`, `?from=&to=` (by `clockIn`). |
 | `/inventory-parts` | R W | `?q=` (name, part number, barcode), `?category=`. |
-| `/inventory-parts/{id}/adjust` | A | `POST { delta, reason, note }` writes a `StockMovement`. |
+| `/inventory-parts/{id}/adjust` | A | `POST { delta, note? }` moves the count and writes a `StockMovement` with reason `manual_adjustment` (the stored reasons are the app's own causes, so a client doesn't pick one). No webhook, as for the app's stock scan. |
 | `/labor-presets` | R W | Canned services. |
 | `/inspections` | R | `?vehicleId=`, `?status=`; `include=items` (what was checked, the condition, measured values, a photo count). Templates and photo downloads, and writes, come in a later version. |
-| `/findings` | R W | Deferred or recommended work (`VehicleFinding`). `?vehicleId=`, `?status=`. |
+| `/findings` | R W | Deferred or recommended work (`VehicleFinding`). `?vehicleId=`, `?status=`. Written with `workOrderId` (the job it was found on), as it reads. |
+| `/findings/{id}/resolve` | A | `POST { workOrderId? }`: resolved, by the job that did the work, as the app marks it. |
 | `/work-order-statuses` | R | |
 | `/payments` | R | Across all work orders, for accounting sync: `?from=&to=` (by `date`), `?method=`. |
-| `/webhooks` | R W | Manage webhook subscriptions (the existing `Webhook` model) from code. |
+| `/webhooks` | R W | Manage webhook subscriptions (the existing `Webhook` model) from code. The URL is checked as the settings page checks it (no private or loopback addresses). A create answers with the signing `secret`, the only time it's shown. Needs `update:settings`, as in the app. |
 | `/settings` | R | Currency, time zone, tax setup, default labor rate, numbering format. Needs `read:settings` (the numbering format isn't member-readable). |
 | `/reports/sales` | R | Totals by day, week or month: invoiced, collected, tax, parts, labor, fees. |
 | `/reports/receivables` | R | Open invoices with aging buckets. |
@@ -128,6 +141,12 @@ these (listed in that file under a `// fork:` comment, and sent from the matchin
 
 Payloads keep the existing shape (`event`, `entity`, `entityId`, `data`). `data` is the same serialized
 resource the API returns for that entity, so a subscriber never has to call back for basics.
+
+Already in the audit log since A4, and sent once A5 lists them: `appointment.*` and `technician.*` (the app's
+own audit actions), `contact.*`, `job.*` and `shift.*` (the fork's records), and `time_entry.start` (the API's
+clock start). The app logs time entries as `timeEntry.create`, `timeEntry.update` (a stop too) and
+`timeEntry.delete`; A5 decides whether `time_entry.stop` and `time_entry.update` are those under new names or
+events beside them.
 
 ## 6. Code layout
 

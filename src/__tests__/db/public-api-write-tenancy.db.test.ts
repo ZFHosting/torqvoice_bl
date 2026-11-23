@@ -3,13 +3,16 @@
  * docs/fork/milestones/A4-write-endpoints.md, Acceptance; docs/fork/API.md §7). A key of workshop A, sent with
  * workshop B's ids (in the path, or in the body for what a new record points at), gets 404 from every write, and
  * neither workshop has a row changed or an audit event more afterwards. A key with full access, so a refusal is the
- * workshop's and not the permission's. Its own workshops, removed again. SYNTHETIC data.
+ * workshop's and not the permission's; and a key that may only read gets 403 from every one of them (API.md §7).
+ * Its own workshops, removed again. SYNTHETIC data.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   call,
+  everything,
   guardTestDatabase,
   type Handler,
+  newKey,
   newShop,
   removeCreated,
   route,
@@ -575,40 +578,61 @@ const CASES: Case[] = [
 ]
 
 /** An upload to their work order, multipart like any upload. */
-async function uploadToTheirs(handler: Handler) {
+async function uploadToTheirs(handler: Handler, key = A.key) {
   const form = new FormData()
   form.append('file', new File([new Uint8Array([1, 2, 3])], 'x.png', { type: 'image/png' }))
   return handler(
     new Request(`http://localhost/api/v1/work-orders/${B.ids.workOrder}/attachments`, {
       method: 'POST',
-      headers: { authorization: `Bearer ${A.key}`, 'x-real-ip': '203.0.113.21' },
+      headers: { authorization: `Bearer ${key}`, 'x-real-ip': '203.0.113.21' },
       body: form,
     }),
     { params: Promise.resolve({ id: B.ids.workOrder }) }
   )
 }
 
+/** Every write in the table, sent with this key: each one's status, by name. */
+async function sendAll(key: string) {
+  const answers: Record<string, number> = {}
+  for (const c of CASES) {
+    resetKeyBudgets()
+    const handler = (await route(c.path))[c.method]
+    expect(handler, `${c.method} ${c.path}`).toBeTypeOf('function')
+    const response = await call(handler, key, c.method, `/${c.path}`, {
+      params: c.params?.(),
+      body: c.method === 'DELETE' ? undefined : c.body?.(),
+    })
+    answers[c.name] = response.status
+  }
+  resetKeyBudgets()
+  answers['upload an attachment'] = (
+    await uploadToTheirs((await route('work-orders/[id]/attachments')).POST, key)
+  ).status
+  return answers
+}
+
+const all = (answers: Record<string, number>, status: number) =>
+  Object.fromEntries(Object.keys(answers).map((name) => [name, status]))
+
 describe('another workshop’s records, through every write endpoint', () => {
   it('are not found, and nothing changes in either workshop', async () => {
     const before = await snapshot()
-    const answers: Record<string, number> = {}
-    for (const c of CASES) {
-      resetKeyBudgets()
-      const handler = (await route(c.path))[c.method]
-      expect(handler, `${c.method} ${c.path}`).toBeTypeOf('function')
-      const response = await call(handler, A.key, c.method, `/${c.path}`, {
-        params: c.params?.(),
-        body: c.method === 'DELETE' ? undefined : c.body?.(),
-      })
-      answers[c.name] = response.status
-    }
-    resetKeyBudgets()
-    answers['upload an attachment'] = (
-      await uploadToTheirs((await route('work-orders/[id]/attachments')).POST)
-    ).status
-    expect(answers).toEqual(Object.fromEntries(Object.keys(answers).map((name) => [name, 404])))
+    const answers = await sendAll(A.key)
+    expect(answers).toEqual(all(answers, 404))
     // The audit log is written as the API answers; give the webhook dispatcher its moment too.
     await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(await snapshot()).toEqual(before)
+  })
+
+  it('refuse a key whose role may only read: 403 from every write, before anything is looked up', async () => {
+    const reader = await newKey(
+      A.org,
+      A.owner,
+      everything().filter((permission) => permission.action === 'read')
+    )
+    const before = await snapshot()
+    const answers = await sendAll(reader)
+    expect(answers).toEqual(all(answers, 403))
     expect(await snapshot()).toEqual(before)
   })
 

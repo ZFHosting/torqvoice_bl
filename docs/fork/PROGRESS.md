@@ -78,18 +78,35 @@ merge is still blocked by B15). Plan:
    webhooks fire as from the UI) + errors: zod 400 with paths, document lock 409 `document_locked`, plan gate 403
    with `details.gate`, a service's "… not found" 404, another plain `Error` (a refusal the action shows) 400,
    a unique violation 409. The response is the record as A3 serializes it.
-2. [ ] Partial PATCH: update services that parse a `.partial()` schema with defaults switch to `parseSentFields`
-   (a field not sent stays as it is; the forms send everything, so the app is unchanged).
+2. [x] Partial PATCH (b3dd529f): the finding, inventory part and labor preset update services parse with
+   `parseSentFields` (the preset replaces its items or parts only when sent); the time entry update keeps a start,
+   end or note not sent (to the second); appointments and webhooks merge the stored record under the fields sent.
+   Evidence: `db/public-api-write-other.db.test.ts` (inventory rename keeps the count, preset rename keeps items and
+   parts, finding note keeps severity, time entry note keeps `01:02:03.456`, appointment title keeps times and
+   reminders, webhook rename keeps URL and events).
 3. [x] Phase 1 (868d7561, 7e4ed17d; `db/public-api-write-people.db.test.ts`): customers (+ contacts, a new service with tombstones; contacts, jobs and shifts services in `features/fork-records/`), vehicles (a customer id of another
    workshop is a 404).
-4. [ ] Phase 2: work orders (create, update, delete, status action, lines, jobs (new service), payments, attachments
-   multipart), quotes (+ convert).
-5. [ ] Phase 3: appointments, technicians, time entries (+ start/stop), shifts (new service), inventory (+ adjust),
-   labor presets, findings, webhooks. `demoGuard()` where a service sends or calls a paid provider.
-6. [ ] Tests: parity (API vs action: same rows, audit event, webhook delivery) for create customer, create work
-   order, a labor line with a technician, a payment, a quote conversion; editing an issued invoice's lines 409
-   with `details.reason`; idempotent replay and conflict; stale `If-Match` 412; tenant isolation over every write
-   endpoint. Each endpoint asserts rows and the audit event.
+4. [x] Phase 2 (9a73d88d; `db/public-api-write-orders.db.test.ts`, 9 passing): work orders (create, update, delete,
+   `POST /status`), one line at a time (`fork-records/Lib/lineService.server.ts`: the lock, `addPart` for parts,
+   stock reconciled, re-totalled; a line changed logs `service.update`), jobs, payments (create issues the invoice,
+   delete), quotes (+ `POST /convert`). Parity with `createServiceRecord`, `updateServiceRecord` (the form sends its
+   own totals; the API works them out), `createPayment`, `convertQuoteToServiceRecord`; 409 `document_locked` with
+   `details.reason: 'sent'`; 404 across workshops for the work order, its status, jobs, lines (another workshop's
+   technician, job or line too) and payments; 412 on a stale `If-Match`.
+5. [x] Phase 3 (b3dd529f; `db/public-api-write-other.db.test.ts`, 10 passing): technicians (a `userId` must be
+   the workshop's member; DELETE deactivates), appointments (the booking service, workshop wall clock: 09:30 on
+   1 Dec in Pacific/Auckland is `2026-11-30T20:30Z`), time entries (+ `/start`, `/{id}/stop`: one clock a
+   technician, a running one stops, the job moves to in progress), shifts, inventory parts (+ `/adjust`: a
+   `manual_adjustment` stock line), labor presets, findings (+ `/resolve`), webhooks (secret answered once), work
+   order attachments (multipart; stored name made here; replayed by Idempotency-Key across boundaries; refused
+   types and fake PDFs 400). `demoGuard()`: the webhook and booking services already call it where they send.
+6. [x] Tests. Parity: `public-api-write-people` (create customer) and `public-api-write-orders` (work order,
+   labor line with a technician, payment, quote conversion). 409 `document_locked` with `details.reason: 'sent'`:
+   `public-api-write-orders` "an issued invoice". Idempotent replay and conflict: `public-api-write-people`, and
+   the upload replay in `public-api-write-other`. 412: `public-api-write-people`, `public-api-write-orders`.
+   Tenant isolation over every write endpoint: `public-api-write-tenancy` (54 writes, the upload included, with workshop B's ids → 404,
+   nothing changed in either workshop; a check that the table names every write route served), plus 403 from
+   every write for a read-only key. All four files: 31 tests passing together on `torqvoice_fork_test`.
 7. [ ] API.md, DoD, reviewer, merge.
 
 Carry-over notes:
@@ -289,3 +306,11 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-22 | A1 review, not done: IPv6/IPv4-mapped normalisation in the allowlist (exact strings), keys outliving the admin who made them, the shared-test-DB purge assertion. | Noted for A6's security review; none is a defect in what A1 promises. |
 | 2026-11-22 | **M1 done.** DoD at 12628351: `tsc` exit 0; Biome 14 (baseline); `npm test` all 775 files on Node 22.23.4, failures = the 14 Windows-only baseline files (+ the cold-start `delete-paths` timeout); `test:db` 14 files / 82 tests on `torqvoice_fork_test`. Reviewer pass 2: ready for PR. Merged into `fork/integration` at 5605175e. | Evidence for the definition of done and acceptance (brief items 1–4). |
 | 2026-11-22 | M1 review: `readLaborSourceExtra`/`readPartSourceExtra` drop the whole object when one key is malformed. Left for M4, where the transform writes `sourceExtra` and the reader first matters. | Nothing writes or reads `sourceExtra` before M4; M4's fixture tests will show which keys need per-key leniency. |
+| 2026-11-23 | A4: the finding service refuses another workshop's work order (create, change, resolve) and vehicle (change); the labor preset service refuses another workshop's inventory part. In the shared services, so the app gets the fix too. | Upstream holes: the ids came from the browser unchecked and linked across workshops. Reachable by API keys from A4, like the technician fix (A4 prerequisite). Worth reporting upstream. |
+| 2026-11-23 | A4: a stock adjustment (the app's scan and `POST /inventory-parts/{id}/adjust`) writes a `StockMovement` (`manual_adjustment`, the user, an optional note). API.md's `{ delta, reason, note }` became `{ delta, note? }`. | API.md promised a stock line; the scan wrote none, so the part's history missed it. `reason` is a stored data contract of the app's own causes, not the client's to pick. Like the scan, no audit event (parity). |
+| 2026-11-23 | A4: the time entry update keeps a start, end or note it isn't sent. The timesheet always sends all three, so it is unchanged. | The service takes a wall clock to the minute: re-sending the stored times would round clocked seconds away on a note change. |
+| 2026-11-23 | A4: `POST /time-entries/start` logs `time_entry.start` (API.md §5's name; labels in all 14 locales). The app's own time entry events are `timeEntry.*`; A5 decides how §5's `time_entry.stop` / `time_entry.update` relate to them (API.md §5 says so). | The technician app's start logs nothing, so there was no event to reuse; §5 names this one. |
+| 2026-11-23 | A4: `POST /findings/{id}/resolve` added (additive). Findings are written with `workOrderId`, the read's name, mapped to the service's `serviceRecordId`. | A finding's status only changes through resolve; without it the API couldn't close one. Same field names in and out. |
+| 2026-11-23 | A4: writes the app records no audit event for (stock adjustment, attachment add and delete) record none through the API either. | FORK.md: the API logs the same audit event as the action. Noted in API.md §3.1 so subscribers know. |
+| 2026-11-23 | A4: an upload's `Idempotency-Key` hash covers its fields and files (name, type, bytes), not the raw multipart body. | A client retrying an upload usually sends a new boundary; hashing the bytes would answer a retry with 409. |
+| 2026-11-23 | A4: `customer-inventory-isolation.test.ts` (upstream) gets a `stockMovement.create` mock (`// fork:`); its expectations are unchanged. | Its Prisma mock lists only the models the code used; the adjustment now writes one more. |
