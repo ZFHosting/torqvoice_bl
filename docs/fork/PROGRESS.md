@@ -25,7 +25,7 @@ resolved.
 | A1 | done | fork/A1-api-foundation | Merged 1c81e08e. Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (A1 done). |
 | A2 | done | fork/A2-domain-services | Merged c7f16d90. Reviewer: ready for PR after 2 passes. Upstream techName bug recorded as an A4 prerequisite. |
 | M2 | provisional | fork/M2-connector-and-client | Merged 6318fb3f. Built on documented shapes only: re-verify with a key (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M2 provisional). |
-| M3 | todo | | |
+| M3 | in_progress | fork/M3-extract-and-stage | |
 | M4 | todo | | |
 | M5 | todo | | |
 | A3 | todo | | |
@@ -65,14 +65,30 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**Next: M3 (extract and stage).** Carried over from M2's review (pass 2, should-fix, none blocking), to fix in
-M3's first commit: refuse a path unless `new URL(path, SHOPMONKEY_BASE_URL)` keeps the origin and an identical
-pathname (encoded `%2e%2e` and `\` slip past the raw-string check; GET only, read-only holds); a refused
-VIN/plate path must not repeat the VIN in `ReadOnlyViolation`; catch, log and count a fetch rejection or
-timeout; carry the give-up `Retry-After` on `ShopmonkeyError` so a job can reschedule. Also from staging:
-`runJob` requeues only on a truthy `rescheduleInSeconds` (a page job returns 1, not the brief's 0), the
-invoice PDF is binary (the client needs a byte download), and the drafts in `scratchpad/m3-final/` pass the
-PDF's `document_type` in the path, which the client now refuses: pass it as a query.
+**M3 (extract and stage), in progress** on `fork/M3-extract-and-stage` (from `fork/integration` at db8d0810;
+upstream had nothing new). Provisional (B1): endpoints and shapes are documented only; tests run against a mock
+server serving the synthetic fixtures. Plan:
+1. [ ] Client, from M2's review (pass 2): refuse a path unless `new URL(path, base)` keeps the origin and an
+   identical pathname; a refused VIN/plate path doesn't repeat the VIN; catch, log and count a fetch rejection;
+   `ShopmonkeyError.retryAfterS`. New: one-page reads (`listPage`, `searchPage`) for page-per-job extraction,
+   and a byte download for the invoice PDF.
+2. [ ] `SourceRecord.childrenHash` (migration `fork_source_children_hash`): the parent hash whose children were
+   fetched. Backup restore carries it.
+3. [ ] `extract/stage.ts`: canonical JSON, `payloadHash`, a `SourceStore` (Prisma, and an in-memory one for
+   tests): stage a page (one read for the page's hashes, upsert only changed), pending children, mark fetched,
+   mark children gone from their parent as deleted.
+4. [ ] `extract/tables.ts` (every MAPPING §3 table, archive-only ones included; children; references fetched by
+   id), `extract/plan.ts` (run order; checkpoints `{ phase, stage, skip, highWatermark, total, lastPage }` per
+   step in `state.extract`), `extract/engine.ts` (one unit of work per step: a page, or a batch of parents'
+   children), `extract/files.ts` (staging area, size cap, content-type check, guarded download).
+5. [ ] Jobs in `server.ts` (`extract.start`, `extract.step`, rescheduling 1 s) and the CLI
+   `scripts/shopmonkey/run.ts extract`.
+6. [ ] Backups: the archive gets its own export option (on by default), streamed to its own file and restored
+   in batches, so a 50,000-order archive stays restorable; restore clears the workshop's archive first.
+7. [ ] Tests (acceptance): mock server; full extract stages every fixture record and a second run writes nothing;
+   kill mid-table and resume; a changed record is restaged and its order's children refetched; no PII in logs;
+   backup round trip with a large archive; restoring twice leaves one row per object (db).
+8. [ ] Brief and MAPPING fixes (Decisions log), DoD, reviewer, merge as provisional.
 
 M0 acceptance:
 - [x] NOTICE-FORK.md, README link, CLAUDE.md import, docs/fork/UPSTREAM.md (commit 0c7ec939).
