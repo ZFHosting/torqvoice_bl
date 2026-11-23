@@ -3,7 +3,8 @@
  * docs/fork/MAPPING.md X3): what a Shopmonkey line had that the Torqvoice row has no column for.
  *
  * Read leniently, like the upstream JSON columns (issuedInvoice.ts): every key is optional, unknown keys
- * pass through, and a value that doesn't parse reads as an empty object rather than breaking a page.
+ * pass through, a key whose value doesn't parse is left out (the others are kept), and a value that isn't an
+ * object reads as an empty one rather than breaking a page.
  * Writers (the M4 transforms) produce exactly these keys.
  */
 import { z } from 'zod'
@@ -66,9 +67,23 @@ export const partSourceExtraSchema = lineSourceBase
 export type LaborSourceExtra = z.infer<typeof laborSourceExtraSchema>
 export type PartSourceExtra = z.infer<typeof partSourceExtraSchema>
 
-function lenient<T>(schema: z.ZodType<T>, raw: unknown): T {
+function lenient<T>(schema: z.ZodObject, raw: unknown): T {
   const parsed = schema.safeParse(raw)
-  return parsed.success ? parsed.data : ({} as T)
+  if (parsed.success) return parsed.data as T
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {} as T
+  // Key by key: one odd value (an older import's, say) costs that key, not the whole object.
+  const shape = schema.shape as Record<string, z.ZodType>
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const field = shape[key]
+    if (!field) {
+      out[key] = value
+      continue
+    }
+    const one = field.safeParse(value)
+    if (one.success) out[key] = one.data
+  }
+  return out as T
 }
 
 export const readLaborSourceExtra = (raw: unknown): LaborSourceExtra =>
