@@ -1,34 +1,16 @@
 /**
  * fork: what each staged Shopmonkey table is to the load (MAPPING §3, §11), and the one rule that puts a staged
- * record in its bucket (M6). Pure: the scan in `counts.ts` brings the facts.
+ * record in its bucket (M6, MAPPING §12). Pure: the scan in `counts.ts` brings the facts.
  */
 import type { Bucket } from './types'
-
-/** Tables whose records each become a Torqvoice row of their own, linked (`SourceRecord.localEntity/localId`). */
-export const LINKED_TABLES = new Set([
-  'user',
-  'workflow_status',
-  'customer',
-  'vehicle',
-  'canned_service',
-  'inventory_part',
-  'inventory_tire',
-  'inventory_labor',
-  'inventory_fee',
-  'order',
-  'appointment',
-  'inspection_template',
-  'inspection',
-  'timesheet',
-  'order_file',
-  'invoice_pdf',
-  'inspection_file',
-])
 
 /** Files: their parent says whether they had somewhere to go. */
 export const FILE_TABLES = new Set(['order_file', 'invoice_pdf', 'inspection_file'])
 
-/** Part of another record's rows: an order's services and authorizations, a vehicle's owners. */
+/**
+ * Part of a parent's rows: an order's services and authorizations, a vehicle's owners, and an inspection's photos
+ * (placed in its items' `imageUrls`, not rows of their own).
+ */
 export const FOLDED_TABLES = new Set(['order_service', 'authorization', 'vehicle_owner'])
 
 /** Read whole into the workshop's settings, statuses and customers' fields. */
@@ -72,13 +54,13 @@ export interface StagedFacts {
   /** Its linked Torqvoice row exists in the workshop (looked up when there's a link). */
   rowExists: boolean
   loadSkip: string | null
-  /** Deleted in Shopmonkey: `remoteDeletedAt`, or the payload's own `deleted`. */
+  /** Deleted in Shopmonkey (`remoteDeletedAt`, which the extract sets for a payload marked deleted). */
   deleted: boolean
   /** A file the extract didn't download (`_staged.skipped`). */
   fileNotStaged: boolean
   /** A payment's Payment row exists (by `externalId`). */
   paymentLoaded: boolean
-  /** The record its parent is (a file's `_parent`, a payment's order), and that parent's bucket. */
+  /** Its parent's bucket (an order's for a service, payment or file, a vehicle's for an owner, ...). */
   parentBucket: Bucket | null
   /** For a payment: whether its order is a loaded work order. */
   parentIsWorkOrder: boolean
@@ -88,6 +70,16 @@ export interface Placement {
   bucket: Bucket
   /** For `skipped`: why. */
   reason?: string
+}
+
+/** A child's bucket from its parent's: with it when the parent is loaded, left out (or deleted) with it otherwise. */
+function withParent(parent: Bucket | null): Placement {
+  if (!parent || parent === 'loaded' || parent === 'missing' || parent === 'unaccounted') {
+    // A missing or unaccounted parent is named itself; its children go with it.
+    return { bucket: 'folded' }
+  }
+  if (parent === 'deleted') return { bucket: 'deleted' }
+  return { bucket: 'skipped', reason: 'parent_not_loaded' }
 }
 
 /**
@@ -102,7 +94,7 @@ export function place(r: StagedFacts): Placement {
   if (r.loadSkip) return { bucket: 'skipped', reason: r.loadSkip }
   if (ARCHIVE_TABLES.has(r.table)) return { bucket: 'archive' }
   if (SETTINGS_TABLES.has(r.table)) return { bucket: 'settings' }
-  if (FOLDED_TABLES.has(r.table)) return { bucket: 'folded' }
+  if (FOLDED_TABLES.has(r.table)) return withParent(r.parentBucket)
   if (r.table === 'payment' && !r.parentIsWorkOrder) {
     // MAPPING §6.6: a payment on an order that isn't a loaded work order isn't imported.
     return { bucket: 'skipped', reason: 'payment_order_not_loaded' }
@@ -113,6 +105,8 @@ export function place(r: StagedFacts): Placement {
     if (r.parentBucket && r.parentBucket !== 'loaded') {
       return { bucket: 'skipped', reason: 'parent_not_loaded' }
     }
+    // An inspection's photo is placed in its items' `imageUrls`: part of the loaded inspection.
+    if (r.table === 'inspection_file' && r.parentBucket === 'loaded') return { bucket: 'folded' }
   }
   return { bucket: 'unaccounted' }
 }

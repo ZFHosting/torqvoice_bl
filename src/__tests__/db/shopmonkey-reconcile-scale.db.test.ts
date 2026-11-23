@@ -1,15 +1,19 @@
 /**
  * fork: the reconciliation at a real shop's size, on a real PostgreSQL (`npm run test:db`; M6 acceptance: "under a
  * minute on 50,000 orders"). Generated data: 50,000 imported invoices, each with two lines and a payment, and the
- * Shopmonkey records they were loaded from, written straight to the tables. The report is timed, and its gates pass.
+ * Shopmonkey records they were loaded from (each order with a service), written straight to the tables. An order's
+ * payload carries about 2 KB of text that doesn't compress, so Postgres keeps it out of line as it would a real
+ * one, and every key read of it costs what it would. The report is timed, and its gates pass.
  *
  * Its own workshop, removed again. GENERATED data.
  */
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createWorkshop, guardTestDatabase } from './shopmonkeyLoadHarness'
 
 const ORDERS = 50_000
+/** What doesn't compress: a real order's notes, labels, custom fields and line summaries, in size. */
+const FILLER = randomBytes(1_650).toString('base64')
 const CHUNK = 2_000
 const url = guardTestDatabase()
 let db: typeof import('@/lib/db')['db']
@@ -79,7 +83,16 @@ beforeAll(async () => {
           totalCostCents: 6_750,
           paidCostCents: 4_000,
           remainingCostCents: 2_750,
+          notes: FILLER,
         },
+      },
+      {
+        organizationId,
+        connectionId,
+        table: 'order_service',
+        remoteId: `gen_svc_${i}`,
+        payloadHash: `gen_svc_${i}`,
+        payload: { id: `gen_svc_${i}`, orderId, name: 'Service' },
       },
       {
         organizationId,
@@ -128,12 +141,15 @@ describe('the reconciliation of 50,000 orders', () => {
     expect(elapsed).toBeLessThan(60_000)
     expect(report.money.workOrders).toBe(ORDERS)
     expect(report.money.unexplained).toBe(0)
-    expect(report.receivables).toEqual({
+    expect(report.receivables).toMatchObject({
       shopmonkeyCents: ORDERS * 2_750,
       torqvoiceCents: ORDERS * 2_750,
     })
     expect(report.counts.find((t) => t.table === 'order')?.buckets).toEqual({ loaded: ORDERS })
     expect(report.counts.find((t) => t.table === 'payment')?.buckets).toEqual({ loaded: ORDERS })
+    expect(report.counts.find((t) => t.table === 'order_service')?.buckets).toEqual({
+      folded: ORDERS,
+    })
     expect(report.spotChecks).toHaveLength(25)
     expect(report.passed).toBe(true)
   }, 600_000)

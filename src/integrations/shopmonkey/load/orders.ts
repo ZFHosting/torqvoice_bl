@@ -201,6 +201,14 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
     )
     lc.warnings.push(...result.warnings)
     const rows = result.rows
+    // M6: Shopmonkey's own lines and subtotal disagree: what the lines came to here is what a later difference
+    // may be explained by, and nothing else.
+    if (
+      rows?.kind === 'serviceRecord' &&
+      result.warnings.some((w) => w.code === 'money_mismatch' && w.field === 'subtotal')
+    ) {
+      lc.mismatchedLines.set(order.remoteId, Math.round(rows.record.subtotal * 100))
+    }
     if (!rows) {
       skipRecord(
         lc,
@@ -385,18 +393,8 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
       for (const p of paymentRows) {
         const payment = transformPayment(p, lc.transform)
         lc.warnings.push(...payment.warnings)
-        if (!payment.rows) {
-          const id = String(p.id)
-          markSkip(
-            lc,
-            'payment',
-            id,
-            p.status !== 'Succeeded'
-              ? 'payment_not_succeeded'
-              : skipReason(lc, 'payment', id, p as Record<string, unknown>)
-          )
-          continue
-        }
+        // Why it's out is noted after the unit, every run (below).
+        if (!payment.rows) continue
         kept.push(payment.rows.externalId)
         written.push(payment.rows)
         await tx.payment.upsert({
@@ -475,6 +473,25 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
       return outcome
     })
     if (rows.kind === 'quote') notOnWorkOrder(order.remoteId)
+    else if (committed) {
+      // M6: each of a work order's payments, loaded or left out and why. After the unit and every run, so an
+      // unchanged order (its unit returns before its payments) and a payment loaded since are both said.
+      for (const p of paymentRows) {
+        const id = String(p.id)
+        const payment = transformPayment(p, lc.transform)
+        if (payment.rows) lc.loadedUnlinked.push({ table: 'payment', remoteId: id })
+        else {
+          markSkip(
+            lc,
+            'payment',
+            id,
+            p.status !== 'Succeeded'
+              ? 'payment_not_succeeded'
+              : (payment.warnings.at(-1)?.code ?? 'not_imported')
+          )
+        }
+      }
+    }
     if (committed) {
       lc.placedFiles.push(...pending)
       if (invoiceId) lc.toIssue.push(invoiceId)

@@ -119,6 +119,12 @@ describe('a load', () => {
     const order = await skipOf('order', 'syn_ord_1004')
     expect(order.loadSkip).toBeNull()
     expect(order.localId).not.toBeNull()
+    // Its payments loaded too, and no longer say why they were left out.
+    for (const payment of ['syn_pay_1004_1', 'syn_pay_1004_2']) {
+      expect((await skipOf('payment', payment)).loadSkip).toBeNull()
+    }
+    // The failed charge on 1003 still says why, though its order was unchanged this run.
+    expect((await skipOf('payment', 'syn_pay_1003_4')).loadSkip).toBe('payment_not_succeeded')
     expect(
       await db.payment.count({
         where: { provider: 'shopmonkey', externalId: { in: ['syn_pay_1004_1', 'syn_pay_1004_2'] } },

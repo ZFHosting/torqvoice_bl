@@ -34,6 +34,13 @@ export interface LoadContext {
    * reconciliation accounts for each without repeating the load's rules.
    */
   skips: { table: string; remoteId: string; reason: string }[]
+  /** Records loaded without a link of their own (payments): an old reason they were left out goes (M6). */
+  loadedUnlinked: { table: string; remoteId: string }[]
+  /**
+   * Orders whose Shopmonkey lines and subtotal disagree (`money_mismatch` on `subtotal`): what the work order's
+   * lines came to as loaded, in cents. The reconciliation explains a lines difference only at that amount (M6).
+   */
+  mismatchedLines: Map<string, number>
   /** Orders created before it are left out (the connection's `historyFrom`, as the extract reads it). */
   historyFrom: string | null
   /** ImportBatch ids of this run, by entity, created on first use. */
@@ -94,6 +101,8 @@ export function createLoadContext(input: {
     warnings: [],
     failures: [],
     skips: [],
+    loadedUnlinked: [],
+    mismatchedLines: new Map(),
     historyFrom: input.historyFrom ?? null,
     batches: {},
     toIssue: [],

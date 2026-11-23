@@ -48,7 +48,12 @@ export function formatReport(report: ReconciliationReport): string[] {
     const buckets = Object.entries(t.buckets)
       .map(([b, n]) => `${b} ${n}`)
       .join(', ')
-    const shop = t.shopmonkeyTotal === null ? '' : ` of ${t.shopmonkeyTotal} on Shopmonkey`
+    const shop =
+      t.shopmonkeyTotal === null
+        ? t.extractPhase === 'delta'
+          ? ' (last read: changes only)'
+          : ''
+        : ` of ${t.shopmonkeyTotal} on Shopmonkey`
     const away = t.otherLocation ? `, ${t.otherLocation} at another location` : ''
     lines.push(`  ${t.table}: ${t.staged} staged${shop}${away}: ${buckets}`)
     const reasons = Object.entries(t.skipped)
@@ -66,16 +71,26 @@ export function formatReport(report: ReconciliationReport): string[] {
   }
   lines.push(
     '',
-    `Money: ${report.money.workOrders} work order(s), ${report.money.differenceTotal} difference(s), ${report.money.unexplained} unexplained.`
+    `Money: ${report.money.workOrders} work order(s) and ${report.money.quotes} estimate(s), ${report.money.differenceTotal} difference(s), ${report.money.unexplained} unexplained.`
   )
   for (const d of report.money.differences.filter((x) => !x.explainedBy)) {
+    const what = d.document === 'quote' ? 'estimate' : 'order'
     lines.push(
-      `  order ${d.orderId}${d.number ? ` (#${d.number})` : ''} ${d.field}: Shopmonkey ${dollars(d.shopmonkeyCents)}, Torqvoice ${dollars(d.torqvoiceCents)}`
+      `  ${what} ${d.orderId}${d.number ? ` (#${d.number})` : ''} ${d.field}: Shopmonkey ${dollars(d.shopmonkeyCents)}, Torqvoice ${dollars(d.torqvoiceCents)}`
     )
   }
+  const r = report.receivables
   lines.push(
-    `Receivables: Shopmonkey ${dollars(report.receivables.shopmonkeyCents)}, Torqvoice ${dollars(report.receivables.torqvoiceCents)}`
+    `Receivables: Shopmonkey ${dollars(r.shopmonkeyCents)}, Torqvoice ${dollars(r.torqvoiceCents)}`
   )
+  if (r.notImportedInvoices) {
+    lines.push(
+      `  Not imported (not compared): ${r.notImportedInvoices} invoice(s) with ${dollars(r.notImportedCents)} open in Shopmonkey`
+    )
+  }
+  if (r.deletedInShopmonkey) {
+    lines.push(`  ${r.deletedInShopmonkey} imported work order(s) deleted in Shopmonkey since`)
+  }
   if (report.failures.length) {
     lines.push('', 'Failed to load:')
     for (const f of report.failures) lines.push(`  ${f.table} ${f.remoteId}`)

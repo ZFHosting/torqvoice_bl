@@ -29,7 +29,12 @@ export type Bucket =
 
 export interface TableCounts {
   table: string
-  /** Shopmonkey's own count (`meta.total` from the first page the extract read), when its list gives one. */
+  /** The extract's last run of this table: `backfill` reads it whole, `delta` only what changed. */
+  extractPhase: 'backfill' | 'delta' | null
+  /**
+   * Shopmonkey's own count (`meta.total` from the first page the extract read), when its list gives one and the
+   * last run read the whole table (a delta's count is only what changed).
+   */
   shopmonkeyTotal: number | null
   /** Rows the extract read from the list, and the ones it left out as another location's. */
   read: number | null
@@ -54,7 +59,9 @@ export type MoneyField = 'lines' | 'total' | 'paid' | 'balance'
 export interface MoneyDifference {
   orderId: string
   number: string | null
+  /** The Torqvoice row: a work order, or (for an estimate) a quote. */
   workOrderId: string
+  document: 'workOrder' | 'quote'
   field: MoneyField
   shopmonkeyCents: number
   torqvoiceCents: number
@@ -95,7 +102,10 @@ export interface UnmappedField {
 
 export interface Gate {
   passed: boolean
-  /** One line: why it passed or failed. */
+  /** Why, as a code and its numbers: what the import page (M8) says, in the workshop's language. */
+  code: string
+  values: Record<string, number | string>
+  /** The same in English, for the command line. */
   summary: string
 }
 
@@ -112,11 +122,21 @@ export interface ReconciliationReport {
   countProblemTotal: number
   money: {
     workOrders: number
+    quotes: number
     differences: MoneyDifference[]
     differenceTotal: number
     unexplained: number
   }
-  receivables: { shopmonkeyCents: number; torqvoiceCents: number }
+  receivables: {
+    /** What the imported invoices still have open, on both sides. */
+    shopmonkeyCents: number
+    torqvoiceCents: number
+    /** Open on Shopmonkey invoices that weren't imported (before `historyFrom`, failed, left out): not compared. */
+    notImportedCents: number
+    notImportedInvoices: number
+    /** Imported work orders Shopmonkey has deleted since: still in Torqvoice, and counted on both sides. */
+    deletedInShopmonkey: number
+  }
   months: { shopmonkey: MonthTotals[]; torqvoice: MonthTotals[] }
   spotChecks: SpotCheck[]
   warnings: Record<string, { count: number; examples: unknown[] }>

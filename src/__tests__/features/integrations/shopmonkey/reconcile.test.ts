@@ -1,24 +1,31 @@
 /**
  * @vitest-environment node
  *
- * fork: the reconciliation's own rules (M6), without a database: where a staged record lands, when a money
- * difference is explained, how months add up on the workshop's clock, which invoices are spot-checked, and how the
- * report reads on a terminal. SYNTHETIC values.
+ * fork: the reconciliation's own rules (M6, MAPPING §12), without a database: where a staged record lands, when a
+ * money difference is explained, how months add up on the workshop's clock, which invoices are spot-checked, and how
+ * the report reads on a terminal. SYNTHETIC values.
  */
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/db', () => ({ db: {} }))
 
 const { place } = await import('@/integrations/shopmonkey/reconcile/tables')
-const { compareOrder, monthTotals, spotChecks, smCents, tvCents } = await import(
-  '@/integrations/shopmonkey/reconcile/money'
-)
+const {
+  compareOrder,
+  compareQuote,
+  monthTotals,
+  shopmonkeyInvoiceDate,
+  spotChecks,
+  smCents,
+  tvCents,
+} = await import('@/integrations/shopmonkey/reconcile/money')
 const { tallyUnknown } = await import('@/integrations/shopmonkey/reconcile/fields')
 const { formatReport, parseReconcileArgs } = await import(
   '@/integrations/shopmonkey/reconcile/format'
 )
 
-const facts = (over: Partial<Parameters<typeof place>[0]>): Parameters<typeof place>[0] => ({
+type Facts = Parameters<typeof place>[0]
+const facts = (over: Partial<Facts>): Facts => ({
   table: 'order',
   remoteId: 'r1',
   localEntity: null,
@@ -51,23 +58,40 @@ describe('where a staged record lands', () => {
     expect(place(facts({ loadSkip: 'history' }))).toEqual({ bucket: 'skipped', reason: 'history' })
   })
 
-  it('accounts for archive, settings and folded tables, and names anything else', () => {
+  it('accounts for archive and settings tables, and names anything else', () => {
     expect(place(facts({ table: 'vendor' })).bucket).toBe('archive')
     expect(place(facts({ table: 'tax_config' })).bucket).toBe('settings')
-    expect(place(facts({ table: 'order_service' })).bucket).toBe('folded')
     expect(place(facts({ table: 'customer' })).bucket).toBe('unaccounted')
   })
 
+  it('folds an order’s services into a loaded order, and leaves them out (or deleted) with one that isn’t', () => {
+    expect(place(facts({ table: 'order_service', parentBucket: 'loaded' })).bucket).toBe('folded')
+    expect(place(facts({ table: 'authorization', parentBucket: 'deleted' })).bucket).toBe('deleted')
+    expect(place(facts({ table: 'order_service', parentBucket: 'skipped' }))).toEqual({
+      bucket: 'skipped',
+      reason: 'parent_not_loaded',
+    })
+    expect(place(facts({ table: 'vehicle_owner', parentBucket: 'failed' }))).toEqual({
+      bucket: 'skipped',
+      reason: 'parent_not_loaded',
+    })
+    // A parent that is itself named carries its children with it.
+    expect(place(facts({ table: 'order_service', parentBucket: 'missing' })).bucket).toBe('folded')
+  })
+
   it('takes a payment as loaded by its row, and left out when its order is no work order', () => {
-    expect(place(facts({ table: 'payment', paymentLoaded: true })).bucket).toBe('loaded')
+    expect(place(facts({ table: 'payment', paymentLoaded: true, loadSkip: 'x' })).bucket).toBe(
+      'loaded'
+    )
     expect(place(facts({ table: 'payment', parentIsWorkOrder: false }))).toEqual({
       bucket: 'skipped',
       reason: 'payment_order_not_loaded',
     })
+    // On a work order, with no row and no reason: named.
     expect(place(facts({ table: 'payment', parentIsWorkOrder: true })).bucket).toBe('unaccounted')
   })
 
-  it('accounts for a file the extract didn’t download, or whose record wasn’t loaded', () => {
+  it('accounts for a file by its download and its record, and folds a photo into its inspection', () => {
     expect(place(facts({ table: 'order_file', fileNotStaged: true }))).toEqual({
       bucket: 'skipped',
       reason: 'file_not_staged',
@@ -76,9 +100,9 @@ describe('where a staged record lands', () => {
       bucket: 'skipped',
       reason: 'parent_not_loaded',
     })
-    expect(place(facts({ table: 'inspection_file', parentBucket: 'loaded' })).bucket).toBe(
-      'unaccounted'
-    )
+    expect(place(facts({ table: 'inspection_file', parentBucket: 'loaded' })).bucket).toBe('folded')
+    // An order's file on a loaded work order that isn't attached is named.
+    expect(place(facts({ table: 'order_file', parentBucket: 'loaded' })).bucket).toBe('unaccounted')
   })
 })
 
@@ -92,6 +116,7 @@ const sm = {
   paidCents: 5_000,
   remainingCents: 5_800,
   invoicedDate: new Date('2025-03-10T15:00:00Z'),
+  deleted: false,
 }
 const tv = {
   workOrderId: 'w1',
@@ -104,7 +129,7 @@ const tv = {
   discountCents: 0,
   paidCents: 5_000,
 }
-const none = { moneyMismatch: false, skippedPayments: [] }
+const none = { linesAtLoad: null, skippedPayments: [] }
 
 describe('a work order against its Shopmonkey order', () => {
   it('has no difference when they agree, or differ by a cent', () => {
@@ -112,14 +137,19 @@ describe('a work order against its Shopmonkey order', () => {
     expect(compareOrder(sm, { ...tv, linesCents: 10_001 }, none)).toEqual([])
   })
 
-  it('names a line difference, unexplained unless the load warned money_mismatch', () => {
-    const changed = { ...tv, linesCents: 11_234 }
-    expect(compareOrder(sm, changed, none)).toEqual([
-      expect.objectContaining({ field: 'lines', explainedBy: null, torqvoiceCents: 11_234 }),
+  it('explains a lines difference only while the lines are what they were when the load warned', () => {
+    // Shopmonkey's own lines came to 112.34 against a subtotal of 100.00: the load warned and kept the lines.
+    const asLoaded = { ...tv, linesCents: 11_234 }
+    expect(compareOrder(sm, asLoaded, none)).toEqual([
+      expect.objectContaining({ field: 'lines', explainedBy: null, document: 'workOrder' }),
     ])
-    expect(compareOrder(sm, changed, { ...none, moneyMismatch: true })).toEqual([
+    expect(compareOrder(sm, asLoaded, { ...none, linesAtLoad: 11_234 })).toEqual([
       expect.objectContaining({ field: 'lines', explainedBy: 'money_mismatch' }),
     ])
+    // A line changed since: unexplained, though the order was warned.
+    expect(
+      compareOrder(sm, { ...tv, linesCents: 12_000 }, { ...none, linesAtLoad: 11_234 })
+    ).toEqual([expect.objectContaining({ field: 'lines', explainedBy: null })])
   })
 
   it('explains a paid and balance difference by payments left out by rule, to the cent only', () => {
@@ -139,10 +169,26 @@ describe('a work order against its Shopmonkey order', () => {
     expect(notQuite.every((d) => d.explainedBy === null)).toBe(true)
   })
 
-  it('reads cents from both sides', () => {
+  it('compares an estimate’s total', () => {
+    expect(compareQuote(sm, { quoteId: 'q1', totalCents: 10_800 })).toEqual([])
+    expect(compareQuote(sm, { quoteId: 'q1', totalCents: 9_000 })).toEqual([
+      expect.objectContaining({ document: 'quote', field: 'total', workOrderId: 'q1' }),
+    ])
+  })
+
+  it('reads cents from both sides, rounding half away from zero', () => {
     expect(smCents('1234')).toBe(1234)
     expect(smCents(null)).toBe(0)
     expect(tvCents(12.345)).toBe(1235)
+    expect(tvCents(-12.345)).toBe(-1235)
+  })
+
+  it('takes an order as an invoice as the transform does: an Invoice with its date', () => {
+    expect(shopmonkeyInvoiceDate('Invoice', '2025-03-10T15:00:00Z')).toEqual(
+      new Date('2025-03-10T15:00:00Z')
+    )
+    expect(shopmonkeyInvoiceDate('RepairOrder', '2025-03-10T15:00:00Z')).toBeNull()
+    expect(shopmonkeyInvoiceDate('Invoice', null)).toBeNull()
   })
 })
 
@@ -251,6 +297,7 @@ describe('the command line', () => {
   })
 
   it('prints the gates first, and names unexplained differences by Shopmonkey id', () => {
+    const ok = { passed: true, code: 'ok', values: {}, summary: 'ok' }
     const lines = formatReport({
       version: 1,
       connectionId: 'c1',
@@ -260,6 +307,7 @@ describe('the command line', () => {
       counts: [
         {
           table: 'order',
+          extractPhase: 'backfill',
           shopmonkeyTotal: 2,
           read: 2,
           otherLocation: 0,
@@ -272,11 +320,13 @@ describe('the command line', () => {
       countProblemTotal: 0,
       money: {
         workOrders: 1,
+        quotes: 0,
         differences: [
           {
             orderId: 'o1',
             number: '1001',
             workOrderId: 'w1',
+            document: 'workOrder',
             field: 'lines',
             shopmonkeyCents: 100,
             torqvoiceCents: 250,
@@ -286,17 +336,23 @@ describe('the command line', () => {
         differenceTotal: 1,
         unexplained: 1,
       },
-      receivables: { shopmonkeyCents: 0, torqvoiceCents: 0 },
+      receivables: {
+        shopmonkeyCents: 0,
+        torqvoiceCents: 0,
+        notImportedCents: 1_500,
+        notImportedInvoices: 1,
+        deletedInShopmonkey: 0,
+      },
       months: { shopmonkey: [], torqvoice: [] },
       spotChecks: [],
       warnings: {},
       failures: [],
       unmapped: [],
       gates: {
-        counts: { passed: true, summary: 'ok' },
-        money: { passed: false, summary: '1 unexplained' },
-        receivables: { passed: true, summary: 'ok' },
-        failures: { passed: true, summary: 'ok' },
+        counts: ok,
+        money: { passed: false, code: 'money_unexplained', values: {}, summary: '1 unexplained' },
+        receivables: ok,
+        failures: ok,
       },
       passed: false,
     })
@@ -304,5 +360,8 @@ describe('the command line', () => {
     expect(lines).toContain('  FAIL money: 1 unexplained')
     expect(lines).toContain('    skipped: history 1')
     expect(lines).toContain('  order o1 (#1001) lines: Shopmonkey $1.00, Torqvoice $2.50')
+    expect(lines).toContain(
+      '  Not imported (not compared): 1 invoice(s) with $15.00 open in Shopmonkey'
+    )
   })
 })

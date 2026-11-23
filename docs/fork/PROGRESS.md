@@ -80,9 +80,9 @@ conflicts, B15, same upstream commit). Built on M5's synthetic fixtures, so it e
 2. [x] (35c1945b) `src/integrations/shopmonkey/reconcile/`: counts per table (Shopmonkey's `meta.total` and the extract's
    location skips from `state.extract`; staged; loaded = linked row present; missing = linked row gone; skipped by
    reason; archive-only and folded tables; unaccounted = none of these, named); money per work order (Torqvoice's
-   counted lines, MAPPING §6.3, vs Shopmonkey's subtotal; lines − discount + tax and the stored total vs
-   `totalCostCents`; payments vs `paidCostCents`; balance vs `remainingCostCents`; over $0.01 listed; explained only
-   by a rule named in MAPPING and in code); by month on the workshop's clock (invoiced, tax, discounts, payments,
+   counted lines, MAPPING §6.3, vs Shopmonkey's subtotal; the stored total vs `totalCostCents`; what the app counts
+   as paid vs `paidCostCents`; balance vs `remainingCostCents`; an estimate's total; over $0.01 listed; explained only
+   by a rule named in MAPPING §12 and in code); by month on the workshop's clock (invoiced, tax, discounts, payments,
    open receivables at month end, both sides); 25 spot checks (seeded); warnings; unmapped fields (TABLE_SPECS /
    NESTED_SPECS); gates (counts accounted, no unexplained money difference, receivables to the cent, no failed
    orders).
@@ -90,7 +90,21 @@ conflicts, B15, same upstream commit). Built on M5's synthetic fixtures, so it e
 4. [x] (35c1945b; `db/shopmonkey-reconcile.db.test.ts` 3 passing, `db/shopmonkey-reconcile-scale.db.test.ts` 1 passing,
    `features/integrations/shopmonkey/reconcile.test.ts` 16 passing) Tests (db): the fixture set passes every gate; a corrupted line total fails the money gate naming the order; a
    deleted imported customer fails the count gate naming it; 50,000 generated orders reconcile in under a minute.
-5. [ ] MAPPING (explained-difference rules, historyFrom), brief, DoD, reviewer, merge.
+5. [ ] MAPPING (§1 historyFrom, §12 reconciliation), DoD, reviewer, merge. Reviewer pass 1 (on 39caeb0a): needs
+   changes, 4 must-fix, all fixed: (1) inspection photos had no bucket (now `folded` into a loaded inspection; the
+   fixture test stages real files: order file `loaded`, photo `folded`); (2) `money_mismatch` explained any lines
+   difference on any warned order (now only the `subtotal` warning, and only while the lines are what the load
+   wrote, `state.lastLoad.mismatchedLines`; a test corrupts a warned order's line); (3) payment reasons were never
+   cleared (now cleared when its row is written, payments marked after the unit every run; the reconcile ignores an
+   imported payment's old reason); (4) the failures gate missed orders past the 500 named and failed re-loads (now
+   uncapped counts and `state.lastLoad.counts.order.failed`, tested). Should-fix done: invoice PDF parent; one-key
+   `jsonb_set` state writes (no clobbered `extract`); receivables report open balances not imported and loaded
+   orders deleted in Shopmonkey since, `manuallyPaid` counted; invoices by the transform's rule; PROVISIONAL markers
+   on the SQL counting rule and refund sign; folded children take their parent's fate; gate codes and values for M8;
+   estimates' totals compared; delta-phase totals not held to; exhaustive model switch; archive backup test seeds and
+   checks `loadSkip`; §1 note on setting `historyFrom` after a load; symmetric cent rounding; the scale test's
+   orders carry ~2 KB of incompressible payload and a service each (7.9 s for 50,000). Next: DoD again, reviewer
+   pass 2, merge.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one

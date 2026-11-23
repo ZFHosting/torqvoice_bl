@@ -1,10 +1,13 @@
 /**
- * fork: the money sections of the reconciliation (M6): each imported work order against its Shopmonkey order, the
- * workshop's receivables on both sides, and both sides by month on the workshop's clock.
+ * fork: the money sections of the reconciliation (M6): each imported work order (and estimate) against its
+ * Shopmonkey order, the workshop's receivables on both sides, and both sides by month on the workshop's clock.
  *
  * Torqvoice's side is read from what is stored, the lines included, not from the totals the load copied over: a
  * line changed or broken since shows. Lines count as the load counts them (`countsTowardTotals`, MAPPING §6.3): not
- * under a Declined or deferred job. A difference is explained only by a rule MAPPING §6.6 names, cited by its code.
+ * under a Declined or deferred job. A difference is explained only by a rule MAPPING §12 names, cited by its code.
+ *
+ * Payload fields are read with one `jsonb_to_record` per row: a payload of a few kilobytes is stored compressed, and
+ * each `->>` would unpack it again.
  */
 import 'server-only'
 import { db } from '@/lib/db'
@@ -18,10 +21,12 @@ export function smCents(value: unknown): number {
   return Number.isFinite(n) ? Math.round(n) : 0
 }
 
-/** Cents from a Torqvoice amount (major units). */
+/** Cents from a Torqvoice amount (major units), rounded half away from zero as `roundMoney` rounds. */
 export function tvCents(value: unknown): number {
   const n = typeof value === 'number' ? value : Number(value ?? 0)
-  return Number.isFinite(n) ? Math.round(n * 100) : 0
+  if (!Number.isFinite(n)) return 0
+  const cents = Math.round(Math.abs(n) * 100 + Number.EPSILON)
+  return n < 0 ? -cents : cents
 }
 
 export interface ShopmonkeyOrder {
@@ -33,7 +38,10 @@ export interface ShopmonkeyOrder {
   discountCents: number
   paidCents: number
   remainingCents: number
+  /** Its invoice date, when Shopmonkey made it an invoice (the transform's rule, below). */
   invoicedDate: Date | null
+  /** Deleted in Shopmonkey since it was loaded. */
+  deleted: boolean
 }
 
 export interface TorqvoiceOrder {
@@ -45,6 +53,7 @@ export interface TorqvoiceOrder {
   totalCents: number
   taxCents: number
   discountCents: number
+  /** What the app counts as paid: its payments, or the whole total when marked paid by hand. */
   paidCents: number
 }
 
@@ -55,16 +64,16 @@ export interface PaymentFact {
 }
 
 /**
- * The differences of one order over a cent, each with the rule that explains it, if one does:
- * - `money_mismatch`: Shopmonkey's own lines and subtotal (or subtotal, discount, tax and total) disagree, as the
- *   load warned (MAPPING §6.6): its lines can't match both.
- * - `payment_type_unsupported`, `payment_missing_date`: payments Shopmonkey counts as paid and the load leaves out
- *   (MAPPING §6.5, §6.6), when they come to the difference to the cent.
+ * The differences of one work order over a cent, each with the rule that explains it, if one does (MAPPING §12):
+ * - `money_mismatch`: the load warned that Shopmonkey's own lines and subtotal disagree, and the lines are still
+ *   what they came to then (`linesAtLoad`, to the cent). A line changed since is unexplained.
+ * - `payment_type_unsupported`, `payment_missing_date`: payments Shopmonkey counts as paid and the load left out
+ *   (MAPPING §6.5, §6.6), when they come to the paid difference to the cent; the balance follows.
  */
 export function compareOrder(
   sm: ShopmonkeyOrder,
   tv: TorqvoiceOrder,
-  known: { moneyMismatch: boolean; skippedPayments: { reason: string; cents: number }[] }
+  known: { linesAtLoad: number | null; skippedPayments: { reason: string; cents: number }[] }
 ): MoneyDifference[] {
   const out: MoneyDifference[] = []
   const add = (
@@ -78,17 +87,19 @@ export function compareOrder(
       orderId: sm.orderId,
       number: sm.number,
       workOrderId: tv.workOrderId,
+      document: 'workOrder',
       field,
       shopmonkeyCents,
       torqvoiceCents,
       explainedBy,
     })
   }
-  add('lines', sm.subtotalCents, tv.linesCents, known.moneyMismatch ? 'money_mismatch' : null)
+  const linesAsLoaded =
+    known.linesAtLoad !== null && Math.abs(tv.linesCents - known.linesAtLoad) <= 1
+  add('lines', sm.subtotalCents, tv.linesCents, linesAsLoaded ? 'money_mismatch' : null)
   add('total', sm.totalCents, tv.totalCents, null)
   // PROVISIONAL(M0:S5): Shopmonkey's paidCostCents nets refunds and leaves failed charges out, so it equals the sum
   // of the imported payments; remainingCostCents is the total less that.
-  // Payments left out by rule explain a paid difference that comes to exactly what they add up to.
   const paidGap = sm.paidCents - tv.paidCents
   const byRule = known.skippedPayments.filter((p) =>
     ['payment_type_unsupported', 'payment_missing_date'].includes(p.reason)
@@ -107,6 +118,26 @@ export function compareOrder(
     paidRule && Math.abs(balanceGap + ruleSum) <= 1 ? paidRule : null
   )
   return out
+}
+
+/** An estimate: its total only (nothing is owed on a quote). */
+export function compareQuote(
+  sm: ShopmonkeyOrder,
+  quote: { quoteId: string; totalCents: number }
+): MoneyDifference[] {
+  if (Math.abs(sm.totalCents - quote.totalCents) <= 1) return []
+  return [
+    {
+      orderId: sm.orderId,
+      number: sm.number,
+      workOrderId: quote.quoteId,
+      document: 'quote',
+      field: 'total',
+      shopmonkeyCents: sm.totalCents,
+      torqvoiceCents: quote.totalCents,
+      explainedBy: null,
+    },
+  ]
 }
 
 /** YYYY-MM on the workshop's clock. */
@@ -228,44 +259,76 @@ const date = (value: unknown): Date | null => {
   return Number.isNaN(d.getTime()) ? null : d
 }
 
-/** The Shopmonkey orders behind the loaded work orders. */
+/**
+ * The transform's rule (transform/order.ts): an Invoice with an `invoicedDate` is an invoice; a RepairOrder that
+ * carries one stays an open work order (MAPPING §6.6). PROVISIONAL(M0:S4).
+ */
+export function shopmonkeyInvoiceDate(status: unknown, invoicedDate: unknown): Date | null {
+  return status === 'Invoice' ? date(invoicedDate) : null
+}
+
+/** The Shopmonkey orders behind the loaded work orders and quotes. */
 export async function readShopmonkeyOrders(
   organizationId: string,
-  workOrders: Map<string, string>
+  loaded: Set<string>
 ): Promise<ShopmonkeyOrder[]> {
   const rows = await db.$queryRaw<Record<string, unknown>[]>`
-    SELECT "remoteId", payload->>'number' AS number, payload->>'invoicedDate' AS "invoicedDate",
-      payload->>'laborCents' AS labor, payload->>'partsCents' AS parts, payload->>'tiresCents' AS tires,
-      payload->>'subcontractsCents' AS subcontracts, payload->>'feesCents' AS fees,
-      payload->>'epaCents' AS epa, payload->>'shopSuppliesCents' AS "shopSupplies",
-      payload->>'discountCents' AS discount, payload->>'taxCents' AS tax,
-      payload->>'totalCostCents' AS total, payload->>'paidCostCents' AS paid,
-      payload->>'remainingCostCents' AS remaining
-    FROM "public"."source_records"
-    WHERE "organizationId" = ${organizationId} AND source = 'shopmonkey' AND "table" = 'order'
-      AND "localEntity" = 'ServiceRecord'
+    SELECT sr."remoteId", sr."remoteDeletedAt" IS NOT NULL AS deleted, r.*
+    FROM "public"."source_records" sr
+    CROSS JOIN LATERAL jsonb_to_record(sr.payload) AS r(
+      "number" text, "status" text, "invoicedDate" text,
+      "laborCents" text, "partsCents" text, "tiresCents" text, "subcontractsCents" text, "feesCents" text,
+      "epaCents" text, "shopSuppliesCents" text, "discountCents" text, "taxCents" text,
+      "totalCostCents" text, "paidCostCents" text, "remainingCostCents" text
+    )
+    WHERE sr."organizationId" = ${organizationId} AND sr.source = 'shopmonkey' AND sr."table" = 'order'
+      AND sr."localEntity" IN ('ServiceRecord', 'Quote')
   `
   return rows
-    .filter((r) => workOrders.has(String(r.remoteId)))
+    .filter((r) => loaded.has(String(r.remoteId)))
     .map((r) => ({
       orderId: String(r.remoteId),
       number: r.number ? String(r.number) : null,
       // MAPPING §6.1: the subtotal is the categories of the services that count. PROVISIONAL(M0:S5).
       subtotalCents:
-        smCents(r.labor) +
-        smCents(r.parts) +
-        smCents(r.tires) +
-        smCents(r.subcontracts) +
-        smCents(r.fees) +
-        smCents(r.epa) +
-        smCents(r.shopSupplies),
-      totalCents: smCents(r.total),
-      taxCents: smCents(r.tax),
-      discountCents: smCents(r.discount),
-      paidCents: smCents(r.paid),
-      remainingCents: smCents(r.remaining),
-      invoicedDate: date(r.invoicedDate),
+        smCents(r.laborCents) +
+        smCents(r.partsCents) +
+        smCents(r.tiresCents) +
+        smCents(r.subcontractsCents) +
+        smCents(r.feesCents) +
+        smCents(r.epaCents) +
+        smCents(r.shopSuppliesCents),
+      totalCents: smCents(r.totalCostCents),
+      taxCents: smCents(r.taxCents),
+      discountCents: smCents(r.discountCents),
+      paidCents: smCents(r.paidCostCents),
+      remainingCents: smCents(r.remainingCostCents),
+      invoicedDate: shopmonkeyInvoiceDate(r.status, r.invoicedDate),
+      deleted: r.deleted === true,
     }))
+}
+
+/** Open on Shopmonkey invoices that weren't imported as work orders (and weren't deleted). */
+export async function readNotImported(
+  organizationId: string
+): Promise<{ invoices: number; openCents: number }> {
+  const rows = await db.$queryRaw<
+    { status: string | null; invoicedDate: string | null; remaining: string | null }[]
+  >`
+    SELECT r."status", r."invoicedDate", r."remainingCostCents" AS remaining
+    FROM "public"."source_records" sr
+    CROSS JOIN LATERAL jsonb_to_record(sr.payload) AS r("status" text, "invoicedDate" text, "remainingCostCents" text)
+    WHERE sr."organizationId" = ${organizationId} AND sr.source = 'shopmonkey' AND sr."table" = 'order'
+      AND sr."remoteDeletedAt" IS NULL AND COALESCE(sr."localEntity", '') <> 'ServiceRecord'
+  `
+  let invoices = 0
+  let openCents = 0
+  for (const r of rows) {
+    if (!shopmonkeyInvoiceDate(r.status, r.invoicedDate)) continue
+    invoices++
+    openCents += smCents(r.remaining)
+  }
+  return { invoices, openCents }
 }
 
 /** The loaded work orders as stored: their totals, their counted lines, what has been paid on them. */
@@ -274,10 +337,13 @@ export async function readTorqvoiceOrders(
   workOrders: Map<string, string>
 ): Promise<{ orders: Map<string, TorqvoiceOrder>; payments: PaymentFact[] }> {
   const records = await db.$queryRaw<Record<string, unknown>[]>`
-    SELECT id, "vehicleId", "invoiceNumber", "invoiceDate", "totalAmount", "taxAmount", "discountAmount"
+    SELECT id, "vehicleId", "invoiceNumber", "invoiceDate", "totalAmount", "taxAmount", "discountAmount",
+      "manuallyPaid"
     FROM "public"."service_records" WHERE "organizationId" = ${organizationId}
   `
-  // Lines that count (MAPPING §6.3, `countsTowardTotals`): not under a Declined or deferred job.
+  // Lines that count: not under a Declined or deferred job. The SQL form of `countsTowardTotals`
+  // (transform/lines.ts, MAPPING §6.3) on the job's stored `authorizationStatus` and `deferredDate`.
+  // PROVISIONAL(M0:S5).
   const lines = await db.$queryRaw<{ serviceRecordId: string; total: number }[]>`
     SELECT l."serviceRecordId", SUM(l.total)::float8 AS total
     FROM (
@@ -314,53 +380,86 @@ export async function readTorqvoiceOrders(
     const id = String(r.id)
     const orderId = byRecord.get(id)
     if (!orderId) continue
+    const totalCents = tvCents(r.totalAmount)
     orders.set(orderId, {
       workOrderId: id,
       vehicleId: r.vehicleId ? String(r.vehicleId) : null,
       invoiceNumber: r.invoiceNumber ? String(r.invoiceNumber) : null,
       invoiceDate: r.invoiceDate ? new Date(r.invoiceDate as Date) : null,
       linesCents: lineSums.get(id) ?? 0,
-      totalCents: tvCents(r.totalAmount),
+      totalCents,
       taxCents: tvCents(r.taxAmount),
       discountCents: tvCents(r.discountAmount),
-      paidCents: paidSums.get(id) ?? 0,
+      // The app's own reading (billing): marked paid by hand, the whole total is paid.
+      paidCents: r.manuallyPaid === true ? totalCents : (paidSums.get(id) ?? 0),
     })
   }
   return { orders, payments }
 }
 
+/** The loaded quotes' totals. */
+export async function readTorqvoiceQuotes(
+  organizationId: string,
+  quotes: Map<string, string>
+): Promise<Map<string, { quoteId: string; totalCents: number }>> {
+  const ids = [...quotes.values()]
+  const totals = new Map<string, number>()
+  for (let i = 0; i < ids.length; i += 10_000) {
+    const rows = await db.quote.findMany({
+      where: { organizationId, id: { in: ids.slice(i, i + 10_000) } },
+      select: { id: true, totalAmount: true },
+    })
+    for (const r of rows) totals.set(r.id, tvCents(r.totalAmount))
+  }
+  const out = new Map<string, { quoteId: string; totalCents: number }>()
+  for (const [orderId, quoteId] of quotes) {
+    const total = totals.get(quoteId)
+    if (total !== undefined) out.set(orderId, { quoteId, totalCents: total })
+  }
+  return out
+}
+
 /**
- * Shopmonkey's payments on these orders as Shopmonkey counts them (succeeded charges and refunds, refunds
- * negative, MAPPING §6.5), and the ones the load left out by rule, by order.
+ * Shopmonkey's payments on the work orders as Shopmonkey counts them (succeeded charges and refunds, refunds
+ * negative, MAPPING §6.5), and, by order, the ones the load left out by rule that aren't imported since.
  */
 export async function readShopmonkeyPayments(
   organizationId: string,
-  workOrders: Map<string, string>
+  workOrders: Map<string, string>,
+  imported: Set<string>
 ): Promise<{
   payments: PaymentFact[]
   skipped: Map<string, { reason: string; cents: number }[]>
 }> {
   const rows = await db.$queryRaw<Record<string, unknown>[]>`
-    SELECT payload->>'orderId' AS "orderId", payload->>'status' AS status,
-      payload->>'transactionType' AS "type", payload->>'amountCents' AS amount,
-      COALESCE(payload->>'recordedDate', payload->>'createdDate') AS "paidOn", "loadSkip"
-    FROM "public"."source_records"
-    WHERE "organizationId" = ${organizationId} AND source = 'shopmonkey' AND "table" = 'payment'
-      AND "remoteDeletedAt" IS NULL
+    SELECT sr."remoteId", sr."loadSkip", r."orderId", r."status", r."transactionType", r."amountCents",
+      COALESCE(r."recordedDate", r."createdDate") AS "paidOn"
+    FROM "public"."source_records" sr
+    CROSS JOIN LATERAL jsonb_to_record(sr.payload) AS r(
+      "orderId" text, "status" text, "transactionType" text, "amountCents" text,
+      "recordedDate" text, "createdDate" text
+    )
+    WHERE sr."organizationId" = ${organizationId} AND sr.source = 'shopmonkey' AND sr."table" = 'payment'
+      AND sr."remoteDeletedAt" IS NULL
   `
   const payments: PaymentFact[] = []
   const skipped = new Map<string, { reason: string; cents: number }[]>()
   for (const r of rows) {
     const orderId = r.orderId ? String(r.orderId) : null
     if (!orderId || !workOrders.has(orderId) || r.status !== 'Succeeded') continue
-    const raw = smCents(r.amount)
-    const cents = r.type === 'Refund' ? -Math.abs(raw) : raw
+    const raw = smCents(r.amountCents)
+    // PROVISIONAL(M0:S5): a refund's amount is taken as negative whatever sign it carries.
+    const cents = r.transactionType === 'Refund' ? -Math.abs(raw) : raw
     const paidOn = date(r.paidOn)
-    if (r.loadSkip) {
-      skipped.set(orderId, [...(skipped.get(orderId) ?? []), { reason: String(r.loadSkip), cents }])
+    // Left out by rule, and not imported since (a reason stays until the payment loads).
+    if (r.loadSkip && !imported.has(String(r.remoteId))) {
+      const list = skipped.get(orderId) ?? []
+      list.push({ reason: String(r.loadSkip), cents })
+      skipped.set(orderId, list)
     }
-    if ((r.type === 'Charge' || r.type === 'Refund') && paidOn)
+    if ((r.transactionType === 'Charge' || r.transactionType === 'Refund') && paidOn) {
       payments.push({ orderId, cents, date: paidOn })
+    }
   }
   return { payments, skipped }
 }
