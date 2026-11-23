@@ -73,7 +73,13 @@ export async function updateTechnicianService(ctx: ServiceCtx, input: unknown) {
     if (existing) {
       throw new Error(`This user is already linked to technician "${existing.name}"`)
     }
-    await assertMember(organizationId, updates.userId)
+    // fork: only a new link is checked: a technician keeps the login of someone who has since left the team (their
+    // dialog sends it back on every save)
+    const linked = await db.technician.findFirst({
+      where: { id, organizationId },
+      select: { userId: true },
+    })
+    if (linked?.userId !== updates.userId) await assertMember(organizationId, updates.userId)
   }
 
   const technician = await db.technician.updateMany({

@@ -95,6 +95,17 @@ describe('linking a login', () => {
     expect(db.technician.create).not.toHaveBeenCalled()
     expect(db.technician.updateMany).not.toHaveBeenCalled()
   })
+
+  it('keeps the link a technician already has, though that person has left the team', async () => {
+    db.technician.findFirst
+      .mockResolvedValueOnce(null) // nobody else is linked to them
+      .mockResolvedValueOnce({ userId: 'u-left' }) // this technician is
+    db.organizationMember.count.mockResolvedValue(0)
+    db.technician.updateMany.mockResolvedValue({ count: 1 })
+    await service.updateTechnicianService(ctx, { id: 't-1', name: 'Kari', userId: 'u-left' })
+    expect(db.organizationMember.count).not.toHaveBeenCalled()
+    expect(db.technician.updateMany).toHaveBeenCalled()
+  })
 })
 
 describe('updating a technician', () => {

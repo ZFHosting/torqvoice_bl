@@ -680,3 +680,75 @@ describe('jobs, quotes and payments', () => {
     expect(await audits('payment.delete')).toBe(before + 1)
   })
 })
+
+describe('a part deleted from the inventory', () => {
+  it('leaves the work orders, quotes and presets that used it saveable in the app, and another workshop’s part refused', async () => {
+    const part = await db.inventoryPart.create({
+      data: { organizationId: A.org, userId: A.owner, name: 'Old part', quantity: 5 },
+    })
+    const line = {
+      name: 'Old part',
+      quantity: 1,
+      unitPrice: 10,
+      total: 10,
+      inventoryPartId: part.id,
+    }
+    const presetPart = { name: 'Old part', quantity: 1, unitPrice: 10, inventoryPartId: part.id }
+    const presetItem = { description: 'Fit', hours: 1, rate: 50 }
+
+    // A work order, a quote and a preset that used it, made in the app.
+    const services = await import('@/features/vehicles/Actions/serviceActions')
+    const quotes = await import('@/features/quotes/Actions/quoteActions')
+    const presets = await import('@/features/labor-presets/Actions/laborPresetActions')
+    const inventory = await import('@/features/inventory/Actions/inventoryActions')
+    const workOrder = await services.createServiceRecord({
+      ...workOrderInput(),
+      title: 'Used the part',
+      partItems: [line],
+      subtotal: 10,
+      totalAmount: 10,
+    })
+    const quote = await quotes.createQuote({
+      title: 'Quoted the part',
+      vehicleId: A.ids.vehicle,
+      partItems: [line],
+      subtotal: 10,
+      totalAmount: 10,
+    })
+    const preset = await presets.createLaborPreset({
+      name: 'Uses the part',
+      items: [presetItem],
+      parts: [presetPart],
+    })
+    expect([workOrder.success, quote.success, preset.success]).toEqual([true, true, true])
+    const idOf = (result: { data?: unknown }) => (result.data as { id: string }).id
+
+    // The part goes; the lines keep its id, and each page sends it back as it was.
+    expect((await inventory.deleteInventoryPart(part.id)).success).toBe(true)
+    const saved = await Promise.all([
+      services.updateServiceRecord({ id: idOf(workOrder), title: 'Renamed', partItems: [line] }),
+      quotes.updateQuote({ id: idOf(quote), title: 'Renamed', partItems: [line] }),
+      presets.updateLaborPreset({
+        id: idOf(preset),
+        name: 'Renamed',
+        items: [presetItem],
+        parts: [presetPart],
+      }),
+    ])
+    expect(saved.map((r) => [r.success, r.error ?? null])).toEqual([
+      [true, null],
+      [true, null],
+      [true, null],
+    ])
+
+    // Another workshop's part is still not this workshop's to link.
+    const theirs = await db.inventoryPart.create({
+      data: { organizationId: B.org, userId: B.owner, name: 'Theirs', quantity: 1 },
+    })
+    const refused = await services.updateServiceRecord({
+      id: idOf(workOrder),
+      partItems: [{ ...line, inventoryPartId: theirs.id }],
+    })
+    expect(refused).toMatchObject({ success: false, error: 'Inventory part not found' })
+  })
+})

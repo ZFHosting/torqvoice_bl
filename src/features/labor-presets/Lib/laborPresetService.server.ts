@@ -7,14 +7,14 @@ import { db } from '@/lib/db'
 import { createLaborPresetSchema, updateLaborPresetSchema } from '../Schema/laborPresetSchema'
 import { revalidatePath } from 'next/cache'
 import { parseSentFields } from '@/lib/parse-sent-fields'
-// fork: a preset's part links only to this workshop's inventory (A4)
-import { assertOwnInventoryParts } from '@/features/fork-records/Lib/ownInventoryParts.server'
+// fork: no preset part of another workshop's inventory (A4); a part deleted since keeps its id
+import { assertNoForeignInventoryParts } from '@/features/fork-records/Lib/ownInventoryParts.server'
 import type { ServiceCtx } from '@/lib/service-context'
 
 export async function createLaborPresetService(ctx: ServiceCtx, input: unknown) {
   const { userId, organizationId } = ctx
   const data = createLaborPresetSchema.parse(input)
-  await assertOwnInventoryParts(data.parts, organizationId)
+  await assertNoForeignInventoryParts(data.parts, organizationId)
   const resolvedName = data.name?.trim() || data.items[0]?.description || 'Untitled'
   const preset = await db.laborPreset.create({
     data: {
@@ -66,7 +66,7 @@ export async function updateLaborPresetService(ctx: ServiceCtx, input: unknown) 
     where: { id, organizationId },
   })
   if (!existing) throw new Error('Preset not found')
-  await assertOwnInventoryParts(parts, organizationId)
+  await assertNoForeignInventoryParts(parts, organizationId)
 
   await db.$transaction(async (tx) => {
     // Delete old items and parts (fork: the ones being replaced)

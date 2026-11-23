@@ -28,7 +28,8 @@ import { resolveInvoicePrefix } from '@/lib/invoice-utils'
 import { workshopTimeZone } from '@/lib/workshop-timezone'
 import { toSafeWorkshopDate } from '@/lib/workshop-datetime'
 import type { CreateQuoteInput } from '../Schema/quoteSchema'
-import { assertOwnInventoryParts } from '@/features/fork-records/Lib/ownInventoryParts.server'
+// fork: no part line of another workshop's inventory (A4)
+import { assertNoForeignInventoryParts } from '@/features/fork-records/Lib/ownInventoryParts.server'
 
 export function defaultValidUntil(validDaysSetting: string | undefined): Date | undefined {
   const days = validDaysSetting === undefined ? 30 : Number.parseInt(validDaysSetting, 10)
@@ -113,8 +114,8 @@ export async function createQuoteRecord(
 
   // The customer and vehicle the quote points at must be the workshop's own.
   await assertOwnedVehicle(data.vehicleId, organizationId)
-  // fork: its parts link only to this workshop's inventory (A4)
-  await assertOwnInventoryParts(data.partItems, organizationId)
+  // fork: no part of another workshop's inventory (A4); a part deleted since keeps its id, as before
+  await assertNoForeignInventoryParts(data.partItems, organizationId)
   // Tax-exempt customer: force the rate to 0 regardless of org default.
   let customerExempt = false
   if (data.customerId) {
