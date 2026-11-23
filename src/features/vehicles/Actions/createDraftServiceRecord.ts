@@ -1,9 +1,16 @@
 'use server'
 
-import { db } from '@/lib/db'
 import { withAuth } from '@/lib/with-auth'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
-import { createDraftRecord } from '../Lib/createDraftRecord'
+// fork: the bodies and their audit events live beside the draft service (A2)
+import {
+  createDraftCounterSaleEvent,
+  createDraftServiceRecordEvent,
+} from '../Lib/serviceRecordAuditEvents'
+import {
+  createDraftCounterSaleService,
+  createDraftServiceRecordService,
+} from '../Lib/draftServiceRecordService.server'
 
 export async function createDraftServiceRecord(
   vehicleId: string,
@@ -15,29 +22,17 @@ export async function createDraftServiceRecord(
   bookFrom?: Date
 ) {
   return withAuth(
-    async ({ organizationId, userId }) => {
-      const vehicle = await db.vehicle.findFirst({
-        where: { id: vehicleId, organizationId },
-        include: { customer: { select: { taxExempt: true } } },
-      })
-      if (!vehicle) throw new Error('Vehicle not found')
-
-      return createDraftRecord(
-        { organizationId, userId },
-        {
-          vehicleId,
-          customerId: null,
-          customerExempt: vehicle.customer?.taxExempt ?? false,
-          // Named from the workshop's title template once the number is known.
-          title: null,
-          startDateTime,
-          endDateTime,
-          technicianId,
-          workBayId,
-          bookFrom,
-        }
-      )
-    },
+    // fork: the body is createDraftServiceRecordService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      createDraftServiceRecordService(
+        { organizationId, userId, actor: 'user' },
+        vehicleId,
+        startDateTime,
+        endDateTime,
+        technicianId,
+        workBayId,
+        bookFrom
+      ),
     {
       requiredPermissions: [
         {
@@ -45,36 +40,16 @@ export async function createDraftServiceRecord(
           subject: PermissionSubject.SERVICES,
         },
       ],
-      audit: ({ result }) => ({
-        action: 'service.create',
-        entity: 'ServiceRecord',
-        entityId: result.id,
-        details: { key: 'service_createDraft', params: { ref: result.invoiceNumber || result.id } },
-        metadata: { serviceRecordId: result.id, vehicleId: result.vehicleId },
-      }),
+      audit: ({ result }) => createDraftServiceRecordEvent(result),
     }
   )
 }
 
 export async function createDraftCounterSale(customerId: string) {
   return withAuth(
-    async ({ organizationId, userId }) => {
-      const customer = await db.customer.findFirst({
-        where: { id: customerId, organizationId },
-        select: { id: true, taxExempt: true },
-      })
-      if (!customer) throw new Error('Customer not found')
-
-      return createDraftRecord(
-        { organizationId, userId },
-        {
-          vehicleId: null,
-          customerId: customer.id,
-          customerExempt: customer.taxExempt,
-          title: 'Parts Sale',
-        }
-      )
-    },
+    // fork: the body is createDraftCounterSaleService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      createDraftCounterSaleService({ organizationId, userId, actor: 'user' }, customerId),
     {
       requiredPermissions: [
         {
@@ -82,16 +57,7 @@ export async function createDraftCounterSale(customerId: string) {
           subject: PermissionSubject.SERVICES,
         },
       ],
-      audit: ({ result }) => ({
-        action: 'service.create',
-        entity: 'ServiceRecord',
-        entityId: result.id,
-        details: {
-          key: 'service_createCounterSale',
-          params: { ref: result.invoiceNumber || result.id },
-        },
-        metadata: { serviceRecordId: result.id, customerId: result.customerId },
-      }),
+      audit: ({ result }) => createDraftCounterSaleEvent(result),
     }
   )
 }

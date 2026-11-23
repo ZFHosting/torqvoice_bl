@@ -12,6 +12,10 @@ import type {
   updateServiceRecordTitleService,
   deleteServiceRecordService,
 } from './serviceRecordService.server'
+import type {
+  createDraftCounterSaleService,
+  createDraftServiceRecordService,
+} from './draftServiceRecordService.server'
 
 export function createServiceRecordEvent(
   result: Awaited<ReturnType<typeof createServiceRecordService>>
@@ -91,5 +95,32 @@ export function deleteServiceRecordEvent(
     entityId: result.recordId,
     details: { key: 'service_delete', params: { ref: result.recordId } },
     metadata: { serviceRecordId: result.recordId },
+  }
+}
+
+export function createDraftServiceRecordEvent(
+  result: Awaited<ReturnType<typeof createDraftServiceRecordService>>
+): AuditEvent {
+  return {
+    action: 'service.create',
+    entity: 'ServiceRecord',
+    entityId: result.id,
+    details: { key: 'service_createDraft', params: { ref: result.invoiceNumber || result.id } },
+    metadata: { serviceRecordId: result.id, vehicleId: result.vehicleId },
+  }
+}
+
+export function createDraftCounterSaleEvent(
+  result: Awaited<ReturnType<typeof createDraftCounterSaleService>>
+): AuditEvent {
+  return {
+    action: 'service.create',
+    entity: 'ServiceRecord',
+    entityId: result.id,
+    details: {
+      key: 'service_createCounterSale',
+      params: { ref: result.invoiceNumber || result.id },
+    },
+    metadata: { serviceRecordId: result.id, customerId: result.customerId },
   }
 }
