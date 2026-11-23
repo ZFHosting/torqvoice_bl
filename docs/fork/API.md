@@ -67,7 +67,7 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
 | Casing | camelCase JSON. |
 | Times | ISO 8601 UTC. Calendar dates the workshop types (due dates) are also returned as `YYYY-MM-DD` in the workshop's time zone, alongside the UTC value. |
 | Money | Decimal numbers in major units, rounded to 2 places. Every document has `currency` (ISO 4217, from workshop settings). |
-| Paging | `?limit=` (default 50, max 200) and `?cursor=` (opaque). The response has `meta.nextCursor` and `meta.hasMore`. Order is `(updatedAt, id)` ascending unless `sort=` says otherwise. A record updated during a walk comes round again at the end with its new state. |
+| Paging | `?limit=` (default 50, max 200) and `?cursor=` (opaque). The response has `meta.nextCursor` and `meta.hasMore`. Order is `(updatedAt, id)` ascending unless `sort=` says otherwise. A record updated during a walk comes round again at the end with its new state. One record's own lists (`/customers/{id}/contacts`, `/work-orders/{id}/jobs`, `lines`, `payments`, `attachments`) are small and come whole, without `meta`. |
 | Sync | `?updatedSince=<ISO>` on every list. Deletes come from `GET /api/v1/deleted?since=`. Start each sync a little before the last `updatedAt` you saw (a minute is plenty) and de-duplicate by `id`: a write whose transaction commits late can carry an earlier `updatedAt` than rows already read. |
 | Expansion | `?include=lines,jobs,payments,customFields,meta,source` on the endpoints that support it. Nothing nested comes back unless it's asked for. |
 | Idempotency | `Idempotency-Key` header on any `POST`. The same key with the same body replays the stored response (with `Idempotent-Replayed: true`); the same key with a different body, or while the first request is still running, gets 409 `idempotency_conflict`. A request that fails with a 5xx gives the key back, and so does one still in flight after 5 minutes (its process died). The request hash covers the method, path, query string and body. Stored responses are kept 24 hours. |
@@ -90,10 +90,11 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
 | `/work-orders/{id}/lines` | R W | Labor and part lines, one list with `kind` (`labor`, `fee`, `epa`, `shopSupplies`, `part`, `tire`, `subcontract`), `jobId`, `technicianId`, `completed`. |
 | `/work-orders/{id}/status` | A | `POST { status, customStatusId? }`, through the same service as the work board, so the clock-stop and portal rules apply. |
 | `/work-orders/{id}/payments` | R W | Record a payment, which issues the invoice the way the UI does. |
-| `/work-orders/{id}/attachments` | R W | Multipart upload; downloads are streamed through the API with key auth. |
-| `/quotes` | R W | Can include `jobs`, `lines`. |
+| `/work-orders/{id}/attachments` | R W | Multipart upload; each attachment's `contentUrl` downloads it. |
+| `/work-orders/{id}/attachments/{attachmentId}/content` | R | The file itself (its own `Content-Type`), with the same key; only the workshop's own uploads. |
+| `/quotes` | R W | `?status=`, `?customerId=`, `?vehicleId=`. Can include `jobs`, `lines` (declined lines carry `excluded: true`), `customFields`. |
 | `/quotes/{id}/convert` | A | Quote to work order, through the existing conversion code. |
-| `/appointments` | R W | `?from=&to=`, `?technicianId=`. |
+| `/appointments` | R W | `?from=&to=` (by start). An appointment has no technician of its own. |
 | `/technicians` | R W | |
 | `/time-entries` | R W | `?technicianId=`, `?workOrderId=`, `?from=&to=`. |
 | `/time-entries/start`, `/time-entries/{id}/stop` | A | Same rules as the technician app (one open entry per technician). |
@@ -101,7 +102,7 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
 | `/inventory-parts` | R W | |
 | `/inventory-parts/{id}/adjust` | A | `POST { delta, reason, note }` writes a `StockMovement`. |
 | `/labor-presets` | R W | Canned services. |
-| `/inspections` | R | Templates, items and photos. Writes come in a later version. |
+| `/inspections` | R | `?vehicleId=`, `?status=`; `include=items` (what was checked, the condition, measured values, a photo count). Templates and photo downloads, and writes, come in a later version. |
 | `/findings` | R W | Deferred or recommended work (`VehicleFinding`). |
 | `/work-order-statuses` | R | |
 | `/payments` | R | Across all work orders, for accounting sync: `?from=&to=`, `?method=`. |
@@ -139,8 +140,9 @@ src/features/public-api/
 │   ├── etag.ts
 │   ├── openapi.ts            # assembles the document from Schema/*
 │   └── keys.server.ts        # create / hash / verify / revoke
-├── Schema/<resource>.ts      # zod: query, create, update, response
-├── Serializers/<resource>.ts # row → response, allowlisted fields only
+├── Schema/<resource>.ts      # zod: query, create, update, response; a read resource's ReadSpec
+├── Serializers/<resource>.ts # row → response, allowlisted fields only (Prisma select + serializer)
+├── Resources/<resource>.ts   # a read resource: its spec, permission, workshop scope, reads (Lib/readResource.ts)
 ├── Actions/apiKeyActions.ts  # settings page actions (withAuth, owner/admin only)
 └── Components/               # Settings → API keys page
 src/app/api/v1/<resource>/route.ts and [id]/route.ts   # thin: parse → service → serialize

@@ -71,13 +71,13 @@ Environment (local, Windows):
 
 **A3 (read endpoints), in progress** on `fork/A3-read-endpoints` (from `fork/integration` at 6f7fb226). The upstream
 merge at the start conflicted (B15) and was aborted; A3 carries on without it. Plan:
-1. [ ] `Lib/readResource.ts`: a resource declares its path, tag, READ permission, workshop `scope` (on every query,
+1. [x] `Lib/readResource.ts` (793352f3): a resource declares its path, tag, READ permission, workshop `scope` (on every query,
    lookups by id included), filters, includes, Prisma `select` and serializer; `listRoute` / `getRoute` build the
    handlers (paged over `(updatedAt, id)`, `updatedSince`, `?include=` checked against an allowlist, `ETag` on a
    get, another workshop's id = 404) and `readEndpoints` the OpenAPI entries. `Lib/serializeContext.ts`: currency
    and time zone once per request, `money()` (2 decimals as printed), `iso()`, `day()` (workshop calendar date).
    From the scratchpad drafts (`a3-final/`).
-2. [ ] Per resource: `Schema/<r>.ts` (response + filter zod, endpoints), `Serializers/<r>.ts` (select + field by
+2. [x] (793352f3, f0da7257, 1fb34154) Per resource: `Schema/<r>.ts` (response + filter zod, endpoints), `Serializers/<r>.ts` (select + field by
    field serializer, never a spread row), `Resources/<r>.ts` (the declaration; API.md §6 gains the folder).
    Routes `src/app/api/v1/<r>/route.ts` and `[id]/route.ts`, thin. Resources: customers (+contacts,
    customFields), vehicles (+customFields, notes), work-orders (+jobs, lines, concerns, payments, attachments,
@@ -85,11 +85,14 @@ merge at the start conflicted (B15) and was aborted; A3 carries on without it. P
    inventory-parts, labor-presets, inspections (+items), findings, work-order-statuses, payments, webhooks; nested
    reads `customers/{id}/contacts`, `work-orders/{id}/jobs|lines|payments|attachments`; the attachment download
    `work-orders/{id}/attachments/{attachmentId}/content` (the protected files route's checks).
-3. [ ] The carry-over: `sourceExtra` readers lenient per key before lines are served.
-4. [ ] Tests: a table-driven tenant isolation test over every list and get (db); paging 500 records, each once,
-   with updates during the walk (db); `updatedSince` (db); every response parses with its schema and
-   `openapi.json` lists every endpoint (the A1 openapi test covers routes); a grep test for spreads in
-   `Serializers/`; permissions (403 without READ).
+3. [x] The carry-over (91a00fcf): `sourceExtra` readers lenient per key before lines are served
+   (`sourceExtra.test.ts` "keeps every other key when one value is malformed").
+4. [x] Tests (d1231d96): `db/public-api-read.db.test.ts`: every list and get of 15 resources with each workshop's
+   key (own records, published shape, ETag; the other's id 404; it fails with the scope removed), no webhook secret
+   or share token sent, includes and an unknown include (400), nested reads and the attachment download (own only),
+   403 without READ, 500 records paged with changes mid-walk (each once, a changed one again with its new state),
+   `updatedSince`. `features/public-api/serializers-no-spread.test.ts`; `openapi.test.ts` now finds the thin routes
+   too, so every endpoint is checked to be in `openapi.json` (valid OpenAPI 3.1).
 5. [ ] DoD, reviewer, merge.
 
 Carry-over notes:
@@ -270,6 +273,7 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | M5 review: an estimate that becomes a repair order converts its quote (`status: converted`, `convertedToId`, as `quoteService` does); one that turns back keeps its work order (warned); a timesheet moving between shift and time entry replaces the importer's other row. | Shopmonkey's normal flow during the sync window would otherwise leave two documents for one order. Estimate files stay archive-only until the estimate becomes a work order (MAPPING §9.2) rather than going to `QuoteAttachment`: fewer moving parts, and nothing is lost. |
 | 2026-11-23 | M5 review: undo keeps created rows the workshop uses since (and their links), removes only the custom fields the run defined (now linked as `CustomFieldDefinition`), and finds a run's batches by `ImportBatch.mapping.shopmonkeyRunId`; the batch's `fileName` is a translated label. Settings → Data hides the spreadsheet Undo on Shopmonkey batches and the action refuses it (marked `// fork:` in `ImportHistoryCard.tsx`, `importActions.ts`). | A restrict FK (templates) made undo impossible once the app used an imported template; cascades would have taken the workshop's time entries and statuses; the time-window sweep deleted fields made in Settings; the spreadsheet undo covers only three of the tables a load writes. |
 | 2026-11-23 | M5 review pass 2: undo removes the run's vehicle notes, records `shopmonkey.import_undo` (labels in 14 locales), clears any link or mapping of the connection whose row is gone, and clears the pointer of a quote converted into a removed work order; a technician the workshop had is never renamed from Shopmonkey; the issue guard runs again before issuing (`issue_postponed`). Undoing a run from before a restore is partial (MAPPING §9.2). | The reviewer's probes: a restore followed by an estimate turning into a repair order left two documents; an undone run left its note and then duplicated it; undo of an older run left stale links that read as "deleted in Torqvoice". |
+| 2026-11-23 | A3 (API.md corrected): a read resource is one declaration in `Resources/<resource>.ts` built from `Schema/` (its `ReadSpec`: path, response, filters, includes) and `Serializers/` (Prisma select and field-by-field serializer); `Lib/readResource.ts` makes its handlers and `Lib/readSpec.ts` its OpenAPI entries. One record's own lists (contacts, a work order's jobs, lines, payments, attachments) aren't paged; appointments have no `?technicianId=` (no technician column); quotes also include `customFields`; inspections serve items with a photo count, templates and photo downloads later. | API.md §6 had no place for the per-resource wiring (permission, scope, reads), and routes stay one line. The rest is what the models hold. |
 | 2026-11-23 | M5 review pass 3: a vehicle note whose link is gone is matched by its title on the vehicle; a technician re-linked after a restore is the workshop's (never renamed); an undone conversion puts the quote back to `accepted`. Deferred to M8: an operator's `'create'` choice for a user matched earlier is ignored (the match stands). | A note has no archive record to re-link from; MAPPING §9.2 already promised the technician rule; a `converted` quote with no pointer can't be converted in the app. |
 | 2026-11-23 | M5 review, deferred to M8 (MAPPING §9.2): a lock against two loads of one connection at once; the dry run's single long transaction; the realtime notify per committed record. `.bin` for unknown file types stays (the files route serves it as octet-stream). | M8 adds the screen that starts loads; the CLI is the only entry point until then. |
 | 2026-11-23 | **M5 provisional.** DoD: `tsc` exit 0 and Biome 14 (baseline, LF worktree) at 68b704c9; `npm test` in chunks at cd88e5b4, failures only the Windows baseline files, the Fiken timeout and `integrations/registry.test` timing out under load (4.5 s alone, passes alone), and after the later fixes the affected folders (vehicles, tax, quotes, inventory, import, audit, integrations, i18n, lib/audit, raw-sql-qualified) 178 files / 2654 tests at 79b0ee33, integrations and import 24 / 293 at add6454b; `test:db` 25 files / 143 tests at add6454b and the Shopmonkey files 9 / 41 at 68b704c9. Reviewer: needs changes ×3 (7, 4 and 3 must-fix), ready for PR at pass 4. Merged at 40e49b36. Provisional: built on the synthetic fixtures (B1). | Acceptance evidence: load twice identical (`db/shopmonkey-load.db.test.ts` "writes every record, and loading again changes nothing"); one changed order ("updates exactly the order that changed"); locked invoice and its sheet ("issues an imported invoice…"); balances ("keeps open balances…"); undo counts (`db/shopmonkey-undo.db.test.ts` "leaves the workshop as it was before…"); no webhook deliveries ("records one audit event per run, and fires no webhook…", webhook there from before the first load); edits keep fork columns (`db/shopmonkey-edit-imported.db.test.ts`); no duplicates after a restore (`shopmonkey-undo.db.test.ts` "re-links every row…", `shopmonkey-sync.db.test.ts` "after a restore (no links)"). |
