@@ -27,7 +27,7 @@ resolved.
 | M2 | provisional | fork/M2-connector-and-client | Merged 6318fb3f. Built on documented shapes only: re-verify with a key (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M2 provisional). |
 | M3 | provisional | fork/M3-extract-and-stage | Merged c79858fb. Built on documented shapes and synthetic fixtures: re-verify with a key (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M3 provisional). |
 | M4 | provisional | fork/M4-transform | Merged 634a6785. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M4 provisional). |
-| M5 | in_progress | fork/M5-load | |
+| M5 | provisional | fork/M5-load | Merged 40e49b36. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 4 passes. Evidence in the Decisions log (M5 provisional). |
 | A3 | todo | | |
 | A4 | todo | | |
 | M6 | todo | | |
@@ -69,108 +69,33 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**M5 (load), in progress** on `fork/M5-load` (from `fork/integration` at 04075abc; upstream had nothing new).
-Provisional (B1). Plan:
-1. [x] Migration `fork_source_local_link`: `SourceRecord.localEntity`, `localId`, `loadedHash` (task 13: a backed-up
-   remote ↔ local mapping, so a load after a restore or a reconnect re-links instead of creating rows again).
-2. [x] `load/links.ts`: links written through the order's transaction (`tx.integrationLink`, scoped by `connectionId`;
-   `ctx.links` writes with `db` outside any transaction), plus the SourceRecord mapping in the same transaction;
-   lookup by remote id, falling back to the SourceRecord's `localId` (checked to still be this workshop's row), which
-   rebuilds the link. Skip when the stored hash equals the source's (an order's hash covers its children).
-3. [x] `load/resolver.ts` + `load/context.ts`: `TransformContext.resolve` from the links (table → model per `transform/types.ts`; `order`
-   → work orders only), `statusStageMap` complete (operator over `defaultStages`).
-4. [x] Loaders in plan order (342da595, 71760c9f; `db/shopmonkey-load.db.test.ts`: dry run keeps nothing, twice is
-   identical across every table, balances, one changed order updates only itself): technicians, workflow statuses, customers (+contacts, custom fields; numbers after
-   every numeric `publicId`), vehicles (+notes; `mileageUnit` from the oldest vehicle), inventory (+ one "import"
-   `StockMovement`; barcode only if unique), presets, orders (one transaction each: ServiceRecord or Quote, jobs,
-   lines with `jobId`/`lineKind`/X3 columns, quote lines `excluded = !counts`, concern, meta, helpers, payments
-   `provider: shopmonkey`, findings, custom field values), appointments (+ the order's `startDateTime`), inspection
-   templates, inspections, time entries and shifts. Workshop settings (tax, labor rate, name, time zone,
-   numbering) are proposed in the run's summary, applied only with `--apply-settings` / `--apply-numbering`.
-5. [x] Files (71760c9f; a db test with real staged files is still to write): staged files moved to `uploadsRoot()/<org>/services/<uuid>.<ext>` (what `isGeneratedName` accepts), then
-   `ServiceAttachment` rows; inspection photos into `imageUrls`; invoice PDFs as category `document`,
-   `includeInInvoice: false`, "Original Shopmonkey invoice"; the staging folder removed when its files are moved.
-6. [x] ImportBatch per entity type (`source: shopmonkey`) on created customers, vehicles, service records,
-   inspections; undo = the spreadsheet undo's rules (`undoImportBatch`, importActions.ts) for those, plus the other
-   rows the run created (by its IntegrationLinks), then their links and SourceRecord mappings.
-7. [x] `issueInvoice(id, org, 'backfill')` after each invoiced order commits; refuse to start while an active
-   connection's manifest subscribes to `service.update` (computed from the registry, not a fixed list).
-8. [x] One `logAudit` per run (`shopmonkey.import`, counts in metadata; not in `WEBHOOK_EVENTS`, so no webhook).
-9. [x] CLI `run.ts load --connection <id> [--dry-run] [--apply-numbering] [--apply-settings] [--user <id>]`
-   (97674a37): `load/cli.ts` (`cli.test.ts`), proposals in `load/proposals.ts` (MAPPING §9, §9.1;
-   `db/shopmonkey-proposals.db.test.ts`: a dry run proposes 1004 → `''`/`1005` and the tax, rate, units and
-   zone, writing nothing; `applyNumbering` makes `nextJobNumber` give `1005`; `applySettings` writes them and
-   leaves nothing to propose). The run uses the workshop's time zone and default country.
-10. [x] Task 12 (3dc8f8eb, b8180fed): the A2 services carry the fork line columns across a save, matched by name, then a part
-    by part number (`schema/lineColumns.ts`; the form sends no ids, brief corrected; `lineColumns.test.ts`,
-    `db/shopmonkey-edit-imported.db.test.ts`, which fails with the carry switched off).
-11. [x] Tests: everything in the list below, plus staged files (b2e67c9a, `db/shopmonkey-files.db.test.ts`: order
-    file, invoice PDF, inspection photo placed and attached, staged copies removed, nothing attached twice; an
-    inspection changed later keeps its photo from uploads; a file gone from disk is warned, re-downloaded by the
-    next extract and attached by the next load). Labels in the workshop's language (1b37f2f5,
-    `load/labels.test.ts`). The list: load twice gives identical counts and no updates; one changed order
-    updates only its rows; an invoiced order is locked and its PDF prints Shopmonkey's number, lines and totals;
-    unpaid/partly paid balances; undo restores the per-table counts; no `WebhookDelivery` with an active `*`
-    webhook; editing an imported work order and quote keeps the fork columns; after a restore a second load
-    creates no duplicates.
-12. [~] DoD (done at 40d6933d: `tsc` 0, Biome 14, all chunks = baseline, `test:db` 23/128). Reviewer pass 1:
-    needs changes, 7 must-fix, all fixed with tests: (1) the issue guard also refuses connections in `error`
-    (c1330a89); (2) every imported invoice is offered for issuing on every run, failures reported (c1330a89);
-    (3) undo keeps rows the workshop uses since, removes only the custom fields the run defined, finds batches by
-    `mapping.shopmonkeyRunId` (f05438c5, `db/shopmonkey-undo.db.test.ts` "undoing a load the workshop has worked
-    with since"); (4) an estimate that becomes a repair order converts its quote, a timesheet changing kind
-    replaces its other row (dbf05adf, `db/shopmonkey-sync.db.test.ts`); (5) `row_recreated` warning, hashes
-    include resolved local ids (dbf05adf, same file); (6) `dataImport.entities.inspections`, no spreadsheet Undo
-    on Shopmonkey batches (a52fe57a); (7) §6.6 words translated, MAPPING §9.2 matches the code. Should-fix taken:
-    connection checked against the workshop in `runLoad`/`undoLoad`, the vehicle note follows changes, an
-    unchanged technician mapping writes nothing (one link per record and model), batch counts count committed
-    records only, undo CLI, the merged docstring, backup test for the three mapping columns, stronger
-    acceptance 2 and webhook tests. DoD again at cd88e5b4: `tsc` 0, Biome 14, chunks = baseline (+ the
-    `registry.test` timeout under load, 4.5 s alone), `test:db` 24/136. Reviewer pass 2: needs changes, 4 must-fix,
-    all fixed with tests: (1) after a restore, an estimate turned repair order converts its quote (the quote is
-    looked up before the work order rewrites the mapping; `db/shopmonkey-sync.db.test.ts` "after a restore");
-    (2) undo removes the vehicle notes a run wrote; (3) one `shopmonkey.import_undo` audit event per undo, undo
-    acts as a member (`db/shopmonkey-undo.db.test.ts` "undo and later runs"); (4) the stock movement notes are
-    translated. Should-fix taken: dangling links and mappings cleared after an undo (older run under a newer
-    one), a converted quote's pointer cleared and re-pointed, the workshop's own technicians never renamed, the
-    guard checked again before issuing, the load's audit event names its connection, the import reason labelled
-    in the part history, the work order save reads lines in id order, tests for the Settings → Data hooks
-    (`features/import/shopmonkey-batches.test.tsx`). Reviewer pass 3 (at 79b0ee33): needs changes, 3 must-fix, all
-    fixed with tests: (1) a vehicle note with its link gone (a restore) is matched by its title, not written twice;
-    (2) a technician re-linked after a restore counts as the workshop's and isn't renamed (`findLoaded` first);
-    (3) the guard's re-check before issuing is tested (`db/shopmonkey-issue-guard.db.test.ts`). Should-fix taken:
-    one `row_recreated` per record (`findLoaded` clears the gone row's mapping), undo clears the pointer of quotes
-    converted into any removed work order and puts them back to `accepted`, undo works in chunks of 10,000 ids,
-    tests for the non-member refusal and a translated stock note. Next: DoD, reviewer pass 4, merge as
-    provisional.
-Facts found while planning: `dispatchWebhookEvent` returns unless the event is in `WEBHOOK_EVENTS` (even for `*`);
-the issue guard's connectors today are fiken, google-calendar, microsoft-365, quickbooks, xero, zoho-books, zoom
-(manifest `subscriptions` with `service.update`); the upload route names files `<randomUUID>.<ext>` under
-`uploadsRoot()/<org>/services/` and returns `/api/protected/files/<org>/services/<name>`; the spreadsheet undo
-doesn't cover quotes, inspections, appointments, inventory, presets, technicians or statuses (no `importBatchId`).
+**Next: A3 (read endpoints)**, from `fork/integration`. The plan goes here when it starts. Drafts of the simpler
+read resources (customers, vehicles, technicians, statuses, presets, inventory, appointments, payments, time
+entries, shifts, findings, webhooks) are in the session scratchpad `a3-final/` (one `Resources/` file each); split
+them into `Schema/` and `Serializers/` as API.md §6 and the brief lay out.
 
-Notes for M5 (from M4's review): quote lines take `excluded = !job.counts` (§6.3); `ctx.resolve` must follow the
-table-to-model contract in `transform/types.ts` (`order` → work orders only); build `statusStageMap` complete
-(operator over `defaultStages`); write the transforms' English labels in the workshop's language; pick the
-`mileageUnit` from the first vehicle in a fixed order (oldest `createdDate`, then id); the M1 `sourceExtra` reader
-still drops the whole object when one key is malformed (deferred again from M4: it matters once M5 writes and the
-API reads them).
-
-Carried over from M3's review (pass 2, should-fix, none blocking), for M7 (scheduled re-runs):
-- One order with several slow files can keep a job past the queue's 10-minute stuck limit and split a run into two
-  job chains with the same `runId` (data stays right, API calls double): check the clock between files, or keep a
-  lease (job id) in `state.extract` that the save also matches.
-- A finished run doesn't report the parents it left pending (`children.retry`): put it in the done summary, the CLI's
-  last line and the audit metadata, so the operator knows to run again.
-- A file host answering 401/403 on a freshly read link is retried every run: refuse it, or count attempts (also
-  depends on S4, whether file links need the key).
-- Nits: after a settings change `resetChildren` sets `childrenHash` to null, so that pass skips `markGone`; a search
-  that ignores `where` still pages the whole payment table per order; `startShopmonkeyExtract` writes back the whole
-  `state` instead of only `extract`.
-Notes for M5 (from M3's review): staged files (`dataRoot()/shopmonkey-staging/<connectionId>/`) hold customer
-files outside `uploads/<org>`: move them on load and remove the folder on disconnect or workshop deletion (M5/M8).
-Notes for M7: records reached only as children (vehicles, owners, services, payments) are refetched only when
-their parent changes (MAPPING §1, "How a re-run sees changes"); webhooks must cover them.
+Carry-over notes:
+- For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
+  key is malformed; make them lenient per key before the API serves lines (deferred from M1, M4 and M5).
+- For M7 (scheduled re-runs), from M3's review (pass 2, should-fix, none blocking):
+  - One order with several slow files can keep a job past the queue's 10-minute stuck limit and split a run into
+    two job chains with the same `runId` (data stays right, API calls double): check the clock between files, or
+    keep a lease (job id) in `state.extract` that the save also matches.
+  - A finished run doesn't report the parents it left pending (`children.retry`): put it in the done summary, the
+    CLI's last line and the audit metadata, so the operator knows to run again.
+  - A file host answering 401/403 on a freshly read link is retried every run: refuse it, or count attempts (also
+    depends on S4, whether file links need the key).
+  - Nits: after a settings change `resetChildren` sets `childrenHash` to null, so that pass skips `markGone`; a
+    search that ignores `where` still pages the whole payment table per order; `startShopmonkeyExtract` writes back
+    the whole `state` instead of only `extract`.
+  - Records reached only as children (vehicles, owners, services, payments) are refetched only when their parent
+    changes (MAPPING §1, "How a re-run sees changes"); webhooks must cover them.
+- For M8 (the import screen), from M5's reviews (MAPPING §9.2): a lock against two loads of one connection at once;
+  the dry run's single long transaction (up to an hour); the realtime notify per committed record (run large loads
+  outside opening hours); an operator's `'create'` choice for a user matched earlier is ignored (the match stands);
+  remove the staging folder (`dataRoot()/shopmonkey-staging/<connectionId>/`) on disconnect or workshop deletion
+  (a load removes each staged file it places); a quote whose conversion an undo removed keeps the `vehicleId` it
+  was loaded with (null if its vehicle went with the undo) until its order changes in Shopmonkey.
 
 M0 acceptance:
 - [x] NOTICE-FORK.md, README link, CLAUDE.md import, docs/fork/UPSTREAM.md (commit 0c7ec939).
@@ -246,6 +171,7 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | S8 | Timesheet `duration` is milliseconds (unused: minutes come from clock times) | `build-synthetic-fixtures.ts` (`timesheet`); MAPPING §3 |
 | S11 | `publicId` and order `number` are digits in practice (both are strings in the schema) | MAPPING §4, §9 |
 | S12 | Volumes (sizing assumes 50,000 orders) | RESULTS S12, blocker B3 |
+| S4 | A vehicle's `mileageUnit` is `Mile` or `Kilometer` (the unit system proposed from the oldest vehicle) | `load/proposals.ts` (`unitSystemOf`); MAPPING §9.1 |
 | S4 | Order file entries carry no visibility flag, so imported order files are `includeInInvoice: true` (shown on the share page, like an upload in the app); if recorded files have one (internal vs customer-visible), map it | `load/files.ts` (`attachOrderFiles`); MAPPING §9.2 |
 | S6 | Shop supplies (and EPA) taxability decides `workshop.taxAppliesToShopFee` | `load/proposals.ts` (`taxSettings`); MAPPING §9.1 |
 
@@ -327,6 +253,7 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | M5 review pass 2: undo removes the run's vehicle notes, records `shopmonkey.import_undo` (labels in 14 locales), clears any link or mapping of the connection whose row is gone, and clears the pointer of a quote converted into a removed work order; a technician the workshop had is never renamed from Shopmonkey; the issue guard runs again before issuing (`issue_postponed`). Undoing a run from before a restore is partial (MAPPING §9.2). | The reviewer's probes: a restore followed by an estimate turning into a repair order left two documents; an undone run left its note and then duplicated it; undo of an older run left stale links that read as "deleted in Torqvoice". |
 | 2026-11-23 | M5 review pass 3: a vehicle note whose link is gone is matched by its title on the vehicle; a technician re-linked after a restore is the workshop's (never renamed); an undone conversion puts the quote back to `accepted`. Deferred to M8: an operator's `'create'` choice for a user matched earlier is ignored (the match stands). | A note has no archive record to re-link from; MAPPING §9.2 already promised the technician rule; a `converted` quote with no pointer can't be converted in the app. |
 | 2026-11-23 | M5 review, deferred to M8 (MAPPING §9.2): a lock against two loads of one connection at once; the dry run's single long transaction; the realtime notify per committed record. `.bin` for unknown file types stays (the files route serves it as octet-stream). | M8 adds the screen that starts loads; the CLI is the only entry point until then. |
+| 2026-11-23 | **M5 provisional.** DoD: `tsc` exit 0 and Biome 14 (baseline, LF worktree) at 68b704c9; `npm test` in chunks at cd88e5b4, failures only the Windows baseline files, the Fiken timeout and `integrations/registry.test` timing out under load (4.5 s alone, passes alone), and after the later fixes the affected folders (vehicles, tax, quotes, inventory, import, audit, integrations, i18n, lib/audit, raw-sql-qualified) 178 files / 2654 tests at 79b0ee33, integrations and import 24 / 293 at add6454b; `test:db` 25 files / 143 tests at add6454b and the Shopmonkey files 9 / 41 at 68b704c9. Reviewer: needs changes ×3 (7, 4 and 3 must-fix), ready for PR at pass 4. Merged at 40e49b36. Provisional: built on the synthetic fixtures (B1). | Acceptance evidence: load twice identical (`db/shopmonkey-load.db.test.ts` "writes every record, and loading again changes nothing"); one changed order ("updates exactly the order that changed"); locked invoice and its sheet ("issues an imported invoice…"); balances ("keeps open balances…"); undo counts (`db/shopmonkey-undo.db.test.ts` "leaves the workshop as it was before…"); no webhook deliveries ("records one audit event per run, and fires no webhook…", webhook there from before the first load); edits keep fork columns (`db/shopmonkey-edit-imported.db.test.ts`); no duplicates after a restore (`shopmonkey-undo.db.test.ts` "re-links every row…", `shopmonkey-sync.db.test.ts` "after a restore (no links)"). |
 | 2026-11-23 | M3 review, accepted as is: the file download honours `WEBHOOKS_ALLOW_PRIVATE_TARGETS` (the same opt-out the webhook and calendar fetchers have, for testing against a local server); an uploaded backup zip is capped at 200 MiB compressed and 2 GiB uncompressed (`import/route.ts`, `zip-guard.ts`), scheduled snapshots aren't; `logAudit` never throws, so a finished run's audit event can't be lost to an exception after `finishedAt` is saved. | One switch for "this server may reach private addresses"; the zip caps are upstream's. |
 | 2026-11-23 | **A2 done.** DoD at 3329b5c4 plus review fixes: `tsc` exit 0; Biome 14 (baseline); `npm test` 808 files, failures = Windows baseline + CRLF/timeout environment cases; `test:db` 16/102. Reviewer pass 2: ready for PR. Merged at c7f16d90. | Evidence for the definition of done and acceptance. |
 | 2026-11-23 | **Upstream bug found in A2's move, not fixed in A2:** `updateTechnicianService` (formerly `updateTechnician`) renames `techName` on work orders matched by technician id alone, after a workshop-scoped update whose count it never checks, so another workshop's technician id renames that workshop's jobs. Present on upstream `main`. | The A2 brief: bugs found while moving code are noted in the PR and fixed separately. It becomes reachable by API keys with A4's `PATCH /technicians/{id}`, so it is an A4 prerequisite (A4 brief). Worth reporting upstream too. |
