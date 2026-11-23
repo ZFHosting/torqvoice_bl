@@ -181,7 +181,8 @@ describe('a row deleted in the app', () => {
     await db.technician.delete({ where: { id: old.entityId } })
 
     const summary = await sync()
-    expect(summary.warnings.row_recreated).toBeGreaterThanOrEqual(1)
+    // Once per record: the technician, and its two timesheets the delete took with it.
+    expect(summary.warnings.row_recreated).toBe(3)
     const [now] = await linkOf('Technician', 'user:syn_usr_1')
     expect(now.entityId).not.toBe(old.entityId)
     expect(await db.serviceLabor.count({ where: { technicianId: now.entityId } })).toBe(linesBefore)

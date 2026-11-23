@@ -146,7 +146,9 @@ describe('undoing a load the workshop has worked with since', () => {
     })
 
     const result = await undo.undoLoad({ ...shop, runId: first.runId })
-    expect(result.kept).toMatchObject({
+    // Exactly these: a row the run made that went with something removed (a time entry with its work order) is
+    // neither removed here nor kept.
+    expect(result.kept).toEqual({
       InspectionTemplate: 1,
       Technician: 1,
       WorkOrderStatus: 1,

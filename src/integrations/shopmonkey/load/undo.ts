@@ -264,6 +264,14 @@ export async function undoLoad(input: {
         const ids = created(model)
         if (!ids.length) continue
         const delegate = delegateOf(tx, model)
+        // Still there: a row the run made may already be gone with something removed above (a time entry with its
+        // work order), and that's neither removed here nor kept.
+        const existing = (
+          await delegate.findMany({
+            where: { id: { in: ids }, organizationId },
+            select: { id: true },
+          })
+        ).map((r) => r.id)
         let removable = (
           await delegate.findMany({
             where: { id: { in: ids }, organizationId, ...(UNUSED[model] ?? {}) },
@@ -279,7 +287,8 @@ export async function undoLoad(input: {
         removed[model] = (
           await delegate.deleteMany({ where: { id: { in: removable }, organizationId } })
         ).count
-        const left = ids.filter((id) => !removable.includes(id))
+        const removing = new Set(removable)
+        const left = existing.filter((id) => !removing.has(id))
         if (left.length) {
           kept[model] = left.length
           keptIds.push(...left)

@@ -416,9 +416,7 @@ differs from the workshop's, never applied: renaming the workshop is the operato
   import batch (found by `mapping.shopmonkeyRunId`), by the spreadsheet importer's undo rules; quotes, inventory,
   presets, appointments, templates, time, technicians and statuses by the run's links; findings and attachments
   it added to rows it didn't create; the vehicle notes it wrote; the custom fields it defined (linked) that no
-  value uses. A quote it converted into a work order that's removed has its pointer cleared, so the next load
-  converts it again. A row the
-  workshop uses since is kept with its link, so a later load matches it: a template an inspection made in the
+  value uses (converted quotes: see below). A row the workshop uses since is kept with its link, so a later load matches it: a template an inspection made in the
   app uses, a technician with time, helpers, a login or lines outside the run, a status a work order is in, an
   inventory part a line, preset or stock movement of the workshop's names. What's removed loses its links and
   archive mappings, so a later load creates it again; so does any link or mapping of the connection whose row
@@ -433,7 +431,9 @@ differs from the workshop's, never applied: renaming the workshop is the operato
 - **Issuing.** The guard against connections that hear `service.update` is checked again just before issuing:
   with one turned on mid-run, nothing is issued (warned `issue_postponed`) and the next run issues them.
 - **Vehicle notes after a restore.** A note has no archive record of its own, so with its link gone the
-  vehicle's note under the same title is taken to be it and updated, not written a second time.
+  vehicle's note under the same title is taken to be it and updated, not written a second time. The title is the
+  workshop's current language's: a workshop that changed language between a load and a restore gets a second
+  note in the new language (the old one stays).
 - **Undo and converted quotes.** A quote converted into a work order an undo removes (that run's, or a later
   run's on that run's vehicle) is put back to `accepted` with no pointer, so the app can convert it; the next
   load converts it again while Shopmonkey has the order as a repair order.
