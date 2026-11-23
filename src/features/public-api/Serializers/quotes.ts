@@ -1,5 +1,5 @@
 /** Quotes, field by field (docs/fork/API.md §4). Never the share token. */
-import { iso, isoAlways, money } from '../Lib/serializeFormat'
+import { day, iso, isoAlways, money } from '../Lib/serializeFormat'
 import type { SerializeContext } from '../Lib/serializeFormat'
 import type { QuoteOut } from '../Schema/quotes'
 import {
@@ -105,6 +105,7 @@ export function serializeQuote(
     description: row.description,
     status: row.status,
     validUntil: iso(row.validUntil),
+    validUntilDay: day(row.validUntil, ctx.timeZone),
     customerId: row.customerId,
     vehicleId: row.vehicleId,
     inspectionId: row.inspectionId,

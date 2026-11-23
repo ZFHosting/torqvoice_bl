@@ -20,7 +20,8 @@ export const workOrdersResource: ReadResource<WorkOrderRow, WorkOrderOut> = {
   where: ({ status, customerId, vehicleId, invoiceNumber, technicianId, openOnly }) => ({
     AND: [
       typeof status === 'string' ? { status } : {},
-      typeof customerId === 'string' ? { customerId } : {},
+      // The customer's, as the app reads them: billed to them, or on a vehicle they own (customerActions.ts).
+      typeof customerId === 'string' ? { OR: [{ customerId }, { vehicle: { customerId } }] } : {},
       typeof vehicleId === 'string' ? { vehicleId } : {},
       typeof invoiceNumber === 'string' ? { invoiceNumber } : {},
       typeof technicianId === 'string' ? { technicianId } : {},

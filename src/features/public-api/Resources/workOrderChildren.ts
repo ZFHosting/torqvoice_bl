@@ -4,8 +4,10 @@
  * attachment that isn't on this work order, is a 404. Small, bounded lists: not paged.
  */
 import 'server-only'
+import { createReadStream } from 'node:fs'
 import { lstat, readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { Readable } from 'node:stream'
 import { db } from '@/lib/db'
 import { parseStoredFileUrl } from '@/lib/files/manager'
 import { uploadsRoots } from '@/lib/upload-root'
@@ -47,10 +49,10 @@ function childRoute(read: (workOrderId: string, ctx: PublicApiContext) => Promis
     )
 }
 
-export const workOrderJobsGET = childRoute(async (serviceRecordId) =>
+export const workOrderJobsGET = childRoute(async (serviceRecordId, ctx) =>
   (
     await db.workJob.findMany({
-      where: { serviceRecordId },
+      where: { serviceRecordId, organizationId: ctx.organizationId },
       select: JOB_SELECT,
       orderBy: [...JOB_ORDER],
     })
@@ -94,6 +96,11 @@ export const workOrderAttachmentsGET = childRoute(async (serviceRecordId) =>
   ).map((a) => serializeAttachment(serviceRecordId, a))
 )
 
+/** A stored type that is a plain `type/subtype`, or a generic one: never a header-breaking value. */
+function contentType(stored: string | null): string {
+  return stored && /^[\w.+-]+\/[\w.+-]+$/.test(stored) ? stored : 'application/octet-stream'
+}
+
 /** A file name safe in a Content-Disposition header. */
 function dispositionName(name: string): string {
   const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_')
@@ -126,21 +133,26 @@ export async function workOrderAttachmentContentGET(
         const folder = path.resolve(root, stored.organizationId, stored.folder)
         const target = path.resolve(folder, stored.name)
         if (path.dirname(target) !== folder) continue
+        let size: number
         try {
           const info = await lstat(target)
           if (!info.isFile()) continue
+          size = info.size
         } catch {
           continue
         }
-        const body = await readFile(target)
         const name = attachment.fileName || stored.name
         if (stored.name.toLowerCase().endsWith('.svg')) {
-          return new Response(body, { headers: svgDownloadHeaders('private, no-store') })
+          return new Response(await readFile(target), {
+            headers: svgDownloadHeaders('private, no-store'),
+          })
         }
+        // Streamed: a video or a large PDF isn't read into memory first.
+        const body = Readable.toWeb(createReadStream(target)) as ReadableStream<Uint8Array>
         return new Response(body, {
           headers: {
-            'Content-Type': attachment.fileType || 'application/octet-stream',
-            'Content-Length': String(body.byteLength),
+            'Content-Type': contentType(attachment.fileType),
+            'Content-Length': String(size),
             'Content-Disposition': dispositionName(name),
             'X-Content-Type-Options': 'nosniff',
             'Cache-Control': 'private, no-store',

@@ -41,13 +41,17 @@ export function includeSchema(allowed: readonly string[]) {
     })
 }
 
+/**
+ * A list's query: paging, `include` and the resource's filters, and nothing else. A parameter it doesn't know is a
+ * 400, like an unknown include: a misspelt or unsupported filter silently ignored would hand back the whole list.
+ */
 export function listQuerySchema(spec: { includes?: readonly string[]; filters?: z.ZodObject }) {
   const base = pageQuerySchema.extend({ include: includeSchema(spec.includes ?? []) })
-  return spec.filters ? base.extend(spec.filters.shape) : base
+  return (spec.filters ? base.extend(spec.filters.shape) : base).strict()
 }
 
 export const getQuerySchema = (allowed: readonly string[]) =>
-  z.object({ include: includeSchema(allowed) })
+  z.object({ include: includeSchema(allowed) }).strict()
 
 /** The resource's two operations, for the OpenAPI document. */
 export function readEndpoints(spec: ReadSpec<unknown>): EndpointSpec[] {

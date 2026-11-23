@@ -106,6 +106,17 @@ async function seed(shop: Shop, name: string) {
   })
   const org = shop.org
   const user = shop.owner
+  if (name === 'Alpha') {
+    // Far from UTC (+14), so a calendar day can't come out right by accident.
+    await db.appSetting.create({
+      data: {
+        organizationId: org,
+        userId: user,
+        key: 'workshop.timezone',
+        value: 'Pacific/Kiritimati',
+      },
+    })
+  }
   const customer = await db.customer.create({
     data: {
       organizationId: org,
@@ -156,6 +167,9 @@ async function seed(shop: Shop, name: string) {
       technicianId: technician.id,
       customStatusId: status.id,
       invoiceNumber: `INV-${name}-${stamp}`,
+      // 11:00 UTC: the 14th in UTC, the 15th in Kiritimati.
+      invoiceDate: new Date('2025-03-14T11:00:00.000Z'),
+      invoiceDueDate: new Date('2025-03-28T11:00:00.000Z'),
       startDateTime: new Date(),
       subtotal: 100,
       totalAmount: 108.25,
@@ -213,7 +227,13 @@ async function seed(shop: Shop, name: string) {
     },
   })
   const quote = await db.quote.create({
-    data: { organizationId: org, userId: user, title: `Quote ${name}`, vehicleId: vehicle.id },
+    data: {
+      organizationId: org,
+      userId: user,
+      title: `Quote ${name}`,
+      vehicleId: vehicle.id,
+      validUntil: new Date('2025-04-01T11:00:00.000Z'),
+    },
   })
   await db.quotePart.create({
     data: {
@@ -439,22 +459,77 @@ describe('every list and get, for a key of each workshop', () => {
   })
 })
 
+describe('filters and dates', () => {
+  it('finds a customer’s work orders and quotes on their vehicle, not only those billed to them', async () => {
+    const workOrders = RESOURCES.find((r) => r.path === 'work-orders') as Resource
+    const quotes = RESOURCES.find((r) => r.path === 'quotes') as Resource
+    // Seeded on the customer's vehicle, with no customer of their own (as the app writes them).
+    expect(await db.serviceRecord.count({ where: { id: A.ids.workOrder, customerId: null } })).toBe(
+      1
+    )
+    const ids = async (res: Resource, customerId: string) =>
+      (
+        (await (await call(res.list, A.key, `/${res.path}?customerId=${customerId}`)).json()) as {
+          data: { id: string }[]
+        }
+      ).data.map((d) => d.id)
+    expect(await ids(workOrders, A.ids.customer)).toEqual([A.ids.workOrder])
+    expect(await ids(quotes, A.ids.customer)).toEqual([A.ids.quote])
+    // Another workshop's customer: nothing of ours, nothing of theirs.
+    expect(await ids(workOrders, B.ids.customer)).toEqual([])
+  })
+
+  it('gives calendar days on the workshop’s own clock, far from UTC', async () => {
+    const workOrders = RESOURCES.find((r) => r.path === 'work-orders') as Resource
+    const quotes = RESOURCES.find((r) => r.path === 'quotes') as Resource
+    const get = async (res: Resource, shop: Shop, id: string) =>
+      (
+        (await (await call(res.get, shop.key, `/${res.path}/${id}`, { id })).json()) as {
+          data: Record<string, unknown>
+        }
+      ).data
+    expect(await get(workOrders, A, A.ids.workOrder)).toMatchObject({
+      invoiceDate: '2025-03-14T11:00:00.000Z',
+      invoiceDay: '2025-03-15',
+      invoiceDueDay: '2025-03-29',
+    })
+    expect(await get(quotes, A, A.ids.quote)).toMatchObject({ validUntilDay: '2025-04-02' })
+    // The same instants in a workshop on UTC are the 14th and the 28th.
+    expect(await get(workOrders, B, B.ids.workOrder)).toMatchObject({
+      invoiceDay: '2025-03-14',
+      invoiceDueDay: '2025-03-28',
+    })
+  })
+
+  it('refuses a parameter it doesn’t know, rather than ignoring it and listing everything', async () => {
+    const appointments = RESOURCES.find((r) => r.path === 'appointments') as Resource
+    const response = await call(appointments.list, A.key, '/appointments?technicianId=x')
+    expect(response.status).toBe(400)
+  })
+})
+
 describe('nested reads and the attachment download', () => {
   const nested = (p: string) => import(`@/app/api/v1/${p}/route`) as Promise<{ GET: Handler }>
 
-  it('answer for the key’s own workshop, and not found for another’s', async () => {
-    const cases: [string, keyof Shop['ids']][] = [
-      ['customers/[id]/contacts', 'customer'],
-      ['work-orders/[id]/jobs', 'workOrder'],
-      ['work-orders/[id]/lines', 'workOrder'],
-      ['work-orders/[id]/payments', 'workOrder'],
-      ['work-orders/[id]/attachments', 'workOrder'],
+  it('answer for the key’s own workshop in their published shape, and not found for another’s', async () => {
+    const common = await import('@/features/public-api/Schema/common')
+    const customers = await import('@/features/public-api/Schema/customers')
+    const records = await import('@/features/public-api/Schema/records')
+    const workOrders = await import('@/features/public-api/Schema/workOrders')
+    const cases: [string, keyof Shop['ids'], z.ZodType][] = [
+      ['customers/[id]/contacts', 'customer', customers.customerContactSchema],
+      ['work-orders/[id]/jobs', 'workOrder', common.jobSchema],
+      ['work-orders/[id]/lines', 'workOrder', common.lineSchema],
+      ['work-orders/[id]/payments', 'workOrder', records.paymentSchema],
+      ['work-orders/[id]/attachments', 'workOrder', workOrders.attachmentSchema],
     ]
-    for (const [p, id] of cases) {
+    for (const [p, id, schema] of cases) {
       const { GET } = await nested(p)
       const own = await call(GET, A.key, `/${p}`, { id: A.ids[id] })
       expect(own.status, p).toBe(200)
-      expect(((await own.json()) as { data: unknown[] }).data.length, p).toBeGreaterThan(0)
+      const items = ((await own.json()) as { data: unknown[] }).data
+      expect(items.length, p).toBeGreaterThan(0)
+      for (const item of items) expect(schema.parse(item), p).toEqual(item)
       expect((await call(GET, A.key, `/${p}`, { id: B.ids[id] })).status, p).toBe(404)
     }
   })
@@ -490,6 +565,30 @@ describe('permissions', () => {
     const vehicles = RESOURCES.find((r) => r.path === 'vehicles') as Resource
     expect((await call(customers.list, key, '/customers')).status).toBe(403)
     expect((await call(vehicles.list, key, '/vehicles')).status).toBe(200)
+  })
+
+  it('apply to every endpoint: a key that may read none of them is refused by all', async () => {
+    const key = await newKey(A.org, A.owner, ['dashboard'])
+    for (const res of RESOURCES) {
+      expect((await call(res.list, key, `/${res.path}`)).status, `${res.path} list`).toBe(403)
+      const id = A.ids[res.id]
+      expect((await call(res.get, key, `/${res.path}/${id}`, { id })).status, res.path).toBe(403)
+    }
+    const nestedCases: [string, Record<string, string>][] = [
+      ['customers/[id]/contacts', { id: A.ids.customer }],
+      ['work-orders/[id]/jobs', { id: A.ids.workOrder }],
+      ['work-orders/[id]/lines', { id: A.ids.workOrder }],
+      ['work-orders/[id]/payments', { id: A.ids.workOrder }],
+      ['work-orders/[id]/attachments', { id: A.ids.workOrder }],
+      [
+        'work-orders/[id]/attachments/[attachmentId]/content',
+        { id: A.ids.workOrder, attachmentId: A.ids.attachment },
+      ],
+    ]
+    for (const [p, params] of nestedCases) {
+      const { GET } = (await import(`@/app/api/v1/${p}/route`)) as { GET: Handler }
+      expect((await call(GET, key, `/${p}`, params)).status, p).toBe(403)
+    }
   })
 })
 
@@ -546,17 +645,19 @@ describe('paging and sync', () => {
     const counts = new Map<string, number>()
     for (const id of seen) counts.set(id, (counts.get(id) ?? 0) + 1)
     expect(counts.size).toBe(500)
-    for (const [id, n] of counts) {
-      if (changed.has(id)) expect(n, id).toBeLessThanOrEqual(2)
-      else expect(n, id).toBe(1)
-    }
-    // The one already read came round again, with its new state.
+    for (const [id, n] of counts) if (!changed.has(id)) expect(n, id).toBe(1)
+    // API.md §3: the one already read comes round again with its new state; the one not yet read is read once.
     expect(counts.get(all[5].id)).toBe(2)
+    expect(counts.get(all[400].id)).toBe(1)
     for (const id of changed) expect(names.get(id)).toBe(`Changed ${id}`)
   })
 
   it('lists only what changed since a moment with updatedSince', async () => {
     const vehicles = RESOURCES.find((r) => r.path === 'vehicles') as Resource
+    // A vehicle that doesn't change: without the filter, it would be listed too.
+    const unchanged = await db.vehicle.create({
+      data: { organizationId: A.org, userId: A.owner, make: 'Still', model: 'Same', year: 2001 },
+    })
     const since = new Date(Date.now() + 1000)
     await new Promise((resolve) => setTimeout(resolve, 1100))
     await db.vehicle.update({ where: { id: A.ids.vehicle }, data: { color: 'Red' } })
@@ -564,6 +665,7 @@ describe('paging and sync', () => {
       await call(vehicles.list, A.key, `/vehicles?updatedSince=${since.toISOString()}`)
     ).json()) as { data: { id: string; color: string }[] }
     expect(body.data.map((v) => v.id)).toEqual([A.ids.vehicle])
+    expect(body.data.map((v) => v.id)).not.toContain(unchanged.id)
     expect(body.data[0].color).toBe('Red')
   })
 })

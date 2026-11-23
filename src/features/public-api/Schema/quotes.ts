@@ -16,6 +16,7 @@ export const quoteSchema = z
     description: z.string().nullable(),
     status: z.string(),
     validUntil: z.string().nullable(),
+    validUntilDay: z.string().nullable().describe('The last valid day on the workshop’s calendar'),
     customerId: z.string().nullable(),
     vehicleId: z.string().nullable(),
     inspectionId: z.string().nullable(),
@@ -53,7 +54,11 @@ export const quotesSpec: ReadSpec<QuoteOut> = {
   noun: { one: 'quote', many: 'quotes' },
   filters: z.object({
     status: z.string().trim().min(1).max(50).optional(),
-    customerId: z.string().min(1).optional(),
+    customerId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('The customer’s: made out to them, or on a vehicle they own'),
     vehicleId: z.string().min(1).optional(),
   }),
   includes: ['jobs', 'lines', 'customFields'],

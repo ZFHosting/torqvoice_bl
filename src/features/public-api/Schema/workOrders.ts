@@ -71,7 +71,7 @@ export const workOrderSchema = z
     title: z.string(),
     description: z.string().nullable(),
     type: z.string(),
-    status: z.string().describe('pending, in-progress, waiting-parts or completed'),
+    status: z.string().describe('pending, scheduled, in-progress, waiting-parts or completed'),
     customStatusId: z.string().nullable(),
     vehicleId: z.string().nullable(),
     customerId: z.string().nullable().describe('Who is billed, when not the vehicle’s owner'),
@@ -145,7 +145,11 @@ export const workOrdersSpec: ReadSpec<WorkOrderOut> = {
   noun: { one: 'work order', many: 'work orders' },
   filters: z.object({
     status: z.string().trim().min(1).max(50).optional(),
-    customerId: z.string().min(1).optional(),
+    customerId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('The customer’s: billed to them, or on a vehicle they own'),
     vehicleId: z.string().min(1).optional(),
     invoiceNumber: z.string().trim().min(1).max(100).optional(),
     technicianId: z.string().min(1).optional().describe('The technician the job is assigned to'),

@@ -12,9 +12,12 @@ export const quotesResource: ReadResource<QuoteRow, QuoteOut> = {
   permission: { action: PermissionAction.READ, subject: PermissionSubject.QUOTES },
   scope: (organizationId) => ({ organizationId }),
   where: ({ status, customerId, vehicleId }) => ({
-    ...(typeof status === 'string' ? { status } : {}),
-    ...(typeof customerId === 'string' ? { customerId } : {}),
-    ...(typeof vehicleId === 'string' ? { vehicleId } : {}),
+    AND: [
+      typeof status === 'string' ? { status } : {},
+      // The customer's, as the app reads them: made out to them, or on a vehicle they own.
+      typeof customerId === 'string' ? { OR: [{ customerId }, { vehicle: { customerId } }] } : {},
+      typeof vehicleId === 'string' ? { vehicleId } : {},
+    ],
   }),
   select: quoteSelect,
   findMany: (args) => db.quote.findMany(args as never) as unknown as Promise<QuoteRow[]>,
