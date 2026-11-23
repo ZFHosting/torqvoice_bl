@@ -12,7 +12,7 @@ import { currentOwner, transformVehicle } from '../transform/vehicle'
 import type { Row } from '../transform/types'
 import { payloadHash } from '../extract/stage'
 import { clientOf, countsFor, type LoadContext, loadOne, type Tx } from './context'
-import { findLoaded, foreignKeys, linkRemoteId, markLoaded } from './links'
+import { findLoaded, foreignKeys, markLoaded } from './links'
 import { upsertLinked } from './upsert'
 
 export interface StagedRecord {
@@ -172,18 +172,19 @@ export async function loadTechnicians(lc: LoadContext): Promise<void> {
       }
       const { rows } = transformUser(user.payload, lc.transform)
       // A technician the workshop had (matched by the operator, or re-linked after a restore) isn't the import's to
-      // rename: only one a run created follows Shopmonkey.
-      const existing = await tx.integrationLink.findFirst({
-        where: {
-          connectionId: lc.scope.connectionId,
-          entityType: 'Technician',
-          remoteId: linkRemoteId('user', user.remoteId),
-        },
-        select: { entityId: true, metadata: true },
-      })
-      if (existing && !(existing.metadata as { createdByRun?: string } | null)?.createdByRun) {
-        const found = await findLoaded(tx, lc.scope, 'user', 'Technician', user.remoteId)
-        if (found) {
+      // rename: only one a run created follows Shopmonkey. `findLoaded` re-links from the archive after a restore,
+      // and a link it re-makes isn't a run's.
+      const found = await findLoaded(tx, lc.scope, 'user', 'Technician', user.remoteId)
+      if (found) {
+        const link = await tx.integrationLink.findFirst({
+          where: {
+            connectionId: lc.scope.connectionId,
+            entityType: 'Technician',
+            entityId: found.localId,
+          },
+          select: { metadata: true },
+        })
+        if (!(link?.metadata as { createdByRun?: string } | null)?.createdByRun) {
           lc.resolver.set('user', user.remoteId, found.localId)
           return 'unchanged'
         }
@@ -461,7 +462,16 @@ async function writeVehicleNote(
   const found = await findLoaded(tx, lc.scope, 'vehicle_note', 'Note', vehicleRemoteId)
   const hash = payloadHash({ title, content: note.content })
   if (found?.hash === hash) return
-  let id = found?.localId
+  // No link (a restore or a reconnect drops them, and a note has no archive record of its own to re-link from): the
+  // vehicle's note under the same title is this one, so it's updated, not written a second time.
+  const same = found
+    ? null
+    : await tx.note.findFirst({
+        where: { vehicleId, title, vehicle: { organizationId: lc.scope.organizationId } },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+      })
+  let id = found?.localId ?? same?.id
   if (id) {
     await tx.note.updateMany({
       where: { id, vehicle: { organizationId: lc.scope.organizationId } },
@@ -481,6 +491,6 @@ async function writeVehicleNote(
     remoteId: vehicleRemoteId,
     localId: id,
     hash,
-    created: !found,
+    created: !found && !same,
   })
 }

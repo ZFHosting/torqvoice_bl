@@ -161,10 +161,9 @@ export async function findLoaded(
     if (await ownRowExists(tx, model, link.entityId, scope.organizationId)) {
       return { localId: link.entityId, hash: link.checksum }
     }
-    // Its row was deleted in the app: the link goes, and the row is created again (warned).
-    await tx.integrationLink.deleteMany({
-      where: { connectionId: scope.connectionId, entityType: model, entityId: link.entityId },
-    })
+    // Its row was deleted in the app: the link and the archive's mapping go (so a second look warns no more), and
+    // the row is created again (warned).
+    await unlink(tx, scope, table, model, remoteId, link.entityId)
     scope.onRecreate?.(table, model, remoteId)
     return null
   }
@@ -187,8 +186,11 @@ export async function findLoaded(
     await writeLink(tx, scope, table, model, remoteId, source.localId, source.loadedHash, false)
     return { localId: source.localId, hash: source.loadedHash }
   }
-  // Loaded once (the archive says so), and the row is gone: created again, warned.
-  if (source?.localEntity === model && source.localId) scope.onRecreate?.(table, model, remoteId)
+  // Loaded once (the archive says so), and the row is gone: created again, warned once.
+  if (source?.localEntity === model && source.localId) {
+    await unlink(tx, scope, table, model, remoteId, source.localId)
+    scope.onRecreate?.(table, model, remoteId)
+  }
   return null
 }
 

@@ -34,6 +34,9 @@ describe('the words a load writes', () => {
       'Zurückgestellt (Kunde wartet)'
     )
     expect(label('Shopmonkey customer {id}', { id: '42' })).toBe('Shopmonkey-Kunde 42')
+    // The part history's notes for an imported count.
+    expect(label('Imported from Shopmonkey')).toBe('Aus Shopmonkey importiert')
+    expect(label('Count updated from Shopmonkey')).toBe('Bestand aus Shopmonkey aktualisiert')
   })
 
   it('leave Shopmonkey’s own words as they are', async () => {

@@ -36,6 +36,9 @@ export class UndoRefused extends Error {
   }
 }
 
+/** Ids per query: well under PostgreSQL's limit on bound parameters. */
+const CHUNK = 10_000
+
 type Delegate = {
   findMany: (args: unknown) => Promise<{ id: string }[]>
   deleteMany: (args: unknown) => Promise<{ count: number }>
@@ -299,11 +302,15 @@ export async function undoLoad(input: {
           where: { id: { in: created('Note') }, vehicle: { organizationId } },
         })
       ).count
-      // A quote it converted into a work order that's gone points at nothing now: the next load converts it again.
-      await tx.quote.updateMany({
-        where: { organizationId, convertedToId: { in: records.map((r) => r.id) } },
-        data: { convertedToId: null },
-      })
+      // A quote converted into a work order that's gone (this run's, or a later run's on this run's vehicle) points
+      // at nothing now: it's accepted again, so the app can convert it, and the next load converts it again if
+      // Shopmonkey still has it as a repair order.
+      for (let i = 0; i < goneWorkOrderIds.length; i += CHUNK) {
+        await tx.quote.updateMany({
+          where: { organizationId, convertedToId: { in: goneWorkOrderIds.slice(i, i + CHUNK) } },
+          data: { convertedToId: null, status: 'accepted' },
+        })
+      }
       // Custom fields the run defined, unless a value (the workshop's, or another run's) uses them.
       const fields = created('CustomFieldDefinition')
       const unusedFields = (
@@ -323,23 +330,25 @@ export async function undoLoad(input: {
         keptIds.push(...keptFields)
       }
       // The links of what's gone (whatever took it: a delete above, or a cascade from one), and the archive's
-      // mappings of it. A kept row keeps both.
-      await tx.integrationLink.deleteMany({
-        where: {
-          connectionId,
-          metadata: { path: ['createdByRun'], equals: runId },
-          entityId: { notIn: keptIds },
-        },
-      })
+      // mappings of it. A kept row keeps both. In chunks: one query takes a bounded number of ids.
       const keptSet = new Set(keptIds)
-      const goneIds = [
-        ...links.map((l) => l.entityId).filter((id) => !keptSet.has(id)),
-        ...[...records, ...vehicles, ...customers].map((r) => r.id),
-      ]
-      await tx.sourceRecord.updateMany({
-        where: { organizationId, source: SOURCE, localId: { in: goneIds } },
-        data: { localEntity: null, localId: null, loadedHash: null },
-      })
+      const goneLinks = links.map((l) => l.entityId).filter((id) => !keptSet.has(id))
+      for (let i = 0; i < goneLinks.length; i += CHUNK) {
+        await tx.integrationLink.deleteMany({
+          where: {
+            connectionId,
+            metadata: { path: ['createdByRun'], equals: runId },
+            entityId: { in: goneLinks.slice(i, i + CHUNK) },
+          },
+        })
+      }
+      const goneIds = [...goneLinks, ...[...records, ...vehicles, ...customers].map((r) => r.id)]
+      for (let i = 0; i < goneIds.length; i += CHUNK) {
+        await tx.sourceRecord.updateMany({
+          where: { organizationId, source: SOURCE, localId: { in: goneIds.slice(i, i + CHUNK) } },
+          data: { localEntity: null, localId: null, loadedHash: null },
+        })
+      }
       await tx.importBatch.updateMany({
         where: { id: { in: batchIds }, organizationId },
         data: { status: 'undone', undoneAt: new Date() },

@@ -206,8 +206,24 @@ describe('undo and later runs', () => {
     if (shop) await shop.remove()
   })
 
+  it('is refused to someone who is not a member of the workshop, before anything is removed', async () => {
+    const first = await loadShop()
+    const before = await countRows(shop.organizationId)
+    const stranger = await db.user.create({
+      data: { email: `stranger-${first.runId.slice(0, 8)}@example.com`, name: 'Stranger' },
+      select: { id: true },
+    })
+    try {
+      await expect(
+        undo.undoLoad({ ...shop, userId: stranger.id, runId: first.runId })
+      ).rejects.toMatchObject({ name: 'UndoRefused' })
+      expect(await countRows(shop.organizationId)).toEqual(before)
+    } finally {
+      await db.user.delete({ where: { id: stranger.id } })
+    }
+  })
+
   it('removes a vehicle note the run wrote again, and records one audit event per undo', async () => {
-    await loadShop()
     const vehicle = await db.integrationLink.findFirstOrThrow({
       where: {
         connectionId: shop.connectionId,
@@ -255,7 +271,13 @@ describe('undo and later runs', () => {
 
     await undoRun(converting.runId)
     expect(await db.serviceRecord.count({ where: { ...org, invoiceNumber: '1001' } })).toBe(0)
-    expect((await db.quote.findFirstOrThrow({ where: quote })).convertedToId).toBeNull()
+    // Back to accepted with no pointer: the app may convert it, and so may the next load.
+    expect(
+      await db.quote.findFirstOrThrow({
+        where: quote,
+        select: { status: true, convertedToId: true },
+      })
+    ).toEqual({ status: 'accepted', convertedToId: null })
 
     await loadShop()
     const record = await db.serviceRecord.findFirstOrThrow({

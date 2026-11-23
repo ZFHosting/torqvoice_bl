@@ -190,4 +190,58 @@ describe('a row deleted in the app', () => {
     expect(again.warnings.row_recreated ?? 0).toBe(0)
     expect(again.counts.order.updated).toBe(0)
   })
+
+  it('keeps the workshop’s own technician and the vehicle’s one note through a restore', async () => {
+    const shop = await createWorkshop('SyncRestoreOwn')
+    try {
+      const own = createMockShopmonkey()
+      const org = { organizationId: shop.organizationId }
+      const runShop = async (technicianMap?: Record<string, string>) => {
+        await extractInto(own, shop)
+        const summary = await load.runLoad({
+          organizationId: shop.organizationId,
+          connectionId: shop.connectionId,
+          runUserId: shop.userId,
+          now: NOW,
+          technicianMap,
+        })
+        expect(summary.failures).toEqual([])
+        return summary
+      }
+      const tech = await db.technician.create({
+        data: { ...org, name: 'Workshop Own Tech', color: '#123456' },
+        select: { id: true },
+      })
+      await runShop({ syn_usr_1: tech.id })
+      await runShop()
+      // A restore (or a reconnect) leaves the rows and the archive's mappings, not the links.
+      await db.integrationLink.deleteMany({ where: { connectionId: shop.connectionId } })
+      own.change('vehicle', 'syn_veh_1', { note: 'Changed after the restore' })
+      own.change('customer', 'syn_cus_1', { note: 'Touched after the restore' })
+      const after = await runShop()
+      expect(after.warnings.row_recreated ?? 0).toBe(0)
+      expect(
+        await db.technician.findUniqueOrThrow({
+          where: { id: tech.id },
+          select: { name: true, color: true },
+        })
+      ).toEqual({ name: 'Workshop Own Tech', color: '#123456' })
+      const vehicle = await db.integrationLink.findFirstOrThrow({
+        where: {
+          connectionId: shop.connectionId,
+          entityType: 'Vehicle',
+          remoteId: 'vehicle:syn_veh_1',
+        },
+        select: { entityId: true },
+      })
+      expect(
+        await db.note.findMany({
+          where: { vehicleId: vehicle.entityId },
+          select: { content: true },
+        })
+      ).toEqual([{ content: 'Changed after the restore' }])
+    } finally {
+      await shop.remove()
+    }
+  })
 })

@@ -429,9 +429,14 @@ differs from the workshop's, never applied: renaming the workshop is the operato
   rebuilt as matched rather than created and the run's custom field links aren't rebuilt, so undoing a run from
   before the restore removes only its batch rows (customers, vehicles, work orders, inspections).
 - **Technicians.** A technician the workshop had (one the operator matched a user to, or re-linked after a
-  restore) is never renamed or recoloured from Shopmonkey; only one a run created follows it. The issue guard is
-  checked again before issuing: with a listener turned on mid-run, nothing is issued (warned `issue_postponed`)
-  and the next run issues them.
+  restore) is never renamed or recoloured from Shopmonkey; only one a run created follows it.
+- **Issuing.** The guard against connections that hear `service.update` is checked again just before issuing:
+  with one turned on mid-run, nothing is issued (warned `issue_postponed`) and the next run issues them.
+- **Vehicle notes after a restore.** A note has no archive record of its own, so with its link gone the
+  vehicle's note under the same title is taken to be it and updated, not written a second time.
+- **Undo and converted quotes.** A quote converted into a work order an undo removes (that run's, or a later
+  run's on that run's vehicle) is put back to `accepted` with no pointer, so the app can convert it; the next
+  load converts it again while Shopmonkey has the order as a repair order.
 - **Not guarded yet (M8):** two loads of one connection at once; a dry run holds one transaction for the whole
   run (up to an hour), which can make the app wait on the same unique keys (customer numbers) meanwhile. Each
   committed record also wakes the workshop's open screens once (the realtime extension in `src/lib/db.ts`), so a
