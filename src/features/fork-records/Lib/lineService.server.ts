@@ -9,6 +9,7 @@
  */
 import 'server-only'
 import { onInventoryChanged } from '@/features/inventory/Lib/onInventoryChanged'
+import { assertOwnInventoryParts } from './ownInventoryParts.server'
 import { reconcileInventoryForParts } from '@/features/inventory/Lib/reconcileStock'
 import { loadTaxApplies } from '@/features/settings/Lib/loadTaxApplies'
 import { addPart } from '@/features/vehicles/Lib/addPart'
@@ -60,8 +61,9 @@ async function ownWorkOrder(ctx: ServiceCtx, workOrderId: string) {
 async function checkReferences(
   ctx: ServiceCtx,
   serviceRecordId: string,
-  refs: { jobId?: string | null; technicianId?: string | null }
+  refs: { jobId?: string | null; technicianId?: string | null; inventoryPartId?: string | null }
 ) {
+  await assertOwnInventoryParts([{ inventoryPartId: refs.inventoryPartId }], ctx.organizationId)
   if (refs.jobId) {
     const job = await db.workJob.count({
       where: { id: refs.jobId, serviceRecordId, organizationId: ctx.organizationId },
@@ -76,6 +78,18 @@ async function checkReferences(
   }
 }
 
+/** The fields only one kind of line has. */
+const LABOR_ONLY = [
+  'hours',
+  'rate',
+  'pricingType',
+  'technicianId',
+  'completed',
+  'costHours',
+  'costRate',
+]
+const PART_ONLY = ['partNumber', 'quantity', 'unit', 'category', 'unitPrice', 'unitCost', 'note']
+
 const lineTotal = (amount: number, discount: number | null | undefined) =>
   roundMoney(Math.max(0, amount - (discount ?? 0)))
 
@@ -89,6 +103,7 @@ export async function createLineService(
   await checkReferences(ctx, record.id, {
     jobId: parsed.jobId,
     technicianId: isLabor(parsed) ? parsed.technicianId : null,
+    inventoryPartId: isLabor(parsed) ? null : parsed.inventoryPartId,
   })
   const result = (id: string) => ({
     id,
@@ -98,7 +113,9 @@ export async function createLineService(
 
   if (isLabor(parsed)) {
     const data = parsed
-    const pricingType = data.pricingType ?? (data.kind === 'labor' ? 'hourly' : 'shopFee')
+    // A fee, EPA or shop supplies line is the amount sent: `shopFee` would make it the workshop's own shop fee, which
+    // the re-total prices again from the settings. Sent explicitly, it is.
+    const pricingType = data.pricingType ?? (data.kind === 'labor' ? 'hourly' : 'service')
     const applies = await loadTaxApplies(ctx.organizationId)
     const line = await db.serviceLabor.create({
       data: {
@@ -108,7 +125,7 @@ export async function createLineService(
         rate: data.rate,
         total: lineTotal(data.hours * data.rate, data.discountAmount),
         pricingType,
-        taxable: data.taxable ?? (pricingType === 'shopFee' ? applies.shopFee : applies.labor),
+        taxable: data.taxable ?? (data.kind === 'labor' ? applies.labor : applies.shopFee),
         jobId: data.jobId ?? null,
         lineKind: data.kind,
         technicianId: data.technicianId ?? null,
@@ -170,6 +187,18 @@ export async function updateLineService(
     where: { id: lineId, serviceRecordId: record.id },
     select: { hours: true, rate: true, discountAmount: true },
   })
+  const part = labor
+    ? null
+    : await db.servicePart.findFirst({
+        where: { id: lineId, serviceRecordId: record.id },
+        select: { quantity: true, unitPrice: true, discountAmount: true, inventoryPartId: true },
+      })
+  if (!labor && !part) throw new Error('Line not found')
+  // A field the line's kind doesn't have is refused, not ignored: the client would think it changed.
+  const foreign = (labor ? PART_ONLY : LABOR_ONLY).filter((key) => key in data)
+  if (foreign.length) {
+    throw new Error(`A ${labor ? 'labor' : 'part'} line has no ${foreign.join(', ')}`)
+  }
   if (labor) {
     const hours = data.hours ?? labor.hours
     const rate = data.rate ?? labor.rate
@@ -195,10 +224,6 @@ export async function updateLineService(
     return result
   }
 
-  const part = await db.servicePart.findFirst({
-    where: { id: lineId, serviceRecordId: record.id },
-    select: { quantity: true, unitPrice: true, discountAmount: true, inventoryPartId: true },
-  })
   if (!part) throw new Error('Line not found')
   const quantity = data.quantity ?? part.quantity
   const unitPrice = data.unitPrice ?? part.unitPrice
@@ -248,8 +273,21 @@ export async function deleteLineService(
 ): Promise<LineResult> {
   const record = await ownWorkOrder(ctx, workOrderId)
   const result = { id: lineId, serviceRecordId: record.id, invoiceNumber: record.invoiceNumber }
-  const labor = await db.serviceLabor.deleteMany({
-    where: { id: lineId, serviceRecordId: record.id },
+  const tombstone = (tx: Pick<typeof db, 'deletedRecord'>) =>
+    tx.deletedRecord.create({
+      data: {
+        organizationId: ctx.organizationId,
+        entityType: 'work_order_line',
+        entityId: lineId,
+        actorUserId: ctx.userId,
+      },
+    })
+  const labor = await db.$transaction(async (tx) => {
+    const gone = await tx.serviceLabor.deleteMany({
+      where: { id: lineId, serviceRecordId: record.id },
+    })
+    if (gone.count) await tombstone(tx)
+    return gone
   })
   if (labor.count) {
     await retotalServiceRecord(record.id)
@@ -264,6 +302,7 @@ export async function deleteLineService(
     const removed = previous.find((p) => p.id === lineId)
     if (!removed) throw new Error('Line not found')
     await tx.servicePart.deleteMany({ where: { id: lineId, serviceRecordId: record.id } })
+    await tombstone(tx)
     if (removed.inventoryPartId) {
       // The part goes back on the shelf, as when the line is removed in the app.
       await reconcileInventoryForParts(

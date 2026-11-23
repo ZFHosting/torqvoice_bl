@@ -123,7 +123,14 @@ export const resolveFindingSchema = z
 
 /** A new webhook, with its signing secret: shown this once, never in a read. */
 export const webhookCreatedSchema = webhookSchema
-  .extend({ secret: z.string().describe('Signs every delivery; shown only here') })
+  .extend({
+    secret: z
+      .string()
+      .nullable()
+      .describe(
+        'Signs every delivery; shown only here (null when the answer is an Idempotency-Key replay)'
+      ),
+  })
   .meta({ id: 'WebhookCreated' })
 
 export const recordEndpoints: EndpointSpec[] = [

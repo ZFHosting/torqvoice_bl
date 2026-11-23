@@ -68,10 +68,15 @@ import {
 import { FRESH_SHARE_LINK } from '@/lib/share-expiry'
 import type { ServiceCtx } from '@/lib/service-context'
 import { cascadeTombstones } from '@/features/public-api/Lib/tombstones.server'
+import { assertOwnInventoryParts } from '@/features/fork-records/Lib/ownInventoryParts.server'
+import { assertOwnUploads } from '@/lib/upload-url'
 
 export async function createServiceRecordService(ctx: ServiceCtx, input: unknown) {
   const { userId, organizationId } = ctx
   const data = createServiceSchema.parse(input)
+  // fork: its parts link only to this workshop's inventory, its files are this workshop's uploads (A4)
+  await assertOwnInventoryParts(data.partItems, organizationId)
+  assertOwnUploads(data, organizationId)
   const timeZone = await workshopTimeZone(organizationId)
 
   // Two shapes: a vehicle-linked work order, or a counter sale (no vehicle)
@@ -360,6 +365,9 @@ export async function updateServiceRecordService(ctx: ServiceCtx, input: unknown
     },
   })
   if (!existing) throw new Error('Service record not found')
+  // fork: its parts link only to this workshop's inventory, its files are this workshop's uploads (A4)
+  await assertOwnInventoryParts(data.partItems, organizationId)
+  assertOwnUploads(data, organizationId)
   // A save that leaves the job completed asks for its required meters
   // first, on the vehicle it will be on, when it completes the job or
   // moves a completed one to another vehicle; nothing of the save is

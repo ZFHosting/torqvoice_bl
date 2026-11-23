@@ -5,7 +5,8 @@
  * caller checks permissions and records the audit event; a delete leaves a tombstone for API sync.
  */
 import 'server-only'
-import { db } from '@/lib/db'
+import { ZodError, z } from 'zod'
+import { db, type TxClient } from '@/lib/db'
 import { assertInvoiceEditable } from '@/lib/document-lock.server'
 import { parseSentFields } from '@/lib/parse-sent-fields'
 import type { ServiceCtx } from '@/lib/service-context'
@@ -18,14 +19,20 @@ import {
   updateShiftSchema,
 } from '../Schema/forkRecordSchemas'
 
-async function tombstone(ctx: ServiceCtx, entityType: string, entityId: string) {
-  await db.deletedRecord.create({
-    data: {
-      organizationId: ctx.organizationId,
-      entityType,
-      entityId,
-      actorUserId: ctx.userId,
-    },
+/** A delete and its tombstone, in one transaction: a sync never misses a delete, nor hears of one that didn't happen. */
+async function removeWithTombstone(
+  ctx: ServiceCtx,
+  entityType: string,
+  entityId: string,
+  remove: (tx: TxClient) => Promise<{ count: number }>,
+  notFound: string
+) {
+  await db.$transaction(async (tx) => {
+    const { count } = await remove(tx)
+    if (count === 0) throw new Error(notFound)
+    await tx.deletedRecord.create({
+      data: { organizationId: ctx.organizationId, entityType, entityId, actorUserId: ctx.userId },
+    })
   })
 }
 
@@ -65,6 +72,21 @@ export async function updateContactService(
   input: unknown
 ) {
   const data = parseSentFields(updateContactSchema, input)
+  // An email stays an email: checked against the kind it will have, sent or stored.
+  if (data.kind !== undefined || data.value !== undefined) {
+    const own = await db.customerContact.findFirst({
+      where: { id: contactId, customerId, organizationId: ctx.organizationId },
+      select: { kind: true, value: true },
+    })
+    if (!own) throw new Error('Contact not found')
+    const kind = data.kind ?? own.kind
+    const value = data.value ?? own.value
+    if (kind === 'email' && !z.email().safeParse(value).success) {
+      throw new ZodError([
+        { code: 'custom', path: ['value'], message: 'Invalid email', input: value },
+      ])
+    }
+  }
   const { count } = await db.customerContact.updateMany({
     where: { id: contactId, customerId, organizationId: ctx.organizationId },
     data,
@@ -74,11 +96,16 @@ export async function updateContactService(
 }
 
 export async function deleteContactService(ctx: ServiceCtx, customerId: string, contactId: string) {
-  const { count } = await db.customerContact.deleteMany({
-    where: { id: contactId, customerId, organizationId: ctx.organizationId },
-  })
-  if (count === 0) throw new Error('Contact not found')
-  await tombstone(ctx, 'customer_contact', contactId)
+  await removeWithTombstone(
+    ctx,
+    'customer_contact',
+    contactId,
+    (tx) =>
+      tx.customerContact.deleteMany({
+        where: { id: contactId, customerId, organizationId: ctx.organizationId },
+      }),
+    'Contact not found'
+  )
   return { id: contactId, customerId }
 }
 
@@ -153,11 +180,16 @@ export async function updateJobService(
 /** The job goes; its lines stay on the work order, ungrouped (the relation is SetNull). */
 export async function deleteJobService(ctx: ServiceCtx, workOrderId: string, jobId: string) {
   const serviceRecordId = await ownWorkOrder(ctx, workOrderId)
-  const { count } = await db.workJob.deleteMany({
-    where: { id: jobId, serviceRecordId, organizationId: ctx.organizationId },
-  })
-  if (count === 0) throw new Error('Job not found')
-  await tombstone(ctx, 'work_job', jobId)
+  await removeWithTombstone(
+    ctx,
+    'work_job',
+    jobId,
+    (tx) =>
+      tx.workJob.deleteMany({
+        where: { id: jobId, serviceRecordId, organizationId: ctx.organizationId },
+      }),
+    'Job not found'
+  )
   return { id: jobId, serviceRecordId }
 }
 
@@ -231,9 +263,15 @@ export async function deleteShiftService(ctx: ServiceCtx, shiftId: string) {
     select: { id: true, technicianId: true },
   })
   if (!shift) throw new Error('Shift not found')
-  await db.technicianShift.deleteMany({
-    where: { id: shift.id, organizationId: ctx.organizationId },
-  })
-  await tombstone(ctx, 'technician_shift', shift.id)
+  await removeWithTombstone(
+    ctx,
+    'technician_shift',
+    shift.id,
+    (tx) =>
+      tx.technicianShift.deleteMany({
+        where: { id: shift.id, organizationId: ctx.organizationId },
+      }),
+    'Shift not found'
+  )
   return shift
 }

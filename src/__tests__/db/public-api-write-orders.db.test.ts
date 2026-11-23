@@ -23,6 +23,12 @@ vi.mock('next/headers', () => ({
   headers: async () => new Headers(),
   cookies: async () => ({ get: () => undefined, getAll: () => [] }),
 }))
+// The app's sentences are read through next-intl, which needs a Next request; a stand-in says the key and values.
+vi.mock('next-intl/server', async (original) => ({
+  ...(await original<typeof import('next-intl/server')>()),
+  getTranslations: async () => (key: string, values?: Record<string, unknown>) =>
+    `${key}: ${JSON.stringify(values ?? {})}`,
+}))
 vi.mock('@/lib/cached-session', () => ({
   getCachedSession: async () => ({ user: { id: who.userId }, session: {} }),
   getCachedMembership: async () => ({
@@ -426,5 +432,251 @@ describe('another workshop’s work order', () => {
     })
     expect(response.status).toBe(412)
     expect((await db.serviceRecord.findUniqueOrThrow({ where: { id } })).title).toBe('Concurrency')
+  })
+})
+
+const audits = (action: string) => db.auditLog.count({ where: { organizationId: A.org, action } })
+const tombstones = (entityType: string, entityId: string) =>
+  db.deletedRecord.count({ where: { organizationId: A.org, entityType, entityId } })
+const totalsOf = (id: string) =>
+  db.serviceRecord.findUniqueOrThrow({
+    where: { id },
+    select: { subtotal: true, discountAmount: true, taxAmount: true, totalAmount: true },
+  })
+
+describe('a work order, from its making to its removal', () => {
+  it('takes its totals from its lines, keeps them on a change of title, moves, and leaves a tombstone', async () => {
+    resetKeyBudgets()
+    const list = await route('work-orders')
+    const one = await route('work-orders/[id]')
+    const status = await route('work-orders/[id]/status')
+    const create = (body: Record<string, unknown>) =>
+      call(list.POST, A.key, 'POST', '/work-orders', { body: { ...workOrderInput(), ...body } })
+
+    // Totals are worked out, never taken; a line's total that isn't its hours × rate is refused.
+    expect((await create({ totalAmount: 99 })).status).toBe(400)
+    expect(
+      (await create({ laborItems: [{ description: 'X', hours: 2, rate: 50, total: 120 }] })).status
+    ).toBe(400)
+
+    const made = await create({
+      title: 'With lines',
+      laborItems: [{ description: 'Diagnose', hours: 1.5, rate: 100 }],
+      partItems: [{ name: 'Filter', quantity: 2, unitPrice: 12.5 }],
+    })
+    expect(made.status).toBe(201)
+    const id = ((await made.json()) as { data: { id: string } }).data.id
+    expect(await totalsOf(id)).toEqual({
+      subtotal: 175,
+      discountAmount: 0,
+      taxAmount: 0,
+      totalAmount: 175,
+    })
+
+    const before = await audits('service.update')
+    const renamed = await call(one.PATCH, A.key, 'PATCH', '/w', {
+      params: { id },
+      body: { title: 'With lines (renamed)' },
+    })
+    expect(renamed.status).toBe(200)
+    expect(await totalsOf(id)).toMatchObject({ totalAmount: 175 })
+    const discounted = await call(one.PATCH, A.key, 'PATCH', '/w', {
+      params: { id },
+      body: { discountType: 'fixed', discountValue: 25 },
+    })
+    expect(discounted.status).toBe(200)
+    expect(await totalsOf(id)).toEqual({
+      subtotal: 175,
+      discountAmount: 25,
+      taxAmount: 0,
+      totalAmount: 150,
+    })
+    expect(await audits('service.update')).toBe(before + 2)
+
+    const statusEvents = await audits('service.status')
+    const moved = await call(status.POST, A.key, 'POST', '/s', {
+      params: { id },
+      body: { status: 'in-progress' },
+    })
+    expect(moved.status).toBe(200)
+    expect((await db.serviceRecord.findUniqueOrThrow({ where: { id } })).status).toBe('in-progress')
+    expect(await audits('service.status')).toBe(statusEvents + 1)
+
+    const deletes = await audits('service.delete')
+    const gone = await call(one.DELETE, A.key, 'DELETE', '/w', { params: { id } })
+    expect(gone.status).toBe(200)
+    expect(await db.serviceRecord.count({ where: { id } })).toBe(0)
+    expect(await tombstones('work_order', id)).toBe(1)
+    expect(await audits('service.delete')).toBe(deletes + 1)
+  })
+
+  it('refuses to complete a job without the vehicle’s required meter readings, naming the meters', async () => {
+    resetKeyBudgets()
+    const meter = await db.meterType.create({
+      data: { organizationId: A.org, name: 'Hour meter', unit: 'h', required: true },
+    })
+    await db.vehicleMeter.create({
+      data: { organizationId: A.org, vehicleId: A.ids.vehicle, meterTypeId: meter.id },
+    })
+    try {
+      const list = await route('work-orders')
+      const refused = await call(list.POST, A.key, 'POST', '/work-orders', {
+        body: { ...workOrderInput(), title: 'Done at once', status: 'completed' },
+      })
+      expect(refused.status).toBe(400)
+      const body = (await refused.json()) as {
+        error: { code: string; details: { meters: { name: string }[] } }
+      }
+      expect(body.error.code).toBe('invalid_request')
+      expect(body.error.details.meters.map((m) => m.name)).toEqual(['Hour meter'])
+      expect(await db.serviceRecord.count({ where: { title: 'Done at once' } })).toBe(0)
+    } finally {
+      await db.meterType.delete({ where: { id: meter.id } })
+    }
+  })
+})
+
+describe('lines, one at a time', () => {
+  it('moves the stock and the totals as the app does, and refuses a field the line’s kind doesn’t have', async () => {
+    resetKeyBudgets()
+    const id = await apiWorkOrder('Lines one at a time')
+    const lines = await route('work-orders/[id]/lines')
+    const line = await route('work-orders/[id]/lines/[lineId]')
+    const part = await db.inventoryPart.create({
+      data: { organizationId: A.org, userId: A.owner, name: 'Pad set', quantity: 10, unitCost: 20 },
+    })
+    const stock = async () =>
+      (await db.inventoryPart.findUniqueOrThrow({ where: { id: part.id } })).quantity
+    const add = async (body: Record<string, unknown>) => {
+      const response = await call(lines.POST, A.key, 'POST', '/l', { params: { id }, body })
+      expect(response.status).toBe(201)
+      return ((await response.json()) as { data: { id: string } & Record<string, unknown> }).data
+    }
+    const change = (lineId: string, body: Record<string, unknown>) =>
+      call(line.PATCH, A.key, 'PATCH', '/l', { params: { id, lineId }, body })
+
+    const pads = await add({
+      kind: 'part',
+      description: 'Pad set',
+      quantity: 2,
+      unitPrice: 45,
+      inventoryPartId: part.id,
+    })
+    expect(pads).toMatchObject({ kind: 'part', inventoryPartId: part.id, total: 90 })
+    expect(await stock()).toBe(8)
+    expect(
+      await db.stockMovement.findMany({
+        where: { inventoryPartId: part.id },
+        select: { delta: true, reason: true, serviceRecordId: true },
+      })
+    ).toEqual([{ delta: -2, reason: 'service_record', serviceRecordId: id }])
+    expect((await totalsOf(id)).subtotal).toBe(90)
+
+    expect((await change(pads.id, { quantity: 3 })).status).toBe(200)
+    expect(await stock()).toBe(7)
+    expect((await totalsOf(id)).subtotal).toBe(135)
+    expect((await change(pads.id, { hours: 2 })).status).toBe(400)
+
+    const labor = await add({ kind: 'labor', description: 'Fit pads', hours: 1, rate: 80 })
+    expect((await change(labor.id, { hours: 2 })).status).toBe(200)
+    expect(
+      await db.serviceLabor.findUniqueOrThrow({
+        where: { id: labor.id },
+        select: { hours: true, total: true },
+      })
+    ).toEqual({ hours: 2, total: 160 })
+    expect((await change(labor.id, { quantity: 2 })).status).toBe(400)
+
+    // A fee is the amount sent, not the workshop's shop fee priced again.
+    const fee = await add({ kind: 'epa', description: 'Disposal', hours: 1, rate: 5 })
+    expect(fee).toMatchObject({ kind: 'epa', pricingType: 'service', total: 5 })
+    expect((await totalsOf(id)).subtotal).toBe(135 + 160 + 5)
+
+    const removed = await call(line.DELETE, A.key, 'DELETE', '/l', {
+      params: { id, lineId: pads.id },
+    })
+    expect(removed.status).toBe(200)
+    expect(await stock()).toBe(10)
+    expect(await tombstones('work_order_line', pads.id)).toBe(1)
+    expect((await totalsOf(id)).subtotal).toBe(165)
+  })
+})
+
+describe('jobs, quotes and payments', () => {
+  it('groups lines under jobs: made, renamed and removed, each with its event and a tombstone', async () => {
+    resetKeyBudgets()
+    const id = await apiWorkOrder('Jobs')
+    const jobs = await route('work-orders/[id]/jobs')
+    const job = await route('work-orders/[id]/jobs/[jobId]')
+    const counts = async () =>
+      Promise.all(['job.create', 'job.update', 'job.delete'].map((action) => audits(action)))
+    const before = await counts()
+    const made = await call(jobs.POST, A.key, 'POST', '/j', {
+      params: { id },
+      body: { name: 'Brakes' },
+    })
+    expect(made.status).toBe(201)
+    const jobId = ((await made.json()) as { data: { id: string } }).data.id
+    const renamed = await call(job.PATCH, A.key, 'PATCH', '/j', {
+      params: { id, jobId },
+      body: { name: 'Front brakes' },
+    })
+    expect(((await renamed.json()) as { data: { name: string } }).data.name).toBe('Front brakes')
+    expect((await call(job.DELETE, A.key, 'DELETE', '/j', { params: { id, jobId } })).status).toBe(
+      200
+    )
+    expect(await db.workJob.count({ where: { id: jobId } })).toBe(0)
+    expect(await tombstones('work_job', jobId)).toBe(1)
+    expect(await counts()).toEqual(before.map((n) => n + 1))
+  })
+
+  it('makes a quote whose totals are its offered lines, changes it, and deletes it', async () => {
+    resetKeyBudgets()
+    const list = await route('quotes')
+    const one = await route('quotes/[id]')
+    const made = await call(list.POST, A.key, 'POST', '/quotes', {
+      body: {
+        title: 'Brake quote',
+        vehicleId: A.ids.vehicle,
+        partItems: [{ name: 'Rotor', quantity: 2, unitPrice: 80 }],
+        laborItems: [{ description: 'Fit rotors', hours: 1, rate: 100, excluded: true }],
+      },
+    })
+    expect(made.status).toBe(201)
+    const id = ((await made.json()) as { data: { id: string } }).data.id
+    expect(
+      await db.quote.findUniqueOrThrow({
+        where: { id },
+        select: { subtotal: true, totalAmount: true },
+      })
+    ).toEqual({ subtotal: 160, totalAmount: 160 })
+    const before = await Promise.all(['quote.update', 'quote.delete'].map((a) => audits(a)))
+    expect(
+      (await call(one.PATCH, A.key, 'PATCH', '/q', { params: { id }, body: { title: 'Rotors' } }))
+        .status
+    ).toBe(200)
+    expect((await db.quote.findUniqueOrThrow({ where: { id } })).title).toBe('Rotors')
+    expect((await call(one.DELETE, A.key, 'DELETE', '/q', { params: { id } })).status).toBe(200)
+    expect(await db.quote.count({ where: { id } })).toBe(0)
+    expect(await Promise.all(['quote.update', 'quote.delete'].map((a) => audits(a)))).toEqual(
+      before.map((n) => n + 1)
+    )
+  })
+
+  it('removes a payment, with its event', async () => {
+    resetKeyBudgets()
+    const id = await apiWorkOrder('Payment removed')
+    const payments = await route('work-orders/[id]/payments')
+    const payment = await route('work-orders/[id]/payments/[paymentId]')
+    const made = await call(payments.POST, A.key, 'POST', '/p', {
+      params: { id },
+      body: { amount: 20, method: 'cash' },
+    })
+    const paymentId = ((await made.json()) as { data: { id: string } }).data.id
+    const before = await audits('payment.delete')
+    const gone = await call(payment.DELETE, A.key, 'DELETE', '/p', { params: { id, paymentId } })
+    expect(gone.status).toBe(200)
+    expect(await db.payment.count({ where: { id: paymentId } })).toBe(0)
+    expect(await audits('payment.delete')).toBe(before + 1)
   })
 })

@@ -3,6 +3,7 @@
  * catch-all webhook, and calling a route handler with a key the way a client would. SYNTHETIC data.
  */
 import { randomUUID } from 'node:crypto'
+import { permissionGroups } from '@/lib/permissions'
 
 export const stamp = randomUUID().slice(0, 8)
 
@@ -33,21 +34,6 @@ export interface Shop {
 
 export const created = { orgs: [] as string[], users: [] as string[] }
 
-/** Every subject the write endpoints ask for, each with every action. */
-export const ALL_SUBJECTS = [
-  'customers',
-  'vehicles',
-  'services',
-  'quotes',
-  'inspections',
-  'work_board',
-  'labor_presets',
-  'inventory',
-  'time_tracking',
-  'billing',
-  'settings',
-]
-
 async function db() {
   return (await import('@/lib/db')).db
 }
@@ -77,9 +63,13 @@ export async function newKey(
   return made.key
 }
 
+/**
+ * Every permission a role can be given, as the roles screen offers them (`permissionGroups`): an endpoint that asks
+ * for one no role can hold fails its tests with 403, as it would for every key but an owner's.
+ */
 export const everything = () =>
-  ALL_SUBJECTS.flatMap((subject) =>
-    ['create', 'read', 'update', 'delete'].map((action) => ({ action, subject }))
+  permissionGroups.flatMap((group) =>
+    group.permissions.map((p) => ({ action: p.action as string, subject: group.subject as string }))
   )
 
 /** A workshop with an owner, a full-access key, and a webhook that takes every event. */

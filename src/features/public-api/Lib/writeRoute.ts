@@ -10,11 +10,12 @@
 import 'server-only'
 import { createHash } from 'node:crypto'
 import { ZodError } from 'zod'
-import { CustomFieldsRefusedError } from '@/features/custom-fields/Lib/recordCustomFieldValues.server'
+import type { CustomFieldsRefusedError } from '@/features/custom-fields/Lib/recordCustomFieldValues.server'
 import {
   InvalidMeterReadingError,
   MeterNotOnJobError,
 } from '@/features/meters/Lib/jobMeterReading.server'
+import type { RequiredMetersRefusedError } from '@/features/meters/Lib/requiredMeters.server'
 import { TimeEntryError } from '@/features/time-tracking/Lib/timeEntries'
 import { AddPartError } from '@/features/vehicles/Lib/addPart'
 import { type AuditEvent, logAudit } from '@/lib/audit'
@@ -55,6 +56,8 @@ export interface WriteOptions<P extends Record<string, string>, R> {
    * A body over the limit is a 413 before it is read when it says its length, and after otherwise.
    */
   multipart?: { maxBytes: number }
+  /** A POST's answer as kept for an `Idempotency-Key` replay, when not as sent (a secret shown once). */
+  replayAs?: (body: unknown) => unknown
 }
 
 /**
@@ -140,11 +143,19 @@ export function domainErrorResponse(err: unknown): Response | null {
         ? publicApiError(400, 'invalid_request', err.message)
         : publicApiError(409, 'conflict', err.message)
   }
-  if (
-    err instanceof CustomFieldsRefusedError ||
-    err instanceof InvalidMeterReadingError ||
-    err instanceof MeterNotOnJobError
-  ) {
+  // The app's own refusals that name what to fix: what it hands the form goes in `details`. Matched by name, as
+  // withAuth matches them.
+  if (err instanceof Error && err.name === 'RequiredMetersRefusedError') {
+    return publicApiError(400, 'invalid_request', err.message, {
+      meters: (err as RequiredMetersRefusedError).meters,
+    })
+  }
+  if (err instanceof Error && err.name === 'CustomFieldsRefusedError') {
+    return publicApiError(400, 'invalid_request', err.message, {
+      fields: (err as CustomFieldsRefusedError).fieldErrors,
+    })
+  }
+  if (err instanceof InvalidMeterReadingError || err instanceof MeterNotOnJobError) {
     return publicApiError(400, 'invalid_request', err.message)
   }
   if (isPrismaError(err, 'P2002')) {
@@ -206,8 +217,8 @@ export function writeRoute<P extends Record<string, string>, R>(
             const result = await options.run(svc, body, routeParams, ctx)
             const event = options.audit?.(result, body)
             if (event?.action) {
-              // Awaited (the action's is fire-and-forget): the event, and the webhooks it fans out to, exist
-              // when the API answers. logAudit never throws.
+              // Awaited (the action's is fire-and-forget): the audit row exists when the API answers. The webhook
+              // deliveries it fans out to go out in the background, as they do for the app. logAudit never throws.
               await logAudit(
                 { userId: ctx.userId, organizationId: ctx.organizationId },
                 {
@@ -230,7 +241,9 @@ export function writeRoute<P extends Record<string, string>, R>(
               request,
               { organizationId: ctx.organizationId, apiKeyId: ctx.apiKeyId },
               text,
-              exec
+              exec,
+              undefined,
+              options.replayAs
             )
           : exec()
       },

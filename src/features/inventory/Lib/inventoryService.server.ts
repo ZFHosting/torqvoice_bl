@@ -241,22 +241,25 @@ export async function adjustInventoryStockService(ctx: ServiceCtx, input: unknow
 
   // Tracking is checked again in the write itself: switched off between
   // the read above and here, the part must stay at zero.
-  const written = await db.inventoryPart.updateMany({
-    where: { id, organizationId, trackStock: true },
-    data: { quantity: newQuantity },
-  })
-  if (written.count === 0) throw new Error('This part does not track stock')
-  // fork: in the part's stock history, like every other change of its count (A4, docs/fork/API.md §4 adjust).
-  await db.stockMovement.create({
-    data: {
-      inventoryPartId: id,
-      organizationId,
-      delta: adjustment,
-      quantityAfter: newQuantity,
-      reason: 'manual_adjustment',
-      userId,
-      note: adjustNote(input),
-    },
+  // fork: the count and its line in the part's stock history together, like every other change of its count (A4,
+  // docs/fork/API.md §4 adjust): the line is never missing, nor there for a change that didn't happen.
+  await db.$transaction(async (tx) => {
+    const written = await tx.inventoryPart.updateMany({
+      where: { id, organizationId, trackStock: true },
+      data: { quantity: newQuantity },
+    })
+    if (written.count === 0) throw new Error('This part does not track stock')
+    await tx.stockMovement.create({
+      data: {
+        inventoryPartId: id,
+        organizationId,
+        delta: adjustment,
+        quantityAfter: newQuantity,
+        reason: 'manual_adjustment',
+        userId,
+        note: adjustNote(input),
+      },
+    })
   })
   await onInventoryChanged(organizationId)
   return { quantity: newQuantity, partId: id }

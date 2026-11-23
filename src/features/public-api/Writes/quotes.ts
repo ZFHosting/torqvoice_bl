@@ -3,7 +3,6 @@
  * through the app's own conversion). Each with the action's audit event.
  */
 import 'server-only'
-import { z } from 'zod'
 import {
   convertQuoteToServiceRecordEvent,
   createQuoteEvent,
@@ -16,12 +15,15 @@ import {
   deleteQuoteService,
   updateQuoteService,
 } from '@/features/quotes/Lib/quoteService.server'
+import { retotalQuote } from '@/features/fork-records/Lib/retotalQuote.server'
 import { db } from '@/lib/db'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
 import { writeRoute } from '../Lib/writeRoute'
 import { quotesResource } from '../Resources/quotes'
+import { convertQuoteSchema } from '../Schema/quotes'
 import { workOrdersResource } from '../Resources/workOrders'
 import { answerWith, deleted, withId } from './common'
+import { documentBody, touchesMoney } from './documentBody'
 
 const subject = PermissionSubject.QUOTES
 const current = (ctx: { organizationId: string }, { id }: { id: string }) =>
@@ -32,7 +34,12 @@ const current = (ctx: { organizationId: string }, { id }: { id: string }) =>
 
 export const createQuotePOST = writeRoute('POST', {
   permission: { action: PermissionAction.CREATE, subject },
-  run: (svc, body) => createQuoteService(svc, body),
+  // Totals from the lines (documentBody.ts).
+  run: async (svc, body) => {
+    const result = await createQuoteService(svc, documentBody(body))
+    await retotalQuote(result.id)
+    return result
+  },
   audit: (result) => createQuoteEvent(result),
   respond: async (result, ctx) => answerWith(quotesResource, ctx.organizationId, result.id, 201),
 })
@@ -40,7 +47,11 @@ export const createQuotePOST = writeRoute('POST', {
 export const updateQuotePATCH = writeRoute('PATCH', {
   permission: { action: PermissionAction.UPDATE, subject },
   current,
-  run: (svc, body, { id }) => updateQuoteService(svc, withId(body, id)),
+  run: async (svc, body, { id }) => {
+    const result = await updateQuoteService(svc, withId(documentBody(body), id))
+    if (touchesMoney(body)) await retotalQuote(id)
+    return result
+  },
   audit: (result) => updateQuoteEvent(result),
   respond: async (_result, ctx, { id }) => answerWith(quotesResource, ctx.organizationId, id),
 })
@@ -54,13 +65,12 @@ export const deleteQuoteDELETE = writeRoute('DELETE', {
 })
 
 /** The vehicle the work order is for: the quote's own unless the body names another of the workshop's. */
-const convertSchema = z.object({ vehicleId: z.string().min(1).optional() }).strict()
 
 export const convertQuotePOST = writeRoute('POST', {
   // The app asks for creating a work order, which is what converting does.
   permission: { action: PermissionAction.CREATE, subject: PermissionSubject.SERVICES },
   run: async (svc, body, { id }: { id: string }) => {
-    const { vehicleId } = convertSchema.parse(body)
+    const { vehicleId } = convertQuoteSchema.parse(body)
     const quote = await db.quote.findFirst({
       where: { id, organizationId: svc.organizationId },
       select: { vehicleId: true },

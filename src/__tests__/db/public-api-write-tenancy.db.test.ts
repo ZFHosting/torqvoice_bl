@@ -166,6 +166,8 @@ async function snapshot() {
       db.serviceRecord.count({ where: { organizationId } }),
       db.timeEntry.count({ where: { organizationId } }),
       db.deletedRecord.count({ where: { organizationId } }),
+      db.servicePart.count({ where: { serviceRecord: { organizationId } } }),
+      db.quote.count({ where: { organizationId } }),
     ])
   )
   return JSON.stringify({ rows, counts })
@@ -191,6 +193,11 @@ beforeAll(async () => {
         model: 'M',
         year: 2020,
       },
+    })
+  ).id
+  A.ids.workOrder = (
+    await db.serviceRecord.create({
+      data: { organizationId: A.org, title: 'Mine', vehicleId: A.ids.vehicle, status: 'pending' },
     })
   ).id
 })
@@ -574,6 +581,48 @@ const CASES: Case[] = [
     path: 'webhooks/[id]',
     method: 'DELETE',
     params: () => ({ id: b().webhook }),
+  },
+  // Their inventory, named in a line of mine
+  {
+    name: 'open a work order with their part',
+    path: 'work-orders',
+    method: 'POST',
+    body: () => ({
+      vehicleId: A.ids.vehicle,
+      title: 'Mine',
+      partItems: [{ name: 'X', quantity: 1, unitPrice: 1, inventoryPartId: b().part }],
+    }),
+  },
+  {
+    name: 'put their part on my work order',
+    path: 'work-orders/[id]',
+    method: 'PATCH',
+    params: () => ({ id: A.ids.workOrder }),
+    body: () => ({
+      partItems: [{ name: 'X', quantity: 1, unitPrice: 1, inventoryPartId: b().part }],
+    }),
+  },
+  {
+    name: 'add a line of their part',
+    path: 'work-orders/[id]/lines',
+    method: 'POST',
+    params: () => ({ id: A.ids.workOrder }),
+    body: () => ({
+      kind: 'part',
+      description: 'X',
+      quantity: 1,
+      unitPrice: 1,
+      inventoryPartId: b().part,
+    }),
+  },
+  {
+    name: 'quote their part',
+    path: 'quotes',
+    method: 'POST',
+    body: () => ({
+      title: 'Mine',
+      partItems: [{ name: 'X', quantity: 1, unitPrice: 1, inventoryPartId: b().part }],
+    }),
   },
 ]
 

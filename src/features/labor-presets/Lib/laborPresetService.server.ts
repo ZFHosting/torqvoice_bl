@@ -7,20 +7,9 @@ import { db } from '@/lib/db'
 import { createLaborPresetSchema, updateLaborPresetSchema } from '../Schema/laborPresetSchema'
 import { revalidatePath } from 'next/cache'
 import { parseSentFields } from '@/lib/parse-sent-fields'
+// fork: a preset's part links only to this workshop's inventory (A4)
+import { assertOwnInventoryParts } from '@/features/fork-records/Lib/ownInventoryParts.server'
 import type { ServiceCtx } from '@/lib/service-context'
-
-/** fork: a preset's part links only to this workshop's inventory (A4): ids from a client can be another's. */
-async function assertOwnInventoryParts(
-  parts: { inventoryPartId?: string }[] | undefined,
-  organizationId: string
-) {
-  const ids = [...new Set((parts ?? []).map((p) => p.inventoryPartId).filter((id) => !!id))]
-  if (ids.length === 0) return
-  const own = await db.inventoryPart.count({
-    where: { id: { in: ids as string[] }, organizationId },
-  })
-  if (own !== ids.length) throw new Error('Inventory part not found')
-}
 
 export async function createLaborPresetService(ctx: ServiceCtx, input: unknown) {
   const { userId, organizationId } = ctx

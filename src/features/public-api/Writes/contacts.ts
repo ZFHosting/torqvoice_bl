@@ -12,6 +12,7 @@ import {
 import { db } from '@/lib/db'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
 import { publicApiError } from '../Lib/errors'
+import { etagFor } from '../Lib/etag'
 import { writeRoute } from '../Lib/writeRoute'
 import { CONTACT_SELECT, serializeContact } from '../Serializers/customers'
 import { deleted } from './common'
@@ -24,7 +25,7 @@ async function answer(organizationId: string, id: string, status = 200) {
     select: CONTACT_SELECT,
   })
   if (!row) return publicApiError(404, 'not_found', 'Not found.')
-  return Response.json({ data: serializeContact(row) }, { status })
+  return Response.json({ data: serializeContact(row) }, { status, headers: { ETag: etagFor(row) } })
 }
 
 const current = (ctx: { organizationId: string }, p: { id: string; contactId: string }) =>

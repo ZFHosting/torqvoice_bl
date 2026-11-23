@@ -7,6 +7,9 @@ This is a fork of Torqvoice that adds two things upstream does not have:
 2. **A public, key-authenticated REST API** (`src/features/public-api/`, `src/app/api/v1/<resource>`)
    so BlueLabel and other integrations can read and write everything the app holds.
 
+Records the fork adds that both of them write (customer contacts, work jobs, technician shifts, one work order line
+at a time) live in `src/features/fork-records/`.
+
 `AGENTS.md` still governs how code is written here. This file adds the rules that only apply to the fork.
 The plan is in `docs/fork/PLAN.md`; the field-by-field mapping is `docs/fork/MAPPING.md`; the API contract
 is `docs/fork/API.md`; one brief per milestone is in `docs/fork/milestones/`.

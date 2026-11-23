@@ -37,6 +37,7 @@ import {
   updateServiceRecordService,
   updateServiceStatusService,
 } from '@/features/vehicles/Lib/serviceRecordService.server'
+import { retotalServiceRecord } from '@/features/vehicles/Lib/retotalServiceRecord'
 import { addServiceAttachmentService } from '@/features/vehicles/Lib/serviceAttachmentService.server'
 import { isRestoring, RestoreInProgressError } from '@/lib/backup/freeze'
 import { db } from '@/lib/db'
@@ -47,6 +48,7 @@ import { queueVideoDownscale } from '@/lib/video-downscale'
 import { isDeclaredVideo, NOT_A_VIDEO_MESSAGE, sniffDeclaredVideo } from '@/lib/video-sniff'
 import { z } from 'zod'
 import { publicApiError } from '../Lib/errors'
+import { etagFor } from '../Lib/etag'
 import { serializeContext } from '../Lib/serializeContext'
 import { writeRoute } from '../Lib/writeRoute'
 import { workOrdersResource } from '../Resources/workOrders'
@@ -60,7 +62,9 @@ import {
 } from '../Serializers/common'
 import { PAYMENT_SELECT, serializePayment } from '../Serializers/records'
 import { ATTACHMENT_SELECT, serializeAttachment } from '../Serializers/workOrders'
+import { workOrderStatusBodySchema } from '../Schema/workOrders'
 import { answerWith, deleted, withId } from './common'
+import { documentBody, touchesMoney } from './documentBody'
 
 const services = PermissionSubject.SERVICES
 const update = { action: PermissionAction.UPDATE, subject: services }
@@ -76,7 +80,12 @@ const currentWorkOrder = (ctx: { organizationId: string }, { id }: { id: string 
 
 export const createWorkOrderPOST = writeRoute('POST', {
   permission: { action: PermissionAction.CREATE, subject: services },
-  run: (svc, body) => createServiceRecordService(svc, body),
+  // Totals from the lines (documentBody.ts): a shop fee line the workshop adds counts too.
+  run: async (svc, body) => {
+    const result = await createServiceRecordService(svc, documentBody(body))
+    await retotalServiceRecord(result.id)
+    return result
+  },
   audit: (result) => createServiceRecordEvent(result),
   respond: async (result, ctx) =>
     answerWith(workOrdersResource, ctx.organizationId, result.id, 201),
@@ -85,7 +94,13 @@ export const createWorkOrderPOST = writeRoute('POST', {
 export const updateWorkOrderPATCH = writeRoute('PATCH', {
   permission: update,
   current: currentWorkOrder,
-  run: (svc, body, { id }) => updateServiceRecordService(svc, withId(body, id)),
+  // Re-totalled only when the lines, discount or tax change: an imported invoice's total is Shopmonkey's, and a
+  // change of its title leaves it so.
+  run: async (svc, body, { id }) => {
+    const result = await updateServiceRecordService(svc, withId(documentBody(body), id))
+    if (touchesMoney(body)) await retotalServiceRecord(id)
+    return result
+  },
   audit: (result) => updateServiceRecordEvent(result),
   respond: async (_result, ctx, { id }) => answerWith(workOrdersResource, ctx.organizationId, id),
 })
@@ -98,14 +113,10 @@ export const deleteWorkOrderDELETE = writeRoute('DELETE', {
   respond: async (_result, _ctx, { id }) => deleted(id),
 })
 
-const statusSchema = z
-  .object({ status: z.string().min(1), customStatusId: z.string().min(1).nullable().optional() })
-  .strict()
-
 export const workOrderStatusPOST = writeRoute('POST', {
   permission: update,
   run: async (svc, body, { id }: { id: string }) => {
-    const { status, customStatusId } = statusSchema.parse(body)
+    const { status, customStatusId } = workOrderStatusBodySchema.parse(body)
     return updateServiceStatusService(svc, id, status, customStatusId ?? null)
   },
   audit: (result) => updateServiceStatusEvent(result),
@@ -114,14 +125,20 @@ export const workOrderStatusPOST = writeRoute('POST', {
 
 /* ---------- lines ---------- */
 
-async function answerLine(serviceRecordId: string, lineId: string, status = 200) {
+async function answerLine(
+  organizationId: string,
+  serviceRecordId: string,
+  lineId: string,
+  status = 200
+) {
+  const where = { id: lineId, serviceRecordId, serviceRecord: { organizationId } }
   const labor = await db.serviceLabor.findFirst({
-    where: { id: lineId, serviceRecordId },
+    where,
     select: LABOR_LINE_SELECT,
   })
   if (labor) return Response.json({ data: serializeLaborLine(labor) }, { status })
   const part = await db.servicePart.findFirst({
-    where: { id: lineId, serviceRecordId },
+    where,
     select: PART_LINE_SELECT,
   })
   if (part) return Response.json({ data: serializePartLine(part) }, { status })
@@ -132,7 +149,8 @@ export const createLinePOST = writeRoute('POST', {
   permission: update,
   run: (svc, body, { id }: { id: string }) => createLineService(svc, id, body),
   audit: (result) => lineChangedEvent(result),
-  respond: async (result) => answerLine(result.serviceRecordId, result.id, 201),
+  respond: async (result, ctx) =>
+    answerLine(ctx.organizationId, result.serviceRecordId, result.id, 201),
 })
 
 export const updateLinePATCH = writeRoute('PATCH', {
@@ -141,7 +159,7 @@ export const updateLinePATCH = writeRoute('PATCH', {
   run: (svc, body, p: { id: string; lineId: string }) =>
     updateLineService(svc, p.id, p.lineId, body),
   audit: (result) => lineChangedEvent(result),
-  respond: async (result) => answerLine(result.serviceRecordId, result.id),
+  respond: async (result, ctx) => answerLine(ctx.organizationId, result.serviceRecordId, result.id),
 })
 
 export const deleteLineDELETE = writeRoute('DELETE', {
@@ -160,7 +178,7 @@ async function answerJob(organizationId: string, jobId: string, status = 200) {
     select: JOB_SELECT,
   })
   if (!job) return publicApiError(404, 'not_found', 'Not found.')
-  return Response.json({ data: serializeJob(job) }, { status })
+  return Response.json({ data: serializeJob(job) }, { status, headers: { ETag: etagFor(job) } })
 }
 
 const currentJob = (ctx: { organizationId: string }, p: { id: string; jobId: string }) =>
@@ -223,7 +241,7 @@ export const createPaymentPOST = writeRoute('POST', {
     if (!payment) return publicApiError(404, 'not_found', 'Not found.')
     return Response.json(
       { data: serializePayment(payment, await serializeContext(ctx.organizationId)) },
-      { status: 201 }
+      { status: 201, headers: { ETag: etagFor(payment) } }
     )
   },
 })
@@ -273,6 +291,30 @@ const attachmentFieldsSchema = z
 const isPdf = (bytes: Uint8Array) =>
   Buffer.from(bytes.subarray(0, 1024)).toString('latin1').includes('%PDF-')
 
+const ascii = (bytes: Uint8Array, at: number, text: string) =>
+  Buffer.from(bytes.subarray(at, at + text.length)).toString('latin1') === text
+
+/** A photo is the format it says it is, by its first bytes: a name and a type are only the client's word. */
+const IMAGE_SIGNATURES: Record<string, (bytes: Uint8Array) => boolean> = {
+  'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  'image/png': (b) =>
+    b[0] === 0x89 &&
+    ascii(b, 1, 'PNG') &&
+    b[4] === 0x0d &&
+    b[5] === 0x0a &&
+    b[6] === 0x1a &&
+    b[7] === 0x0a,
+  'image/webp': (b) => ascii(b, 0, 'RIFF') && ascii(b, 8, 'WEBP'),
+  'image/heic': (b) =>
+    ascii(b, 4, 'ftyp') &&
+    ['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'mif1', 'msf1'].some((brand) =>
+      ascii(b, 8, brand)
+    ),
+}
+
+/** Text has no NUL bytes: one in the first 8 KB is a binary file sent as text. */
+const isText = (bytes: Uint8Array) => !bytes.subarray(0, 8192).includes(0)
+
 function refuse(message: string): never {
   throw new Error(message)
 }
@@ -312,6 +354,9 @@ export const createAttachmentPOST = writeRoute('POST', {
     const container = video ? sniffDeclaredVideo(file.type, bytes) : null
     if (video && !container) refuse(NOT_A_VIDEO_MESSAGE)
     if (file.type === 'application/pdf' && !isPdf(bytes)) refuse('That file is not a PDF.')
+    const signature = IMAGE_SIGNATURES[file.type]
+    if (signature && !signature(bytes)) refuse(`That file is not a ${ext.toUpperCase()} image.`)
+    if (file.type.startsWith('text/') && !isText(bytes)) refuse('That file is not text.')
 
     const category = video ? 'video' : (fields.category ?? (textual ? 'document' : 'image'))
     const filename = `${randomUUID()}.${ext}`
@@ -350,15 +395,16 @@ export const createAttachmentPOST = writeRoute('POST', {
       throw err
     }
   },
-  respond: async (result) => {
+  respond: async (result, ctx) => {
     const row = await db.serviceAttachment.findFirst({
-      where: { id: result.id },
+      where: { id: result.id, serviceRecord: { organizationId: ctx.organizationId } },
       select: ATTACHMENT_SELECT,
     })
     if (!row) return publicApiError(404, 'not_found', 'Not found.')
     return Response.json(
       { data: serializeAttachment(result.serviceRecordId, row) },
-      { status: 201 }
+      // An attachment doesn't change once made: its ETag is its making, as `If-Match` on its DELETE reads it.
+      { status: 201, headers: { ETag: etagFor({ id: row.id, updatedAt: row.createdAt }) } }
     )
   },
 })

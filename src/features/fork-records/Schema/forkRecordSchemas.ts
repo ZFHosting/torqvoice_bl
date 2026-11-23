@@ -16,6 +16,7 @@ export const createContactSchema = z
     marketingOptIn: z.boolean().nullable().optional(),
     subscribed: z.boolean().nullable().optional(),
   })
+  .strict()
   .refine((c) => c.kind !== 'email' || z.email().safeParse(c.value).success, {
     message: 'Invalid email',
     path: ['value'],

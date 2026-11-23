@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
       update: vi.fn(),
     },
     serviceRecord: { updateMany: vi.fn() },
+    organizationMember: { count: vi.fn() },
   },
   emit: vi.fn(),
   revoke: vi.fn(async () => undefined),
@@ -75,6 +76,24 @@ describe('creating a technician', () => {
       where: { userId: 'u-9', organizationId: 'org-a' },
     })
     expect(db.technician.create).not.toHaveBeenCalled()
+  })
+})
+
+describe('linking a login', () => {
+  it('links only a member of this workshop: another workshop’s user is not found', async () => {
+    db.technician.findFirst.mockResolvedValue(null)
+    db.organizationMember.count.mockResolvedValue(0)
+    await expect(
+      service.createTechnicianService(ctx, { name: 'Kari', userId: 'u-elsewhere' })
+    ).rejects.toThrow('User not found')
+    await expect(
+      service.updateTechnicianService(ctx, { id: 't-1', userId: 'u-elsewhere' })
+    ).rejects.toThrow('User not found')
+    expect(db.organizationMember.count).toHaveBeenCalledWith({
+      where: { organizationId: 'org-a', userId: 'u-elsewhere' },
+    })
+    expect(db.technician.create).not.toHaveBeenCalled()
+    expect(db.technician.updateMany).not.toHaveBeenCalled()
   })
 })
 

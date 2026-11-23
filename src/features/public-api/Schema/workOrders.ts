@@ -11,7 +11,7 @@ import { createPaymentSchema } from '@/features/payments/Schema/paymentSchema'
 import { createServiceSchema, updateServiceSchema } from '@/features/vehicles/Schema/serviceSchema'
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
-import { deletedSchema, patchBody, writeEndpoints } from '../Lib/writeSpec'
+import { deletedSchema, documentBodySchema, patchBody, writeEndpoints } from '../Lib/writeSpec'
 import { customFieldValueSchema, jobSchema, lineSchema } from './common'
 import { paymentSchema } from './records'
 import { timeEntrySchema } from './schedule'
@@ -181,12 +181,17 @@ const write = (
   status?: number
 ): EndpointSpec => ({ method, path, summary, tag: 'Work orders', response, body, status })
 
+/** `POST /work-orders/{id}/status` (A4): a stage, or the workshop's own status. */
+export const workOrderStatusBodySchema = z
+  .object({ status: z.string().min(1), customStatusId: z.string().min(1).nullable().optional() })
+  .strict()
+
 export const workOrderEndpoints: EndpointSpec[] = [
   ...readEndpoints(workOrdersSpec),
   ...writeEndpoints({
     ...workOrdersSpec,
-    create: createServiceSchema,
-    update: patchBody(updateServiceSchema),
+    create: documentBodySchema(createServiceSchema),
+    update: patchBody(documentBodySchema(updateServiceSchema)),
     remove: true,
   }),
   write(
@@ -194,7 +199,7 @@ export const workOrderEndpoints: EndpointSpec[] = [
     '/work-orders/{id}/status',
     'Move a work order to a status (the work board’s own rules)',
     workOrderSchema,
-    z.object({ status: z.string(), customStatusId: z.string().nullable().optional() })
+    workOrderStatusBodySchema
   ),
   write('post', '/work-orders/{id}/lines', 'Add a line', lineSchema, createLineSchema, 201),
   write('patch', '/work-orders/{id}/lines/{lineId}', 'Change a line', lineSchema, updateLineSchema),

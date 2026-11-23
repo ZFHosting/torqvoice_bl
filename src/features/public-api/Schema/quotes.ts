@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { createQuoteSchema, updateQuoteSchema } from '@/features/quotes/Schema/quoteSchema'
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
-import { patchBody, writeEndpoints } from '../Lib/writeSpec'
+import { documentBodySchema, patchBody, writeEndpoints } from '../Lib/writeSpec'
 import { customFieldValueSchema, jobSchema, lineSchema } from './common'
 import { taxComponentAmountSchema, workOrderSchema } from './workOrders'
 
@@ -67,12 +67,15 @@ export const quotesSpec: ReadSpec<QuoteOut> = {
   response: quoteSchema,
 }
 
+/** `POST /quotes/{id}/convert` (A4): the quote's own vehicle unless another of the workshop's is named. */
+export const convertQuoteSchema = z.object({ vehicleId: z.string().min(1).optional() }).strict()
+
 export const quoteEndpoints: EndpointSpec[] = [
   ...readEndpoints(quotesSpec),
   ...writeEndpoints({
     ...quotesSpec,
-    create: createQuoteSchema,
-    update: patchBody(updateQuoteSchema),
+    create: documentBodySchema(createQuoteSchema),
+    update: patchBody(documentBodySchema(updateQuoteSchema)),
     remove: true,
   }),
   {
@@ -80,7 +83,7 @@ export const quoteEndpoints: EndpointSpec[] = [
     path: '/quotes/{id}/convert',
     summary: 'Turn a quote into a work order (the app’s own conversion)',
     tag: 'Quotes',
-    body: z.object({ vehicleId: z.string().optional() }),
+    body: convertQuoteSchema,
     response: workOrderSchema,
     status: 201,
   },

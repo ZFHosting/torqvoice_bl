@@ -9,6 +9,18 @@ export const deletedSchema = z
   .object({ id: z.string(), deleted: z.literal(true) })
   .meta({ id: 'Deleted' })
 
+/**
+ * A work order's or a quote's body as the API takes it: without the totals it works out from the lines
+ * (`Writes/documentBody.ts`), which it refuses.
+ */
+export function documentBodySchema(schema: z.ZodObject): z.ZodObject {
+  const computed = ['subtotal', 'taxAmount', 'totalAmount', 'taxableSubtotal', 'discountAmount']
+  const present = Object.fromEntries(
+    computed.filter((k) => k in schema.shape).map((k) => [k, true])
+  )
+  return schema.omit(present as never)
+}
+
 /** A PATCH body: the update schema without `id` (it comes from the path), every field optional. */
 export function patchBody(schema: z.ZodObject): z.ZodType {
   return schema.omit({ id: true } as never).partial()

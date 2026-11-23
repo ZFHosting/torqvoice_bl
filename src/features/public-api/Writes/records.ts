@@ -107,6 +107,11 @@ const currentWebhook = (ctx: { organizationId: string }, { id }: { id: string })
 
 export const createWebhookPOST = writeRoute('POST', {
   permission: settings,
+  // Shown once: a replay of the create answers with `secret: null` (API.md §4, `/webhooks`).
+  replayAs: (body) => {
+    const data = (body as { data?: Record<string, unknown> }).data
+    return data ? { ...(body as object), data: { ...data, secret: null } } : body
+  },
   run: (svc, body) => createWebhookService(svc, body),
   audit: (result) => createWebhookEvent(result),
   respond: async (result, ctx) => {

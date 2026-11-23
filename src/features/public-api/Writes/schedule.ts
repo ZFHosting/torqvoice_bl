@@ -147,6 +147,11 @@ export const deleteAppointmentDELETE = writeRoute('DELETE', {
 
 /* ---------- time entries ---------- */
 
+/**
+ * The app's own permissions: time tracking has only View and Edit, and Edit is what the timesheet asks for to add,
+ * correct, stop or remove an entry (shifts, the fork's, follow it). Clocking in is `update:services`, as the
+ * technician app asks (`src/lib/permissions.ts`).
+ */
 const timeTracking = PermissionSubject.TIME_TRACKING
 
 const currentTimeEntry = (ctx: { organizationId: string }, { id }: { id: string }) =>
@@ -156,7 +161,7 @@ const currentTimeEntry = (ctx: { organizationId: string }, { id }: { id: string 
   })
 
 export const createTimeEntryPOST = writeRoute('POST', {
-  permission: { action: PermissionAction.CREATE, subject: timeTracking },
+  permission: { action: PermissionAction.UPDATE, subject: timeTracking },
   run: (svc, body) => {
     const sent = createTimeEntrySchema.parse(body)
     // The API's name for the job is the work order's.
@@ -185,7 +190,7 @@ export const updateTimeEntryPATCH = writeRoute('PATCH', {
 })
 
 export const deleteTimeEntryDELETE = writeRoute('DELETE', {
-  permission: { action: PermissionAction.DELETE, subject: timeTracking },
+  permission: { action: PermissionAction.UPDATE, subject: timeTracking },
   current: currentTimeEntry,
   run: (svc, _body, { id }) => deleteTimeEntryService(svc, id),
   audit: (result) => deleteTimeEntryEvent(result),
@@ -197,7 +202,7 @@ export const deleteTimeEntryDELETE = writeRoute('DELETE', {
  * moves to in progress if it hadn't started. Starting the clock already running on that job changes nothing.
  */
 export const startTimeEntryPOST = writeRoute('POST', {
-  permission: { action: PermissionAction.CREATE, subject: timeTracking },
+  permission: { action: PermissionAction.UPDATE, subject: PermissionSubject.SERVICES },
   run: async (svc, body) => {
     const { technicianId, workOrderId } = startTimeEntrySchema.parse(body)
     const technician = await db.technician.count({
@@ -242,7 +247,7 @@ const currentShift = (ctx: { organizationId: string }, { id }: { id: string }) =
   })
 
 export const createShiftPOST = writeRoute('POST', {
-  permission: { action: PermissionAction.CREATE, subject: timeTracking },
+  permission: { action: PermissionAction.UPDATE, subject: timeTracking },
   run: (svc, body) => createShiftService(svc, body),
   audit: (result) => shiftEvent('create', result),
   respond: async (result, ctx) => answerWith(shiftsResource, ctx.organizationId, result.id, 201),
@@ -257,7 +262,7 @@ export const updateShiftPATCH = writeRoute('PATCH', {
 })
 
 export const deleteShiftDELETE = writeRoute('DELETE', {
-  permission: { action: PermissionAction.DELETE, subject: timeTracking },
+  permission: { action: PermissionAction.UPDATE, subject: timeTracking },
   current: currentShift,
   run: (svc, _body, { id }) => deleteShiftService(svc, id),
   audit: (result) => shiftEvent('delete', result),

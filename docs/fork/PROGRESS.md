@@ -107,7 +107,26 @@ merge is still blocked by B15). Plan:
    Tenant isolation over every write endpoint: `public-api-write-tenancy` (54 writes, the upload included, with workshop B's ids → 404,
    nothing changed in either workshop; a check that the table names every write route served), plus 403 from
    every write for a read-only key. All four files: 31 tests passing together on `torqvoice_fork_test`.
-7. [ ] API.md, DoD, reviewer, merge.
+7. [ ] API.md, DoD, reviewer, merge. Reviewer pass 1 (on 5d9dc7c8): needs changes, 6 must-fix, all fixed:
+   (1) time entries, shifts and the clock asked for `create`/`delete:time_tracking`, which no role can hold: now the
+   app's own (`update:time_tracking`; `update:services` to start a clock), and the test harness grants exactly
+   `permissionGroups`; (2) `inventoryPartId` in a line, a work order's or quote's `partItems` and a preset's parts is
+   checked against the workshop (`fork-records/Lib/ownInventoryParts.server.ts`, in the shared services); (3) a
+   required-meters refusal is a 400 with `details.meters` (it was a 500); (4) work order and quote totals are worked
+   out from their lines (`Writes/documentBody.ts`, `retotalServiceRecord`, new `fork-records/Lib/retotalQuote.server.ts`);
+   (5) success-path tests for work order change/move/delete, lines with stock, jobs, quotes, payment delete and the
+   meters refusal (`public-api-write-orders`, 15 tests); (6) API.md §3.1 rewritten to say what the code does.
+   Should-fix done: tombstones inside the delete's transaction (fork services, line deletes now leave
+   `work_order_line`); the stock adjust and its history line in one transaction; reads after a write scoped by
+   workshop; a fee line defaults to `service` pricing (not re-priced as the shop fee); a line PATCH refuses the other
+   kind's fields; contact email checked on PATCH, contact create strict; the technician `userId` membership check
+   moved into the service (with a unit test); `assertOwnUploads` on work order writes; photos and text checked by
+   their bytes; a refused upload's file removed (tested via a plan limit); child answers carry ETags; a replayed
+   webhook create answers `secret: null`; fork audit actions written as literals the label test sees; the status and
+   convert OpenAPI bodies are the handlers' strict schemas; FORK.md lists `src/features/fork-records/`.
+   Left, with reasons (Decisions log): audit `details` sentences for the fork's events (A5), replays without an
+   `ETag` (documented), streaming the upload size check (A6), concurrent stock adjustments (upstream's read-then-set).
+   Next: DoD again, reviewer pass 2, merge.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
@@ -314,3 +333,7 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | A4: writes the app records no audit event for (stock adjustment, attachment add and delete) record none through the API either. | FORK.md: the API logs the same audit event as the action. Noted in API.md §3.1 so subscribers know. |
 | 2026-11-23 | A4: an upload's `Idempotency-Key` hash covers its fields and files (name, type, bytes), not the raw multipart body. | A client retrying an upload usually sends a new boundary; hashing the bytes would answer a retry with 409. |
 | 2026-11-23 | A4: `customer-inventory-isolation.test.ts` (upstream) gets a `stockMovement.create` mock (`// fork:`); its expectations are unchanged. | Its Prisma mock lists only the models the code used; the adjustment now writes one more. |
+| 2026-11-23 | A4 review pass 1: the API asks for the app's own permissions (time tracking has only View and Edit: entries, stop and shifts take `update:time_tracking`; starting a clock `update:services`, as the technician app). The db harness's full key is `permissionGroups`, so a permission no role can hold fails the tests. | Five endpoints were callable only by owner and admin keys. |
+| 2026-11-23 | A4 review pass 1: a work order's or quote's totals are worked out from its lines (each line quantity × price) after any API write that sends lines, discount or tax; sent totals are a 400. Not re-totalled on other changes, so an imported invoice keeps Shopmonkey's total. Quotes get a fork `retotalQuote` (the work order's arithmetic, offered lines only, no shop-fee re-pricing). | The app's editor sends totals it worked out in the browser; a client sending lines without them stored a total that disagreed with its lines. |
+| 2026-11-23 | A4 review pass 1, in the shared services (`// fork:`): `inventoryPartId` must be the workshop's for work order, quote, line and preset parts; work order writes call `assertOwnUploads`; a technician's `userId` must be a member. | Upstream holes reachable by API keys; the app's pickers only offer the workshop's own, so the app is unchanged. Worth reporting upstream. |
+| 2026-11-23 | A4 review pass 1, left: audit `details` (sentences) for `contact.*`, `job.*`, `shift.*`, `time_entry.start` go with A5, which turns them into webhook events and needs their summaries in 14 locales; an idempotent replay carries no `ETag` (documented; A1's stored format holds the body only); a chunked upload without `Content-Length` is read before its size is checked, and two concurrent stock adjustments can lose one (upstream's read-then-set): both for A6. | Each is documented in API.md §3.1 or here; none is a wrong answer to a single request. |

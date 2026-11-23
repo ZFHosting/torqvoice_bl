@@ -7,7 +7,7 @@
  * the workshop's clock (Pacific/Auckland here, far from UTC) is the one times are typed on; and another workshop's
  * ids are not found. Its own workshops and upload folder, removed again. SYNTHETIC data.
  */
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -33,6 +33,19 @@ vi.mock('@/features/webhooks/Lib/ssrf', async (original) => ({
   ...(await original<typeof import('@/features/webhooks/Lib/ssrf')>()),
   checkWebhookUrl: async () => ({ ok: true }),
 }))
+/** A plan's photo limit for a workshop, where a test sets one; the plan's own elsewhere. */
+const photoLimit = vi.hoisted(() => new Map<string, number>())
+vi.mock('@/lib/features', async (original) => {
+  const real = await original<typeof import('@/lib/features')>()
+  return {
+    ...real,
+    getFeatures: async (organizationId: string) => {
+      const features = await real.getFeatures(organizationId)
+      const limit = photoLimit.get(organizationId)
+      return limit === undefined ? features : { ...features, maxImagesPerService: limit }
+    },
+  }
+})
 
 const url = guardTestDatabase()
 const previousDataRoot = process.env.DATA_ROOT
@@ -718,5 +731,38 @@ describe('work order attachments', () => {
     expect(
       await db.deletedRecord.count({ where: { entityType: 'attachment', entityId: attachment.id } })
     ).toBe(1)
+  })
+
+  it('takes a refused upload’s file away with it', async () => {
+    resetKeyBudgets()
+    const list = await route('work-orders/[id]/attachments')
+    const folder = path.join(dataRoot, 'uploads', A.org, 'services')
+    const photo = () => new File([PNG], 'bay.png', { type: 'image/png' })
+    photoLimit.set(A.org, 1)
+    try {
+      expect((await upload(list.POST, A.key, A.ids.workOrder2, photo())).status).toBe(201)
+      const files = readdirSync(folder).length
+      // Past the plan's limit: the app's own refusal, and the file just written is gone again.
+      const refused = await upload(list.POST, A.key, A.ids.workOrder2, photo())
+      expect(refused.status).toBe(400)
+      expect(readdirSync(folder)).toHaveLength(files)
+      expect(
+        await db.serviceAttachment.count({ where: { serviceRecordId: A.ids.workOrder2 } })
+      ).toBe(1)
+    } finally {
+      photoLimit.delete(A.org)
+    }
+  })
+
+  it('refuses a file that isn’t the type it says it is', async () => {
+    resetKeyBudgets()
+    const list = await route('work-orders/[id]/attachments')
+    for (const file of [
+      new File([Buffer.from('not a picture')], 'x.jpg', { type: 'image/jpeg' }),
+      new File([PNG], 'x.webp', { type: 'image/webp' }),
+      new File([Buffer.from([0x61, 0x00, 0x62])], 'x.txt', { type: 'text/plain' }),
+    ]) {
+      expect((await upload(list.POST, A.key, A.ids.workOrder2, file)).status).toBe(400)
+    }
   })
 })

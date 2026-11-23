@@ -27,23 +27,10 @@ const current = (ctx: { organizationId: string }, { id }: { id: string }) =>
     select: { id: true, updatedAt: true },
   })
 
-/**
- * The login a technician is linked to is a member of this workshop. The app picks it from its own team; an id
- * from a client can be anyone's, and another workshop's is not found here.
- */
-async function assertMemberLogin(organizationId: string, body: unknown) {
-  const userId = (body as { userId?: unknown } | null)?.userId
-  if (typeof userId !== 'string' || !userId) return
-  const member = await db.organizationMember.count({ where: { organizationId, userId } })
-  if (!member) throw new Error('User not found')
-}
-
 export const createTechnicianPOST = writeRoute('POST', {
   permission: { action: PermissionAction.CREATE, subject },
-  run: async (svc, body) => {
-    await assertMemberLogin(svc.organizationId, body)
-    return createTechnicianService(svc, body)
-  },
+  // A `userId` must be a member of the workshop: the service refuses another's as "User not found" (a 404).
+  run: (svc, body) => createTechnicianService(svc, body),
   audit: (result) => createTechnicianEvent(result),
   respond: async (result, ctx) =>
     answerWith(techniciansResource, ctx.organizationId, result.id, 201),
@@ -52,10 +39,7 @@ export const createTechnicianPOST = writeRoute('POST', {
 export const updateTechnicianPATCH = writeRoute('PATCH', {
   permission: { action: PermissionAction.UPDATE, subject },
   current,
-  run: async (svc, body, { id }) => {
-    await assertMemberLogin(svc.organizationId, body)
-    return updateTechnicianService(svc, withId(body, id))
-  },
+  run: (svc, body, { id }) => updateTechnicianService(svc, withId(body, id)),
   audit: (result) => updateTechnicianEvent(result),
   respond: async (_result, ctx, { id }) => answerWith(techniciansResource, ctx.organizationId, id),
 })

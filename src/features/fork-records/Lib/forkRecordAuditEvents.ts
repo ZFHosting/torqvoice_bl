@@ -4,12 +4,36 @@
  */
 import type { AuditEvent } from '@/lib/audit'
 
+type Change = 'create' | 'update' | 'delete'
+
+/**
+ * Each action written out as `action: '…'`, the shape the audit label test (`i18n/audit-actions.test.ts`) finds, so
+ * every one of them is checked to have a label in every locale.
+ */
+const ACTIONS = {
+  contact: {
+    create: { action: 'contact.create' },
+    update: { action: 'contact.update' },
+    delete: { action: 'contact.delete' },
+  },
+  job: {
+    create: { action: 'job.create' },
+    update: { action: 'job.update' },
+    delete: { action: 'job.delete' },
+  },
+  shift: {
+    create: { action: 'shift.create' },
+    update: { action: 'shift.update' },
+    delete: { action: 'shift.delete' },
+  },
+} as const
+
 export function contactEvent(
-  action: 'create' | 'update' | 'delete',
+  change: Change,
   contact: { id: string; customerId: string }
 ): AuditEvent {
   return {
-    action: `contact.${action}`,
+    ...ACTIONS.contact[change],
     entity: 'CustomerContact',
     entityId: contact.id,
     metadata: { customerId: contact.customerId },
@@ -17,11 +41,11 @@ export function contactEvent(
 }
 
 export function jobEvent(
-  action: 'create' | 'update' | 'delete',
+  change: Change,
   job: { id: string; serviceRecordId: string | null }
 ): AuditEvent {
   return {
-    action: `job.${action}`,
+    ...ACTIONS.job[change],
     entity: 'WorkJob',
     entityId: job.id,
     metadata: { workOrderId: job.serviceRecordId },
@@ -29,11 +53,11 @@ export function jobEvent(
 }
 
 export function shiftEvent(
-  action: 'create' | 'update' | 'delete',
+  change: Change,
   shift: { id: string; technicianId: string }
 ): AuditEvent {
   return {
-    action: `shift.${action}`,
+    ...ACTIONS.shift[change],
     entity: 'TechnicianShift',
     entityId: shift.id,
     metadata: { technicianId: shift.technicianId },
@@ -61,17 +85,3 @@ export function timeEntryStartEvent(started: {
     },
   }
 }
-
-/** The action names, for the audit log's labels and the test that every emitted action has one. */
-export const FORK_RECORD_ACTIONS = [
-  'contact.create',
-  'contact.update',
-  'contact.delete',
-  'job.create',
-  'job.update',
-  'job.delete',
-  'shift.create',
-  'shift.update',
-  'shift.delete',
-  'time_entry.start',
-] as const
