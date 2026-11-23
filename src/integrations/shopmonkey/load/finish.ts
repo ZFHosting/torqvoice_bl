@@ -19,12 +19,16 @@ export class LoadRefused extends Error {
 }
 
 /**
- * The workshop's active connections whose manifest subscribes to `service.update` (accounting, calendars): from
- * the registry, so a connector added later is covered too.
+ * The workshop's connections whose manifest subscribes to `service.update` (accounting, calendars) and that would
+ * be sent it: the statuses `notifyIntegrations` queues jobs for (`features/integrations/Lib/events.ts`), so one in
+ * `error` (an expired token) counts too, since its jobs wait and run once it's fixed. From the registry, so a
+ * connector added later is covered too.
  */
+export const NOTIFIED_STATUSES = ['active', 'error']
+
 export async function connectionsHearingInvoices(organizationId: string): Promise<string[]> {
   const active = await db.integrationConnection.findMany({
-    where: { organizationId, status: 'active' },
+    where: { organizationId, status: { in: NOTIFIED_STATUSES } },
     select: { connectorId: true },
   })
   return active
@@ -41,15 +45,25 @@ export async function assertNoInvoiceListeners(organizationId: string): Promise<
 
 /**
  * The app's own "freeze older invoices" path (MAPPING §6.1, RESULTS T5): dates `issuedAt` to `sentAt` and freezes
- * what the sheet prints. One that fails is counted, not fatal: the record is loaded either way.
+ * what the sheet prints. `ids` is every imported invoice of the run, loaded or unchanged: the ones not issued yet
+ * (a run that stopped before this step, an issue that failed) are issued now. One that fails is counted, not fatal:
+ * the record is loaded either way, and the next run tries again.
  */
 export async function issueInvoices(
   organizationId: string,
   ids: string[]
 ): Promise<{ issued: number; failed: number }> {
+  const pending: string[] = []
+  for (let i = 0; i < ids.length; i += 1000) {
+    const rows = await db.serviceRecord.findMany({
+      where: { id: { in: ids.slice(i, i + 1000) }, organizationId, issuedAt: null },
+      select: { id: true },
+    })
+    pending.push(...rows.map((r) => r.id))
+  }
   let issued = 0
   let failed = 0
-  for (const id of ids) {
+  for (const id of pending) {
     try {
       if (await issueInvoice(id, organizationId, 'backfill')) issued++
     } catch {
@@ -68,6 +82,8 @@ export async function recordLoad(
     records: number
     counts: Record<string, unknown>
     issued: number
+    /** Invoices whose issue failed: still unlocked, tried again by the next run. */
+    issueFailed: number
     /** The setting keys the run applied from its proposals. */
     applied: string[]
   }
@@ -82,6 +98,7 @@ export async function recordLoad(
         runId: summary.runId,
         counts: summary.counts,
         issued: summary.issued,
+        issueFailed: summary.issueFailed,
         applied: summary.applied,
       },
     }

@@ -8,6 +8,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { Prisma } from '@/generated/prisma/client'
 import { createMockShopmonkey } from '../features/integrations/shopmonkey/mockServer'
 
 const url = process.env.E2E_DATABASE_URL ?? ''
@@ -302,5 +303,41 @@ describe('around the records', () => {
     } finally {
       await db.integrationConnection.delete({ where: { id: fiken.id } })
     }
+  })
+
+  it('refuses too while such a connection is in error: its jobs wait and run once it is fixed', async () => {
+    const before = await counts()
+    const xero = await db.integrationConnection.create({
+      data: { organizationId, connectorId: 'xero', createdById: userId, status: 'error' },
+    })
+    try {
+      await expect(run()).rejects.toMatchObject({ name: 'LoadRefused' })
+      expect(await counts()).toEqual(before)
+    } finally {
+      await db.integrationConnection.delete({ where: { id: xero.id } })
+    }
+  })
+
+  it('issues on the next run an imported invoice a past run left unissued, though its order is unchanged', async () => {
+    const invoice = await db.serviceRecord.findFirstOrThrow({
+      where: { organizationId, invoiceNumber: '1004' },
+      select: { id: true },
+    })
+    // As a run that stopped before issuing, or whose issue failed, leaves it.
+    await db.serviceRecord.update({
+      where: { id: invoice.id },
+      data: { issuedAt: null, issuedData: Prisma.DbNull },
+    })
+    const summary = await run()
+    expect(summary.counts.order.updated).toBe(0)
+    expect(summary.issued).toBe(1)
+    expect(summary.issueFailed).toBe(0)
+    const after = await db.serviceRecord.findFirstOrThrow({
+      where: { id: invoice.id },
+      select: { issuedAt: true },
+    })
+    expect(after.issuedAt).not.toBeNull()
+    // Issued once: a further run issues nothing.
+    expect((await run()).issued).toBe(0)
   })
 })

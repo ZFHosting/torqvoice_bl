@@ -197,6 +197,7 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
     )
 
     const pending: string[] = []
+    let invoiceId: string | null = null
     const committed = await loadOne(lc, 'order', order.remoteId, async (tx) => {
       const organizationId = lc.scope.organizationId
       if (rows.kind === 'quote') {
@@ -277,6 +278,8 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
         }
       )
       lc.resolver.set('order', order.remoteId, localId)
+      // Every imported invoice is offered for issuing, changed or not: one a past run didn't get to is issued now.
+      if (rows.issueAsInvoice) invoiceId = localId
       // Files may arrive after the order did (an extract with files turned on later): attached either way, once.
       await attachOrderFiles(
         tx,
@@ -403,10 +406,12 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
         }
       }
       await writeCustomFields(tx, lc, localId, rows.customFields)
-      if (rows.issueAsInvoice) lc.toIssue.push(localId)
       return outcome
     })
-    if (committed) lc.placedFiles.push(...pending)
+    if (committed) {
+      lc.placedFiles.push(...pending)
+      if (invoiceId) lc.toIssue.push(invoiceId)
+    }
   }
   return { createdServiceRecords }
 }

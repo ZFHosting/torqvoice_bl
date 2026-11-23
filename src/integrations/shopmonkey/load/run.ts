@@ -65,6 +65,8 @@ export interface LoadSummary {
   batches: LoadContext['batches']
   /** Work orders that were issued as invoices after their transaction. */
   issued: number
+  /** Imported invoices whose issue failed: still unlocked, tried again by the next run. */
+  issueFailed: number
   /** Shopmonkey's unit system for mileage, from the oldest vehicle: proposed to the workshop. */
   mileageUnit: string | null
   /** What the load proposes to the workshop's numbering and settings (task 9). */
@@ -182,6 +184,7 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
       records,
       counts: lc.counts,
       issued: issue.issued,
+      issueFailed: issue.failed,
       applied,
     })
   }
@@ -193,6 +196,7 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
     failures: lc.failures,
     batches: options.dryRun ? {} : lc.batches,
     issued: issue.issued,
+    issueFailed: issue.failed,
     mileageUnit,
     proposals: proposed,
     applied,

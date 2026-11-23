@@ -58,6 +58,7 @@ const summary = (extra: Partial<LoadSummary> = {}): LoadSummary => ({
   failures: [{ table: 'order', remoteId: 'syn_ord_9', error: 'PrismaClientKnownRequestError' }],
   batches: {},
   issued: 2,
+  issueFailed: 0,
   mileageUnit: 'Mile',
   proposals: {
     numbering: {
@@ -99,6 +100,13 @@ describe('the summary', () => {
     expect(formatLoadSummary(summary({ applied: ['workshop.invoicePrefix'] }))).toContain(
       'Numbering (applied):'
     )
+  })
+
+  it('says how many invoices could not be issued', () => {
+    expect(formatLoadSummary(summary({ issueFailed: 3 }))).toContain(
+      '  invoices not issued: 3 (still unlocked; the next load tries again)'
+    )
+    expect(formatLoadSummary(summary()).join(' | ')).not.toContain('not issued')
   })
 })
 

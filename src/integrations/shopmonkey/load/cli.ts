@@ -65,6 +65,11 @@ export function formatLoadSummary(summary: LoadSummary): string[] {
     )
   }
   if (!summary.dryRun) lines.push(`  invoices issued: ${summary.issued}`)
+  if (summary.issueFailed) {
+    lines.push(
+      `  invoices not issued: ${summary.issueFailed} (still unlocked; the next load tries again)`
+    )
+  }
   const warnings = Object.entries(summary.warnings)
   if (warnings.length) {
     lines.push('Warnings:')
