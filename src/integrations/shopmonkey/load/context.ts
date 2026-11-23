@@ -33,6 +33,8 @@ export interface LoadContext {
   batches: Partial<Record<'customers' | 'vehicles' | 'services' | 'inspections', string>>
   /** Invoiced work orders to issue once committed (MAPPING §6.1). */
   toIssue: string[]
+  /** Staged copies of files that loaded, removed when the run is over. */
+  placedFiles: string[]
   /** Set during a dry run: every unit runs in it, under a savepoint. */
   dryTx: Tx | null
   now: Date
@@ -79,6 +81,7 @@ export function createLoadContext(input: {
     failures: [],
     batches: {},
     toIssue: [],
+    placedFiles: [],
     dryTx: null,
     now: input.now ?? new Date(),
   }
@@ -107,19 +110,24 @@ export async function unit<T>(lc: LoadContext, fn: (tx: Tx) => Promise<T>): Prom
   }
 }
 
-/** Runs a unit for one record, counting what happened, and noting a failure without stopping the run. */
+/**
+ * Runs a unit for one record, counting what happened, and noting a failure without stopping the run. True when it
+ * committed (or, in a dry run, its savepoint was kept).
+ */
 export async function loadOne(
   lc: LoadContext,
   table: string,
   remoteId: string,
   fn: (tx: Tx) => Promise<'created' | 'updated' | 'unchanged' | 'skipped'>
-): Promise<void> {
+): Promise<boolean> {
   const counts = countsFor(lc, table)
   try {
     counts[await unit(lc, fn)]++
+    return true
   } catch (err) {
     counts.failed++
     lc.failures.push({ table, remoteId, error: err instanceof Error ? err.name : 'Error' })
+    return false
   }
 }
 

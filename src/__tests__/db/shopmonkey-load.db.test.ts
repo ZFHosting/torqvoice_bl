@@ -76,6 +76,16 @@ const TABLES = [
   'payment',
   'vehicleFinding',
   'serviceRecordMeta',
+  'inventoryPart',
+  'stockMovement',
+  'laborPreset',
+  'appointment',
+  'inspectionTemplate',
+  'inspection',
+  'inspectionItem',
+  'timeEntry',
+  'technicianShift',
+  'customFieldValue',
 ] as const
 
 async function counts() {
@@ -83,14 +93,17 @@ async function counts() {
   const out: Record<string, number> = {}
   const d = db as unknown as Record<string, { count: (args: unknown) => Promise<number> }>
   for (const t of TABLES) {
-    out[t] =
-      t === 'serviceLabor' || t === 'servicePart' || t === 'payment'
-        ? await d[t].count({ where: { serviceRecord: where } })
-        : t === 'quoteLabor' || t === 'quotePart'
-          ? await d[t].count({ where: { quote: where } })
-          : t === 'vehicleFinding'
-            ? await d[t].count({ where: { vehicle: where } })
-            : await d[t].count({ where })
+    const scoped: Record<string, unknown> = {
+      serviceLabor: { serviceRecord: where },
+      servicePart: { serviceRecord: where },
+      payment: { serviceRecord: where },
+      quoteLabor: { quote: where },
+      quotePart: { quote: where },
+      vehicleFinding: { vehicle: where },
+      inspectionItem: { inspection: where },
+      customFieldValue: { field: where },
+    }
+    out[t] = await d[t].count({ where: scoped[t] ?? where })
   }
   return out
 }
@@ -142,8 +155,22 @@ describe('loading the archive into a workshop', () => {
     const first = await run()
     expect(first.failures).toEqual([])
     const after = await counts()
-    expect(after).toMatchObject({ customer: 3, vehicle: 3, serviceRecord: 3, quote: 1 })
-    expect(after.payment).toBe(5)
+    expect(after).toMatchObject({
+      customer: 3,
+      vehicle: 3,
+      serviceRecord: 3,
+      quote: 1,
+      payment: 5,
+      inventoryPart: 3,
+      laborPreset: 3,
+      appointment: 1,
+      inspectionTemplate: 1,
+      inspection: 1,
+      timeEntry: 1,
+      technicianShift: 2,
+    })
+    expect(after.stockMovement).toBeGreaterThan(0)
+    expect(after.inspectionItem).toBeGreaterThan(0)
     const second = await run()
     expect(second.failures).toEqual([])
     for (const [table, c] of Object.entries(second.counts)) {

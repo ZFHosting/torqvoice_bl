@@ -16,6 +16,9 @@ import {
   openBatches,
   type Tx,
 } from './context'
+import { loadInventory, loadPresets } from './catalog'
+import { removePlaced } from './files'
+import { loadAppointments, loadInspections, loadInspectionTemplates, loadTime } from './history'
 import { loadOrders } from './orders'
 import {
   loadCustomers,
@@ -62,12 +65,18 @@ async function stages(lc: LoadContext): Promise<{ mileageUnit: string | null }> 
   await loadWorkflowStatuses(lc)
   const customers = await loadCustomers(lc)
   const vehicles = await loadVehicles(lc)
+  await loadInventory(lc)
+  await loadPresets(lc)
   const orders = await loadOrders(lc)
+  await loadAppointments(lc)
+  await loadInspectionTemplates(lc)
+  const inspections = await loadInspections(lc)
+  await loadTime(lc)
   await closeBatches(lc, {
     customers,
     vehicles: vehicles.created,
     services: orders.createdServiceRecords,
-    inspections: 0,
+    inspections,
   })
   return { mileageUnit: vehicles.mileageUnit }
 }
@@ -119,6 +128,8 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
     }
   } else {
     ;({ mileageUnit } = await stages(lc))
+    // The staged copies of files that loaded: uploads has them now.
+    await removePlaced(lc.placedFiles)
   }
   return {
     runId: scope.runId,

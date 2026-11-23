@@ -14,6 +14,7 @@ import { type PaymentRow, refundWarnings, transformPayment } from '../transform/
 import { userName } from '../transform/staff'
 import type { Row } from '../transform/types'
 import { clientOf, countsFor, type LoadContext, loadOne, type Tx } from './context'
+import { attachOrderFiles, indexOrderFiles } from './files'
 import { findLoaded, markLoaded } from './links'
 import { staged, stagedAll, writeCustomFields } from './people'
 import { upsertLinked } from './upsert'
@@ -124,6 +125,7 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
     payments: await indexChildren(lc, 'payment'),
     authorizations: await indexChildren(lc, 'authorization'),
   }
+  const fileIndex = await indexOrderFiles(lc)
   const owners = new Map<string, { customerId: string | null; createdDate: string }>()
   for await (const o of staged(lc, 'vehicle_owner')) {
     const vehicleId = typeof o.payload.vehicleId === 'string' ? o.payload.vehicleId : null
@@ -194,7 +196,8 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
       children(index.payments).map((c) => c.remoteId)
     )
 
-    await loadOne(lc, 'order', order.remoteId, async (tx) => {
+    const pending: string[] = []
+    const committed = await loadOne(lc, 'order', order.remoteId, async (tx) => {
       const organizationId = lc.scope.organizationId
       if (rows.kind === 'quote') {
         const { localId, result: outcome } = await upsertLinked(
@@ -271,6 +274,15 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
         }
       )
       lc.resolver.set('order', order.remoteId, localId)
+      // Files may arrive after the order did (an extract with files turned on later): attached either way, once.
+      await attachOrderFiles(
+        tx,
+        lc,
+        order.remoteId,
+        fileIndex.get(order.remoteId) ?? [],
+        localId,
+        pending
+      )
       if (outcome === 'unchanged') return outcome
       if (created) createdServiceRecords++
 
@@ -391,6 +403,7 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
       if (rows.issueAsInvoice) lc.toIssue.push(localId)
       return outcome
     })
+    if (committed) lc.placedFiles.push(...pending)
   }
   return { createdServiceRecords }
 }
