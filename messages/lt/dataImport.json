@@ -5,6 +5,7 @@
   "entities": {
     "customers": "klientus",
     "vehicles": "transporto priemones",
+    "inspections": "patikros",
     "services": "paslaugų istoriją"
   },
   "entityHints": {

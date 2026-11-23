@@ -5,6 +5,7 @@
   "entities": {
     "customers": "müşterileri",
     "vehicles": "araçları",
+    "inspections": "muayeneler",
     "services": "servis geçmişini"
   },
   "entityHints": {

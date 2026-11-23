@@ -1237,7 +1237,22 @@
     "labels": "Etiketler",
     "referralSource": "Yönlendirme kaynağı",
     "originalInvoice": "Shopmonkey'den orijinal fatura",
-    "invoiceFileName": "Shopmonkey faturası {id}.pdf"
+    "invoiceFileName": "Shopmonkey faturası {id}.pdf",
+    "importName": "Shopmonkey içe aktarımı",
+    "epa": "EPA",
+    "shopSupplies": "Atölye sarf malzemeleri",
+    "deferred": "Ertelendi",
+    "deferredBecause": "Ertelendi ({reason})",
+    "refund": "İade",
+    "refundOf": "{charge} iadesi",
+    "deposit": "Kapora",
+    "paymentType": "Shopmonkey: {type}",
+    "unknownType": "bilinmiyor",
+    "checkNumber": "çek {number}",
+    "cardEnding": "{digits} ile biten kart",
+    "refundReason": "neden: {reason}",
+    "vehicleNote": "Shopmonkey notu",
+    "unnamedCustomer": "Shopmonkey müşterisi {id}"
   },
   "aiErrors": {
     "modelAccess": "Bu API anahtarının seçilen modele erişimi yok. Ayarlar → Entegrasyonlar bölümünden başka bir model seçin.",

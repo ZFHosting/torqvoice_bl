@@ -25,6 +25,17 @@ describe('the words a load writes', () => {
     )
   })
 
+  it('cover what the transforms write for people (MAPPING §6.6)', async () => {
+    locale.value = 'de'
+    const label = await importLabeler('org-1')
+    expect(label('Shop supplies')).toBe('Werkstattbedarf')
+    expect(label('Refund of {charge}', { charge: 'ch_1' })).toBe('Erstattung von ch_1')
+    expect(label('Deferred ({reason})', { reason: 'Kunde wartet' })).toBe(
+      'Zurückgestellt (Kunde wartet)'
+    )
+    expect(label('Shopmonkey customer {id}', { id: '42' })).toBe('Shopmonkey-Kunde 42')
+  })
+
   it('leave Shopmonkey’s own words as they are', async () => {
     locale.value = 'de'
     const label = await importLabeler('org-1')
@@ -35,7 +46,11 @@ describe('the words a load writes', () => {
     locale.value = 'en'
     const label = await importLabeler('org-1')
     for (const english of Object.keys(IMPORT_LABELS)) {
-      expect(label(english, { id: '{id}' })).toBe(english)
+      // Each placeholder filled with itself, so the English comes back word for word.
+      const values = Object.fromEntries(
+        [...english.matchAll(/\{(\w+)\}/g)].map(([whole, name]) => [name, whole])
+      )
+      expect(label(english, values)).toBe(english)
     }
   })
 })

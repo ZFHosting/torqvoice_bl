@@ -854,6 +854,10 @@ export async function undoImportBatch(batchId: string) {
       const batch = await db.importBatch.findFirst({ where: { id: batchId, organizationId } })
       if (!batch) throw new Error('Import not found')
       if (batch.status !== 'completed') throw new Error('This import has already been undone')
+      // fork: a Shopmonkey load spans more tables than this undo knows; it has its own (M5)
+      if (batch.source === 'shopmonkey') {
+        throw new Error('A Shopmonkey import is undone as a whole, with the Shopmonkey importer')
+      }
 
       // Anything added to the imported jobs and vehicles since (photos taken
       // on an imported job) goes with them; the files are let go afterwards.

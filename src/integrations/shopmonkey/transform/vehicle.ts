@@ -4,7 +4,17 @@
  */
 import { normalizePlate } from '@/lib/license-plate'
 import type { CustomFieldValueRow } from './customer'
-import { date, entries, type FieldSpec, num, records, str, unmappedFields, warn } from './fields'
+import {
+  date,
+  entries,
+  type FieldSpec,
+  num,
+  records,
+  say,
+  str,
+  unmappedFields,
+  warn,
+} from './fields'
 import type { Row, TransformContext, TransformResult, Warning } from './types'
 
 export const VEHICLE_FIELDS: FieldSpec = {
@@ -171,7 +181,7 @@ export function transformVehicle(
         userId: ctx.runUserId,
         organizationId: ctx.organizationId,
       },
-      note: noteText ? { title: 'Shopmonkey note', content: noteText } : null,
+      note: noteText ? { title: say(ctx, 'Shopmonkey note'), content: noteText } : null,
       customFields,
       mileageUnit: str(record.mileageUnit),
       ownerRemoteId: owner.customerId,

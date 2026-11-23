@@ -1237,7 +1237,22 @@
     "labels": "Labels",
     "referralSource": "Verwijzingsbron",
     "originalInvoice": "Originele Shopmonkey-factuur",
-    "invoiceFileName": "Shopmonkey-factuur {id}.pdf"
+    "invoiceFileName": "Shopmonkey-factuur {id}.pdf",
+    "importName": "Shopmonkey-import",
+    "epa": "EPA",
+    "shopSupplies": "Werkplaatsbenodigdheden",
+    "deferred": "Uitgesteld",
+    "deferredBecause": "Uitgesteld ({reason})",
+    "refund": "Terugbetaling",
+    "refundOf": "Terugbetaling van {charge}",
+    "deposit": "Aanbetaling",
+    "paymentType": "Shopmonkey: {type}",
+    "unknownType": "onbekend",
+    "checkNumber": "cheque {number}",
+    "cardEnding": "kaart eindigend op {digits}",
+    "refundReason": "reden: {reason}",
+    "vehicleNote": "Shopmonkey-notitie",
+    "unnamedCustomer": "Shopmonkey-klant {id}"
   },
   "aiErrors": {
     "modelAccess": "Deze API-sleutel heeft geen toegang tot het gekozen model. Kies een ander onder Instellingen → Integraties.",

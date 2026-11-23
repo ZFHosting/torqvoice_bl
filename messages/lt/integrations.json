@@ -1237,7 +1237,22 @@
     "labels": "Žymos",
     "referralSource": "Rekomendacijos šaltinis",
     "originalInvoice": "Originali Shopmonkey sąskaita faktūra",
-    "invoiceFileName": "Shopmonkey sąskaita faktūra {id}.pdf"
+    "invoiceFileName": "Shopmonkey sąskaita faktūra {id}.pdf",
+    "importName": "Importas iš Shopmonkey",
+    "epa": "EPA",
+    "shopSupplies": "Dirbtuvių eksploatacinės medžiagos",
+    "deferred": "Atidėta",
+    "deferredBecause": "Atidėta ({reason})",
+    "refund": "Grąžinimas",
+    "refundOf": "Grąžinimas už {charge}",
+    "deposit": "Avansas",
+    "paymentType": "Shopmonkey: {type}",
+    "unknownType": "nežinoma",
+    "checkNumber": "čekis {number}",
+    "cardEnding": "kortelė, kurios pabaiga {digits}",
+    "refundReason": "priežastis: {reason}",
+    "vehicleNote": "Shopmonkey pastaba",
+    "unnamedCustomer": "Shopmonkey klientas {id}"
   },
   "aiErrors": {
     "modelAccess": "Šis API raktas neturi prieigos prie pasirinkto modelio. Pasirinkite kitą skiltyje Nustatymai → Integracijos.",

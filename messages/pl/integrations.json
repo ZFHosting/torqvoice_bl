@@ -1237,7 +1237,22 @@
     "labels": "Etykiety",
     "referralSource": "Źródło polecenia",
     "originalInvoice": "Oryginalna faktura z Shopmonkey",
-    "invoiceFileName": "Faktura Shopmonkey {id}.pdf"
+    "invoiceFileName": "Faktura Shopmonkey {id}.pdf",
+    "importName": "Import z Shopmonkey",
+    "epa": "EPA",
+    "shopSupplies": "Materiały warsztatowe",
+    "deferred": "Odłożone",
+    "deferredBecause": "Odłożone ({reason})",
+    "refund": "Zwrot",
+    "refundOf": "Zwrot za {charge}",
+    "deposit": "Zaliczka",
+    "paymentType": "Shopmonkey: {type}",
+    "unknownType": "nieznany",
+    "checkNumber": "czek {number}",
+    "cardEnding": "karta kończąca się na {digits}",
+    "refundReason": "powód: {reason}",
+    "vehicleNote": "Notatka z Shopmonkey",
+    "unnamedCustomer": "Klient Shopmonkey {id}"
   },
   "aiErrors": {
     "modelAccess": "Ten klucz API nie ma dostępu do wybranego modelu. Wybierz inny w Ustawienia → Integracje.",

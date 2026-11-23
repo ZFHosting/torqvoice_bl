@@ -58,6 +58,9 @@ export const fieldName = (label: string) =>
     .replace(/^_+|_+$/g, '')
     .slice(0, 60) || 'field'
 
+/** The custom fields the importer makes itself (§3, §6.6): their labels are translated, Shopmonkey's aren't. */
+const OWN_FIELDS = new Set(['Customer type', 'Labels', 'Referral source'])
+
 /** Custom field values on a row: the definition created on first sight (MAPPING §3), the value set. */
 export async function writeCustomFields(
   tx: Tx,
@@ -85,7 +88,7 @@ export async function writeCustomFields(
           // The name stays the English one's, so a workshop that changes language keeps one field; the label is
           // what the workshop reads.
           name,
-          label: lc.label(row.name),
+          label: OWN_FIELDS.has(row.name) ? lc.label(row.name) : row.name,
           fieldType: 'text',
           entityType: row.entityType,
         },
@@ -437,7 +440,7 @@ async function writeVehicleNote(
   note: { title: string; content: string } | null
 ): Promise<void> {
   if (!note) return
-  const title = lc.label(note.title)
+  const title = note.title
   const found = await findLoaded(tx, lc.scope, 'vehicle_note', 'Note', vehicleRemoteId)
   const hash = payloadHash({ title, content: note.content })
   if (found?.hash === hash) return

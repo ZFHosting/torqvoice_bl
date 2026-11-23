@@ -1237,7 +1237,22 @@
     "labels": "Etiquetas",
     "referralSource": "Fuente de referencia",
     "originalInvoice": "Factura original de Shopmonkey",
-    "invoiceFileName": "Factura de Shopmonkey {id}.pdf"
+    "invoiceFileName": "Factura de Shopmonkey {id}.pdf",
+    "importName": "Importación de Shopmonkey",
+    "epa": "EPA",
+    "shopSupplies": "Insumos de taller",
+    "deferred": "Aplazado",
+    "deferredBecause": "Aplazado ({reason})",
+    "refund": "Reembolso",
+    "refundOf": "Reembolso de {charge}",
+    "deposit": "Depósito",
+    "paymentType": "Shopmonkey: {type}",
+    "unknownType": "desconocido",
+    "checkNumber": "cheque {number}",
+    "cardEnding": "tarjeta terminada en {digits}",
+    "refundReason": "motivo: {reason}",
+    "vehicleNote": "Nota de Shopmonkey",
+    "unnamedCustomer": "Cliente de Shopmonkey {id}"
   },
   "aiErrors": {
     "modelAccess": "Esta clave de API no tiene acceso al modelo seleccionado. Elija otro en Configuración → Integraciones.",

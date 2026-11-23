@@ -1237,7 +1237,22 @@
     "labels": "Етикети",
     "referralSource": "Източник на препоръка",
     "originalInvoice": "Оригинална фактура от Shopmonkey",
-    "invoiceFileName": "Фактура от Shopmonkey {id}.pdf"
+    "invoiceFileName": "Фактура от Shopmonkey {id}.pdf",
+    "importName": "Импорт от Shopmonkey",
+    "epa": "EPA",
+    "shopSupplies": "Сервизни консумативи",
+    "deferred": "Отложено",
+    "deferredBecause": "Отложено ({reason})",
+    "refund": "Възстановяване",
+    "refundOf": "Възстановяване на {charge}",
+    "deposit": "Депозит",
+    "paymentType": "Shopmonkey: {type}",
+    "unknownType": "неизвестно",
+    "checkNumber": "чек {number}",
+    "cardEnding": "карта, завършваща на {digits}",
+    "refundReason": "причина: {reason}",
+    "vehicleNote": "Бележка от Shopmonkey",
+    "unnamedCustomer": "Клиент от Shopmonkey {id}"
   },
   "aiErrors": {
     "modelAccess": "Този API ключ няма достъп до избрания модел. Изберете друг модел от „Настройки“ → „Интеграции“.",

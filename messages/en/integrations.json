@@ -1237,7 +1237,22 @@
     "labels": "Labels",
     "referralSource": "Referral source",
     "originalInvoice": "Original Shopmonkey invoice",
-    "invoiceFileName": "Shopmonkey invoice {id}.pdf"
+    "invoiceFileName": "Shopmonkey invoice {id}.pdf",
+    "importName": "Shopmonkey import",
+    "epa": "EPA",
+    "shopSupplies": "Shop supplies",
+    "deferred": "Deferred",
+    "deferredBecause": "Deferred ({reason})",
+    "refund": "Refund",
+    "refundOf": "Refund of {charge}",
+    "deposit": "Deposit",
+    "paymentType": "Shopmonkey: {type}",
+    "unknownType": "unknown",
+    "checkNumber": "check {number}",
+    "cardEnding": "card ending {digits}",
+    "refundReason": "reason: {reason}",
+    "vehicleNote": "Shopmonkey note",
+    "unnamedCustomer": "Shopmonkey customer {id}"
   },
   "aiErrors": {
     "modelAccess": "This API key has no access to the selected model. Pick another in Settings → Integrations.",

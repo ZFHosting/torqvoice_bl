@@ -80,6 +80,7 @@ export function createLoadContext(input: {
       countryCode: input.countryCode,
       resolve: (table, remoteId) => input.resolver.resolve(table, remoteId),
       settings: { statusStageMap: input.statusStageMap, technicianMap: input.technicianMap ?? {} },
+      label: input.label,
     },
     counts: {},
     warnings: [],
