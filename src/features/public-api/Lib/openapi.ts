@@ -28,6 +28,8 @@ export interface EndpointSpec {
   /** Query parameters, as one zod object. */
   query?: z.ZodObject
   body?: z.ZodType
+  /** The request body's media type when it isn't JSON (an upload: `multipart/form-data`). */
+  bodyContentType?: string
   /** The `data` of the success response. */
   response: z.ZodType
   /** Lists answer with `meta.nextCursor` and `meta.hasMore`. */
@@ -126,7 +128,9 @@ export function buildOpenApiDocument(endpoints: readonly EndpointSpec[]) {
         ? {
             requestBody: {
               required: true,
-              content: { 'application/json': { schema: toSchema(e.body, 'input') } },
+              content: {
+                [e.bodyContentType ?? 'application/json']: { schema: toSchema(e.body, 'input') },
+              },
             },
           }
         : {}),

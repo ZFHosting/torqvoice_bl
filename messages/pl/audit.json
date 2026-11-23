@@ -246,6 +246,7 @@
     "shift_create": "Dodano zmianę",
     "shift_update": "Zmieniono zmianę",
     "shift_delete": "Usunięto zmianę",
+    "time_entry_start": "Uruchomiono zegar",
     "platform_revokeSuperAdmin": "Odebrano superadmina"
   },
   "summary": {

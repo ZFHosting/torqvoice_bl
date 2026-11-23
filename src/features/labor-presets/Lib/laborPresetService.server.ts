@@ -6,11 +6,26 @@ import 'server-only'
 import { db } from '@/lib/db'
 import { createLaborPresetSchema, updateLaborPresetSchema } from '../Schema/laborPresetSchema'
 import { revalidatePath } from 'next/cache'
+import { parseSentFields } from '@/lib/parse-sent-fields'
 import type { ServiceCtx } from '@/lib/service-context'
+
+/** fork: a preset's part links only to this workshop's inventory (A4): ids from a client can be another's. */
+async function assertOwnInventoryParts(
+  parts: { inventoryPartId?: string }[] | undefined,
+  organizationId: string
+) {
+  const ids = [...new Set((parts ?? []).map((p) => p.inventoryPartId).filter((id) => !!id))]
+  if (ids.length === 0) return
+  const own = await db.inventoryPart.count({
+    where: { id: { in: ids as string[] }, organizationId },
+  })
+  if (own !== ids.length) throw new Error('Inventory part not found')
+}
 
 export async function createLaborPresetService(ctx: ServiceCtx, input: unknown) {
   const { userId, organizationId } = ctx
   const data = createLaborPresetSchema.parse(input)
+  await assertOwnInventoryParts(data.parts, organizationId)
   const resolvedName = data.name?.trim() || data.items[0]?.description || 'Untitled'
   const preset = await db.laborPreset.create({
     data: {
@@ -50,7 +65,8 @@ export async function createLaborPresetService(ctx: ServiceCtx, input: unknown) 
 
 export async function updateLaborPresetService(ctx: ServiceCtx, input: unknown) {
   const { userId, organizationId } = ctx
-  const data = updateLaborPresetSchema.parse(input)
+  // fork: only the fields sent, so a change of name keeps the preset's items and parts (A4). The form sends them all.
+  const data = parseSentFields(updateLaborPresetSchema, input)
   const { id, items, parts, ...updateData } = data
   // Resolve name from first item if not provided
   if (updateData.name !== undefined) {
@@ -61,11 +77,12 @@ export async function updateLaborPresetService(ctx: ServiceCtx, input: unknown) 
     where: { id, organizationId },
   })
   if (!existing) throw new Error('Preset not found')
+  await assertOwnInventoryParts(parts, organizationId)
 
   await db.$transaction(async (tx) => {
-    // Delete old items and parts
-    await tx.laborPresetItem.deleteMany({ where: { presetId: id } })
-    await tx.laborPresetPart.deleteMany({ where: { presetId: id } })
+    // Delete old items and parts (fork: the ones being replaced)
+    if (items !== undefined) await tx.laborPresetItem.deleteMany({ where: { presetId: id } })
+    if (parts !== undefined) await tx.laborPresetPart.deleteMany({ where: { presetId: id } })
 
     // Update preset and create new items/parts
     return tx.laborPreset.update({

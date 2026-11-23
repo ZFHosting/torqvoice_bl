@@ -246,6 +246,7 @@
     "shift_create": "Skift lagt til",
     "shift_update": "Skift endret",
     "shift_delete": "Skift fjernet",
+    "time_entry_start": "Klokke startet",
     "platform_revokeSuperAdmin": "Fjernet superadmin"
   },
   "summary": {

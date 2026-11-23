@@ -246,6 +246,7 @@
     "shift_create": "Vardiya eklendi",
     "shift_update": "Vardiya değiştirildi",
     "shift_delete": "Vardiya kaldırıldı",
+    "time_entry_start": "Saat başlatıldı",
     "platform_revokeSuperAdmin": "Süper yönetici yetkisi kaldırıldı"
   },
   "summary": {

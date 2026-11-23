@@ -223,6 +223,36 @@ export const workOrderEndpoints: EndpointSpec[] = [
   child('payments', 'A work order’s payments', z.array(paymentSchema)),
   child('attachments', 'A work order’s attachments (metadata)', z.array(attachmentSchema)),
   {
+    method: 'post',
+    path: '/work-orders/{id}/attachments',
+    summary:
+      'Attach a file: a photo (JPEG, PNG, WebP, HEIC, 60 MB), a PDF, text or CSV (25 MB) or a video (MP4, MOV, WebM, 250 MB)',
+    tag: 'Work orders',
+    body: z.object({
+      file: z.string().meta({ format: 'binary' }).describe('The file, with its own Content-Type'),
+      category: z
+        .enum(['image', 'diagnostic', 'document', 'dropoff'])
+        .optional()
+        .describe(
+          'image for a photo, document for a PDF or text, unless sent; a video is always video'
+        ),
+      description: z.string().max(500).optional(),
+      includeInInvoice: z
+        .enum(['true', 'false'])
+        .optional()
+        .describe('true unless sent, false for dropoff'),
+    }),
+    bodyContentType: 'multipart/form-data',
+    response: attachmentSchema,
+    status: 201,
+  },
+  write(
+    'delete',
+    '/work-orders/{id}/attachments/{attachmentId}',
+    'Remove an attachment (and its file, unless something else uses it)',
+    deletedSchema
+  ),
+  {
     method: 'get',
     path: '/work-orders/{id}/attachments/{attachmentId}/content',
     summary: 'An attachment’s file',

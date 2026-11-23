@@ -246,6 +246,7 @@
     "shift_create": "Смена добавлена",
     "shift_update": "Смена изменена",
     "shift_delete": "Смена удалена",
+    "time_entry_start": "Учёт времени запущен",
     "platform_revokeSuperAdmin": "Сняты права суперадмина"
   },
   "summary": {

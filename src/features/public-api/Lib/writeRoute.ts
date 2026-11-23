@@ -8,15 +8,18 @@
  * refusal is a response, not a throw, so an idempotent POST that was refused replays the same refusal.
  */
 import 'server-only'
+import { createHash } from 'node:crypto'
 import { ZodError } from 'zod'
 import { CustomFieldsRefusedError } from '@/features/custom-fields/Lib/recordCustomFieldValues.server'
 import {
   InvalidMeterReadingError,
   MeterNotOnJobError,
 } from '@/features/meters/Lib/jobMeterReading.server'
+import { TimeEntryError } from '@/features/time-tracking/Lib/timeEntries'
 import { AddPartError } from '@/features/vehicles/Lib/addPart'
 import { type AuditEvent, logAudit } from '@/lib/audit'
 import { RestoreInProgressError } from '@/lib/backup/freeze'
+import { assertContentLength } from '@/lib/backup/zip-guard'
 import { DocumentLockedError } from '@/lib/document-lock'
 import { FeatureGatedError } from '@/lib/features'
 import type { PermissionInput } from '@/lib/permissions'
@@ -47,6 +50,58 @@ export interface WriteOptions<P extends Record<string, string>, R> {
     ctx: PublicApiContext,
     params: P
   ) => Promise<{ status?: number; data: unknown } | Response>
+  /**
+   * A POST whose body is `multipart/form-data` (an upload), at most this many bytes: `run` is given the `FormData`.
+   * A body over the limit is a 413 before it is read when it says its length, and after otherwise.
+   */
+  multipart?: { maxBytes: number }
+}
+
+/**
+ * An upload's form, and what `Idempotency-Key` compares it by: its fields and files in order, not its bytes, since a
+ * client sending it again picks a new multipart boundary.
+ */
+async function readMultipart(
+  request: Request,
+  maxBytes: number
+): Promise<{ form: FormData; text: string } | Response> {
+  const tooLarge = () =>
+    publicApiError(413, 'invalid_request', `The upload is larger than ${maxBytes} bytes.`)
+  try {
+    assertContentLength(request, maxBytes)
+  } catch {
+    return tooLarge()
+  }
+  const bytes = new Uint8Array(await request.arrayBuffer())
+  if (bytes.byteLength > maxBytes) return tooLarge()
+  let form: FormData
+  try {
+    form = await new Response(bytes, {
+      headers: { 'content-type': request.headers.get('content-type') ?? '' },
+    }).formData()
+  } catch {
+    return publicApiError(
+      400,
+      'invalid_request',
+      'The request body was not valid multipart/form-data.'
+    )
+  }
+  const hash = createHash('sha256')
+  for (const [name, value] of form.entries()) {
+    const part =
+      typeof value === 'string'
+        ? [name, value]
+        : [
+            name,
+            value.name,
+            value.type,
+            createHash('sha256')
+              .update(new Uint8Array(await value.arrayBuffer()))
+              .digest('hex'),
+          ]
+    hash.update(`${JSON.stringify(part)}\n`)
+  }
+  return { form, text: `multipart:${hash.digest('hex')}` }
 }
 
 function isPrismaError(err: unknown, code: string): boolean {
@@ -78,6 +133,13 @@ export function domainErrorResponse(err: unknown): Response | null {
   }
   if (err instanceof RestoreInProgressError) return publicApiError(409, 'conflict', err.message)
   if (err instanceof AddPartError) return publicApiError(404, 'not_found', err.message)
+  if (err instanceof TimeEntryError) {
+    return err.code === 'job_not_found'
+      ? publicApiError(404, 'not_found', err.message)
+      : err.code === 'invalid_range'
+        ? publicApiError(400, 'invalid_request', err.message)
+        : publicApiError(409, 'conflict', err.message)
+  }
   if (
     err instanceof CustomFieldsRefusedError ||
     err instanceof InvalidMeterReadingError ||
@@ -112,7 +174,16 @@ export function writeRoute<P extends Record<string, string>, R>(
       request,
       async (ctx) => {
         const routeParams = await params
-        const text = method === 'DELETE' ? '' : await request.text()
+        let upload: FormData | null = null
+        let text = ''
+        if (options.multipart) {
+          const read = await readMultipart(request, options.multipart.maxBytes)
+          if (read instanceof Response) return read
+          upload = read.form
+          text = read.text
+        } else if (method !== 'DELETE') {
+          text = await request.text()
+        }
         const svc: ServiceCtx = {
           organizationId: ctx.organizationId,
           userId: ctx.userId,
@@ -120,7 +191,7 @@ export function writeRoute<P extends Record<string, string>, R>(
         }
         const exec = async (): Promise<Response> => {
           try {
-            const body = parseBody(text)
+            const body = upload ?? parseBody(text)
             if (options.current) {
               const row = await options.current(ctx, routeParams)
               if (!row) return publicApiError(404, 'not_found', 'Not found.')

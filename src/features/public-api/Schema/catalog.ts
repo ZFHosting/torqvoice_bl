@@ -3,8 +3,17 @@
  * (`?q=` over name, part number and barcode, `?category=`) (docs/fork/API.md §4).
  */
 import { z } from 'zod'
+import {
+  createInventoryPartSchema,
+  updateInventoryPartSchema,
+} from '@/features/inventory/Schema/inventorySchema'
+import {
+  createLaborPresetSchema,
+  updateLaborPresetSchema,
+} from '@/features/labor-presets/Schema/laborPresetSchema'
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
+import { patchBody, writeEndpoints } from '../Lib/writeSpec'
 
 export const laborPresetItemSchema = z
   .object({
@@ -90,7 +99,39 @@ export const inventoryPartsSpec: ReadSpec<InventoryPartOut> = {
   response: inventoryPartSchema,
 }
 
+/** `POST /inventory-parts/{id}/adjust` (A4). */
+export const adjustStockSchema = z
+  .object({
+    delta: z
+      .number()
+      .refine((d) => d !== 0, 'A change of nothing')
+      .describe('Added to the count (negative takes away)'),
+    note: z.string().trim().max(500).optional().describe('Kept on the stock history line'),
+  })
+  .strict()
+
 export const catalogEndpoints: EndpointSpec[] = [
   ...readEndpoints(laborPresetsSpec),
+  ...writeEndpoints({
+    ...laborPresetsSpec,
+    create: createLaborPresetSchema,
+    update: patchBody(updateLaborPresetSchema),
+    remove: true,
+  }),
   ...readEndpoints(inventoryPartsSpec),
+  ...writeEndpoints({
+    ...inventoryPartsSpec,
+    create: createInventoryPartSchema,
+    update: patchBody(updateInventoryPartSchema),
+    remove: true,
+  }),
+  {
+    method: 'post',
+    path: '/inventory-parts/{id}/adjust',
+    summary:
+      'Move a part’s stock count, with a line in its stock history (no webhook, as in the app)',
+    tag: inventoryPartsSpec.tag,
+    body: adjustStockSchema,
+    response: inventoryPartSchema,
+  },
 ]

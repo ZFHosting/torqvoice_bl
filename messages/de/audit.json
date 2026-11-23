@@ -246,6 +246,7 @@
     "shift_create": "Schicht hinzugefügt",
     "shift_update": "Schicht geändert",
     "shift_delete": "Schicht entfernt",
+    "time_entry_start": "Zeiterfassung gestartet",
     "platform_revokeSuperAdmin": "Super-Admin entzogen"
   },
   "summary": {

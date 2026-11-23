@@ -246,6 +246,7 @@
     "shift_create": "Turno añadido",
     "shift_update": "Turno modificado",
     "shift_delete": "Turno eliminado",
+    "time_entry_start": "Reloj iniciado",
     "platform_revokeSuperAdmin": "Superadministrador retirado"
   },
   "summary": {

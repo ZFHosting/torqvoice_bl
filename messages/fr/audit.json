@@ -246,6 +246,7 @@
     "shift_create": "Quart ajouté",
     "shift_update": "Quart modifié",
     "shift_delete": "Quart supprimé",
+    "time_entry_start": "Pointage démarré",
     "platform_revokeSuperAdmin": "Super administrateur retiré"
   },
   "summary": {

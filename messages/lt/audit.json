@@ -246,6 +246,7 @@
     "shift_create": "Pamaina pridėta",
     "shift_update": "Pamaina pakeista",
     "shift_delete": "Pamaina pašalinta",
+    "time_entry_start": "Laikmatis paleistas",
     "platform_revokeSuperAdmin": "Atimtos vyriausiojo administratoriaus teisės"
   },
   "summary": {

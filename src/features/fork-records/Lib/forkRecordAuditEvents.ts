@@ -40,6 +40,28 @@ export function shiftEvent(
   }
 }
 
+/**
+ * A clock started through the API (`POST /time-entries/start`). The technician app's own start logs nothing; the
+ * name is API.md §5's, which A5 turns into a webhook event.
+ */
+export function timeEntryStartEvent(started: {
+  id: string
+  technicianId: string
+  serviceRecordId: string
+  closedEntryId: string | null
+}): AuditEvent {
+  return {
+    action: 'time_entry.start',
+    entity: 'timeEntry',
+    entityId: started.id,
+    metadata: {
+      technicianId: started.technicianId,
+      workOrderId: started.serviceRecordId,
+      closedEntryId: started.closedEntryId,
+    },
+  }
+}
+
 /** The action names, for the audit log's labels and the test that every emitted action has one. */
 export const FORK_RECORD_ACTIONS = [
   'contact.create',
@@ -51,4 +73,5 @@ export const FORK_RECORD_ACTIONS = [
   'shift.create',
   'shift.update',
   'shift.delete',
+  'time_entry.start',
 ] as const

@@ -246,6 +246,7 @@
     "shift_create": "Shift added",
     "shift_update": "Shift changed",
     "shift_delete": "Shift removed",
+    "time_entry_start": "Clock started",
     "platform_revokeSuperAdmin": "Removed Super Admin"
   },
   "summary": {

@@ -246,6 +246,7 @@
     "shift_create": "Добавена смяна",
     "shift_update": "Променена смяна",
     "shift_delete": "Премахната смяна",
+    "time_entry_start": "Часовникът е пуснат",
     "platform_revokeSuperAdmin": "Премахнат супер администратор"
   },
   "summary": {

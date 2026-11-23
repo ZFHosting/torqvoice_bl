@@ -246,6 +246,7 @@
     "shift_create": "Dienst toegevoegd",
     "shift_update": "Dienst gewijzigd",
     "shift_delete": "Dienst verwijderd",
+    "time_entry_start": "Klok gestart",
     "platform_revokeSuperAdmin": "Superbeheerder ingetrokken"
   },
   "summary": {
