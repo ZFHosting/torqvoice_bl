@@ -459,7 +459,7 @@ describe('paths that would leave Shopmonkey after encoding', () => {
     const { client, fetch } = setup([])
     for (const path of [
       '/v3/x/%2e%2e/vehicle/vin/1HGCM82633A004352',
-      '/v3/vehicle\vin/1HGCM82633A004352',
+      '/v3/vehicle\\vin/1HGCM82633A004352',
       '/v3/%2e%2e/v2/customer',
       '/v3/order/a b',
     ]) {

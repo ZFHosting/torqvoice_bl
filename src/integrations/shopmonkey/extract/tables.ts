@@ -25,10 +25,10 @@ export type ChildSpec =
   | { kind: 'list'; table: string; path: string; parentField?: string }
   /** A search for the records whose `parentField` is the parent's id. */
   | { kind: 'search'; table: string; path: string; parentField: string }
-  /** `files[]` on the parent (fetched by id when the list didn't carry them), each downloaded. */
+  /** `files[]` on the parent (read fresh by id: links may be signed), each downloaded. */
   | { kind: 'files'; table: string; detailPath: string }
-  /** `items[].files[]` on the parent as listed, each downloaded. */
-  | { kind: 'itemFiles'; table: string }
+  /** `items[].files[]` on the parent (read fresh by id), each downloaded. */
+  | { kind: 'itemFiles'; table: string; detailPath: string }
   /** Shopmonkey's own PDF of an invoice. */
   | { kind: 'invoicePdf'; table: string; path: string }
   /** The record the parent's `field` names, fetched by id when no list staged it. */
@@ -150,7 +150,7 @@ export const TABLES: readonly TableSpec[] = [
   get('inspection_template'),
   get('inspection', {
     location: 'locationId',
-    children: [{ kind: 'itemFiles', table: 'inspection_file' }],
+    children: [{ kind: 'itemFiles', table: 'inspection_file', detailPath: '/v3/inspection/:id' }],
   }),
   search('timesheet'),
 

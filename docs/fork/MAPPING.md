@@ -80,6 +80,24 @@ them): a vehicle's mileage, engine and tire-pressure logs, images, deferred serv
 the services carry); inspection quick notes; message thread metadata; role notification settings; inventory
 templates (`/v3/inventory_part|tire/template/search`).
 
+**Archive-only data the extractor can't reach** **[provisional: S4]**: the fleet entity behind
+`customer.fleetId` (no Fleet table or endpoint in the published reference; the id stays in the customer's
+payload); the images of signed documents (`order_signed_invoice`, `order_signed_inspection`: no read endpoint
+in the reference; the authorization rows that record a signature are staged); purchase-order lines, unless
+`GET /v3/purchase_order` embeds them (the payload is staged as returned, so embedded lines come with it). Each
+is re-checked with a key (B1).
+
+**How a re-run sees changes** **[provisional: S2]**: a table with a list is re-read whole (or by `updatedDate`
+for searches with `--since`), and an unchanged record writes nothing. Records reached only as children are
+refetched when their parent's payload changes: a vehicle when its customer changes, its owners when the
+vehicle changes, an order's services, payments, authorizations and files when the order changes. An edit to
+a child alone (a vehicle's mileage, a payment's note) isn't seen until its parent changes; M7's webhooks (and
+its polling backstop) have to cover those. A parent's hash leaves out the links of its `files[]` entries,
+which may be signed per read, so a fresh link alone doesn't refetch its children; file links are always read
+fresh from the parent by id at download time. A file that fails to download for now (a 5xx, an expired
+link, a timeout) isn't staged and leaves its parent pending, so the next run tries again; one refused for
+good (too large, a type the app doesn't take, a private address, not a link) is staged with `_staged.skipped`.
+
 ---
 
 ## 2. Fork schema extensions (built in M1)

@@ -115,6 +115,8 @@ export async function POST(request: NextRequest) {
         const { out } = await writeSourceArchive(organizationId, () => {
           const lines = new PassThrough()
           archive.append(lines, { name: SOURCE_ARCHIVE_FILE })
+          // A dropped download stops this writer too.
+          archive.on('close', () => lines.destroy())
           return lines
         })
         out?.end()

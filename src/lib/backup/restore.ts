@@ -187,7 +187,7 @@ export async function locateRestored(
 ): Promise<{ dataFile: string | null; filesDir: string | null; archiveFile?: string }> {
   let dataFile: string | null = null
   // fork: the import archive, written beside data.json (lib/backup/fork-archive.ts)
-  let archiveFile: string | null = null
+  const archives: string[] = []
   const uploadDirs: string[] = []
   const walk = async (dir: string, depth: number) => {
     if (depth > MAX_DEPTH) return
@@ -195,7 +195,7 @@ export async function locateRestored(
       const full = path.join(dir, entry.name)
       if (entry.isFile()) {
         if (entry.name === 'data.json' && !dataFile) dataFile = full
-        if (entry.name === SOURCE_ARCHIVE_FILE && !archiveFile) archiveFile = full // fork
+        if (entry.name === SOURCE_ARCHIVE_FILE) archives.push(full) // fork
         continue
       }
       if (!entry.isDirectory()) continue
@@ -209,6 +209,9 @@ export async function locateRestored(
   await walk(root, 0)
   uploadDirs.sort()
   const own = uploadDirs.find((d) => path.basename(d) === organizationId)
+  // fork: the archive beside the data file, never one from elsewhere in the tree
+  const dataDir = dataFile ? path.dirname(dataFile) : null
+  const archiveFile = archives.find((file) => path.dirname(file) === dataDir)
   return {
     dataFile,
     filesDir: own ?? uploadDirs[0] ?? null,

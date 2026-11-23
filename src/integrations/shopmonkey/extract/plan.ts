@@ -58,6 +58,8 @@ export interface ChildCounts extends StepCounts {
   gone: number
   /** Children or references Shopmonkey answered 404 for. */
   missing: number
+  /** Parents left pending because a file failed for now: the next run fetches their children again. */
+  retry: number
 }
 
 export interface StepCheckpoint {
@@ -105,7 +107,7 @@ export function emptyCounts(): StepCounts {
 }
 
 export function emptyChildCounts(): ChildCounts {
-  return { ...emptyCounts(), parents: 0, gone: 0, missing: 0 }
+  return { ...emptyCounts(), parents: 0, gone: 0, missing: 0, retry: 0 }
 }
 
 export function newCheckpoint(

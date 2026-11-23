@@ -3,6 +3,7 @@ import type {
   ConnectorServer,
   SettingOption,
 } from '@/features/integrations/Lib/types'
+import { saveExtractState } from '@/features/shopmonkey-import/Lib/extractState.server'
 import { auditDetails, logAudit } from '@/lib/audit'
 import {
   BACKFILL_BUDGET,
@@ -66,7 +67,7 @@ export function extractDepsFor(ctx: ConnectorContext): ExtractDeps {
     client: shopmonkeyClientFor(ctx),
     store: prismaSourceStore(scope),
     files: createFileStager({ connectionId: ctx.connection.id }),
-    settings: extractSettings(ctx.connection.settings),
+    settings: extractSettings(ctx.connection.settings, ctx.timezone),
     companyId: ctx.connection.externalAccountId,
     log: (level, message, details) => ctx.log(level, message, details),
   }
@@ -112,8 +113,14 @@ async function extractStepJob(ctx: ConnectorContext, payload: Record<string, unk
   try {
     const result = await extractFor(extractDepsFor(ctx), state, {
       budgetMs: EXTRACT_BUDGET_MS,
-      save: (next) => ctx.saveState({ extract: next }),
+      // Only while this is still the connection's run: a new start or the CLI replaces it.
+      save: (next) =>
+        saveExtractState(
+          { connectionId: ctx.connection.id, organizationId: ctx.connection.organizationId },
+          next
+        ),
     })
+    if (result.replaced) return { summary: 'Replaced by a newer extract' }
     if (!result.done) {
       // A line for the log when a table changes hands, not one per unit.
       const moved = result.state.step !== state.step

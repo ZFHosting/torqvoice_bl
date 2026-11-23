@@ -37,7 +37,8 @@ export const STAGED_FILE_TYPES: ReadonlySet<string> = new Set([
 export const MAX_STAGED_FILE_BYTES = 500 * 1024 * 1024
 /** An invoice PDF is read into memory; anything larger isn't an invoice. */
 export const MAX_PDF_BYTES = 25 * 1024 * 1024
-const TIMEOUT_MS = 120_000
+/** A download that hasn't finished by then is tried again on the next run. */
+const TIMEOUT_MS = 5 * 60_000
 const MAX_REDIRECTS = 3
 
 const EXTENSIONS: Record<string, string> = {
@@ -93,6 +94,18 @@ class PrivateAddressError extends Error {
   code = 'EPRIVATEADDRESS'
 }
 
+/**
+ * A download that failed for now (a 5xx, an expired signed link answering 401 or 403, a timeout, a
+ * dropped connection, a name that didn't resolve): nothing is staged, and the next run tries again.
+ * `reason` is a word for the log, never the link.
+ */
+export class TransientDownloadError extends Error {
+  constructor(readonly reason: string) {
+    super(`A staged file could not be downloaded for now (${reason})`)
+    this.name = 'TransientDownloadError'
+  }
+}
+
 /** The connection's own DNS lookup, refusing a private, loopback or link-local answer. */
 function guardedLookup(
   hostname: string,
@@ -134,7 +147,7 @@ export interface FileStagerOptions {
   root?: string
   /** How a URL is fetched; the guarded https GET unless a test says otherwise. */
   open?: (url: URL, signal: AbortSignal) => Promise<IncomingMessage>
-  check?: (url: string) => Promise<{ ok: boolean }>
+  check?: (url: string) => Promise<{ ok: boolean; reason?: string }>
 }
 
 export function createFileStager(options: FileStagerOptions): FileStager {
@@ -173,8 +186,17 @@ export function createFileStager(options: FileStagerOptions): FileStager {
       try {
         let current = url
         for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-          const parsed = new URL(current)
-          if (parsed.protocol !== 'https:' || !(await check(current)).ok) {
+          let parsed: URL
+          try {
+            parsed = new URL(current)
+          } catch {
+            return { skipped: 'refused_url' }
+          }
+          if (parsed.protocol !== 'https:') return { skipped: 'refused_url' }
+          const verdict = await check(current)
+          if (!verdict.ok) {
+            // A name that didn't resolve may resolve tomorrow; a private or metadata address never will.
+            if (verdict.reason === 'dns_resolution_failed') throw new TransientDownloadError('dns')
             return { skipped: 'refused_url' }
           }
           const res = await open(parsed, controller.signal)
@@ -192,8 +214,17 @@ export function createFileStager(options: FileStagerOptions): FileStager {
           }
           if (status < 200 || status >= 300) {
             res.destroy()
-            // Worth another try later: the step fails and the job runner retries it.
-            throw new Error(`A staged file answered ${status}`)
+            // A 5xx, or a signed link that expired (401, 403): the next run reads a fresh link.
+            if (
+              status >= 500 ||
+              status === 401 ||
+              status === 403 ||
+              status === 408 ||
+              status === 429
+            ) {
+              throw new TransientDownloadError(`status ${status}`)
+            }
+            return { skipped: 'refused_url' }
           }
           const type = baseType(res.headers['content-type'] ?? null)
           if (!STAGED_FILE_TYPES.has(type)) {
@@ -242,7 +273,11 @@ export function createFileStager(options: FileStagerOptions): FileStager {
         ) {
           return { skipped: 'refused_url' }
         }
-        throw err
+        if (err instanceof TransientDownloadError) throw err
+        // A timeout, a dropped connection, a reset: named, never quoted (a message can carry the host).
+        throw new TransientDownloadError(
+          controller.signal.aborted ? 'timeout' : (err as Error)?.name || 'network'
+        )
       } finally {
         clearTimeout(timer)
       }

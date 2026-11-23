@@ -2495,7 +2495,10 @@ export async function restoreBackup(
 
         // fork: archived source payloads and delete tombstones
         await restoreForkArchive(tx, data, ctx.organizationId, memberUserIds)
-        if (archive) await restoreSourceArchive(tx, archive, ctx.organizationId)
+        // Only with the marker that cleared the archive first (fork-archive.ts): one row per object.
+        if (archive && 'sourceRecords' in data) {
+          await restoreSourceArchive(tx, archive, ctx.organizationId)
+        }
 
         // 12. Insert SMS messages
         if (data.smsMessages?.length) {

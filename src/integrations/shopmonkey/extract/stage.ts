@@ -39,6 +39,31 @@ export function payloadHash(payload: unknown): string {
   return createHash('sha256').update(canonicalJson(payload)).digest('hex')
 }
 
+/** The links of a file entry, which may be signed per read. PROVISIONAL(M0:S4). */
+const FILE_LINKS = new Set(['url', 'thumbnailUrl'])
+
+/** The payload without the links of any `files[]` entry in it, at any depth. */
+function withoutFileLinks(value: unknown, inFiles = false): unknown {
+  if (Array.isArray(value)) return value.map((v) => withoutFileLinks(v, inFiles))
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([key]) => !(inFiles && FILE_LINKS.has(key)))
+        .map(([key, v]) => [key, withoutFileLinks(v, key === 'files')])
+    )
+  }
+  return value
+}
+
+/**
+ * A record's hash, the links of its file entries left out (an order's `files[]`, an inspection's
+ * `items[].files[]`): signed per read, they would change every parent's hash on every run and refetch
+ * all its children. The stored payload keeps them.
+ */
+export function recordHash(payload: unknown): string {
+  return payloadHash(withoutFileLinks(payload))
+}
+
 function dateOrNull(value: unknown): Date | null {
   if (typeof value !== 'string' || !value) return null
   const date = new Date(value)
@@ -64,6 +89,8 @@ export interface PendingParent {
   remoteId: string
   payload: Record<string, unknown>
   payloadHash: string
+  /** The hash its children were fetched for before (null on a first fetch or after a reset). */
+  childrenHash: string | null
 }
 
 /** What the extractor needs from the archive. The app's is Prisma; tests use an in-memory one. */
@@ -123,7 +150,7 @@ export function prismaSourceStore(
       for (const record of records) {
         byId.set(remoteIdOf(table, record.payload), {
           payload: record.payload,
-          hash: record.hash ?? payloadHash(record.payload),
+          hash: record.hash ?? recordHash(record.payload),
         })
       }
       if (byId.size === 0) return []
@@ -175,7 +202,7 @@ export function prismaSourceStore(
     async pendingChildren(table, afterId, limit) {
       // Prisma can't compare two columns with a null on one side, so this one is SQL.
       return client.$queryRaw<PendingParent[]>`
-        SELECT "id", "remoteId", "payload", "payloadHash"
+        SELECT "id", "remoteId", "payload", "payloadHash", "childrenHash"
         FROM "public"."source_records"
         WHERE "organizationId" = ${organizationId}
           AND "source" = ${SOURCE}

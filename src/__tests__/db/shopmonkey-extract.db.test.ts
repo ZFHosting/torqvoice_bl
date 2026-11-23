@@ -30,6 +30,7 @@ let plan: typeof import('@/integrations/shopmonkey/extract/plan')
 let client: typeof import('@/integrations/shopmonkey/client')
 let orgA = ''
 let orgB = ''
+const users: string[] = []
 
 function depsFor(organizationId: string, mock: ReturnType<typeof createMockShopmonkey>) {
   return {
@@ -96,6 +97,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!db) return
   await db.organization.deleteMany({ where: { id: { in: [orgA, orgB].filter(Boolean) } } })
+  if (users.length) await db.user.deleteMany({ where: { id: { in: users } } })
 })
 
 describe('a full extract into PostgreSQL', () => {
@@ -187,5 +189,49 @@ describe('a full extract into PostgreSQL', () => {
     const storeA = stage.prismaSourceStore({ organizationId: orgA, connectionId: `conn-${stamp}` })
     expect((await storeA.hashes('order', [String(order.id)])).size).toBe(1)
     expect(await db.sourceRecord.count({ where: { organizationId: orgB } })).toBe(1)
+  })
+})
+
+describe('saving a run’s checkpoint', () => {
+  it('goes through only while the run is the connection’s, and only in its workshop', async () => {
+    const { saveExtractState } = await import(
+      '@/features/shopmonkey-import/Lib/extractState.server'
+    )
+    const user = await db.user.create({
+      data: { email: `extract-owner-${stamp}@example.com`, name: 'Owner' },
+    })
+    users.push(user.id)
+    const connection = await db.integrationConnection.create({
+      data: {
+        organizationId: orgA,
+        connectorId: 'shopmonkey',
+        createdById: user.id,
+        state: { other: 1, extract: { runId: 'run-1' } },
+      },
+    })
+    const scope = { connectionId: connection.id, organizationId: orgA }
+    const run1 = { ...plan.startState(null, { runId: 'run-1', now: NOW }), step: 3 }
+    const stateOf = async () =>
+      (await db.integrationConnection.findUnique({ where: { id: connection.id } }))
+        ?.state as Record<string, never>
+
+    expect(await saveExtractState(scope, run1)).toBe(true)
+    expect(await stateOf()).toMatchObject({ other: 1, extract: { runId: 'run-1', step: 3 } })
+
+    // A new start replaces the run while the old one is between units.
+    await db.integrationConnection.update({
+      where: { id: connection.id },
+      data: { state: { other: 1, extract: { runId: 'run-2' } } },
+    })
+    expect(await saveExtractState(scope, { ...run1, step: 4 })).toBe(false)
+    expect(await stateOf()).toEqual({ other: 1, extract: { runId: 'run-2' } })
+
+    // Another workshop's id never matches.
+    expect(
+      await saveExtractState(
+        { connectionId: connection.id, organizationId: orgB },
+        { ...run1, runId: 'run-2' }
+      )
+    ).toBe(false)
   })
 })

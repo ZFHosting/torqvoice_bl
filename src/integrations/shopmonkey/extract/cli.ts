@@ -4,7 +4,7 @@
  * is what an initial backfill of a large shop wants.
  */
 import { PAGE_SIZE } from '../client'
-import { type ExtractDeps, extractStep } from './engine'
+import { type ExtractDeps, extractStep, type SaveExtract } from './engine'
 import { type ExtractState, planFor, startState } from './plan'
 
 export interface ExtractArgs {
@@ -86,15 +86,18 @@ export function formatProgress(state: ExtractState, callsPerMinute: number): str
   return `${head}  children of ${cp.children.parents.toLocaleString('en')} fetched · ${rate}`
 }
 
-/** Steps until done, saving after each and printing progress at most every `everyMs`. */
+/**
+ * Steps until done (or until another start replaces the run), saving after each and printing progress at
+ * most every `everyMs`.
+ */
 export async function driveExtract(options: {
   deps: ExtractDeps
   state: ExtractState
-  save: (state: ExtractState) => Promise<void>
+  save: SaveExtract
   print: (line: string) => void
   clock?: () => number
   everyMs?: number
-}): Promise<ExtractState> {
+}): Promise<{ state: ExtractState; replaced: boolean }> {
   const clock = options.clock ?? Date.now
   const every = options.everyMs ?? 5000
   const started = clock()
@@ -103,7 +106,7 @@ export async function driveExtract(options: {
   let state = options.state
   for (;;) {
     const result = await extractStep(options.deps, state)
-    await options.save(result.state)
+    if ((await options.save(result.state)) === false) return { state: result.state, replaced: true }
     state = result.state
     const now = clock()
     const minutes = Math.max((now - started) / 60_000, 1 / 60)
@@ -111,6 +114,6 @@ export async function driveExtract(options: {
       options.print(formatProgress(state, (state.calls - callsAtStart) / minutes))
       printed = now
     }
-    if (result.done) return state
+    if (result.done) return { state, replaced: false }
   }
 }

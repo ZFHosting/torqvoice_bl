@@ -137,3 +137,47 @@ describe('bytes in hand', () => {
     })
   })
 })
+
+describe('a link that fails for now', () => {
+  it('is tried again later: a 401 or 403 (an expired signed link), a 5xx, a name that did not resolve, a dropped connection', async () => {
+    const { TransientDownloadError } = await import('@/integrations/shopmonkey/extract/files')
+    const signed = stager([answer(403, ''), answer(401, ''), answer(502, '')])
+    for (let i = 0; i < 3; i++) {
+      await expect(
+        signed.files.fetchUrl('order_file', `f${i}`, 'https://files.example.test/a')
+      ).rejects.toBeInstanceOf(TransientDownloadError)
+    }
+    const dns = createFileStager({
+      connectionId: 'conn-1',
+      root,
+      open: vi.fn(),
+      check: async () => ({ ok: false, reason: 'dns_resolution_failed' }),
+    })
+    await expect(
+      dns.fetchUrl('order_file', 'f', 'https://nowhere.example.test/a')
+    ).rejects.toBeInstanceOf(TransientDownloadError)
+    const dropped = createFileStager({
+      connectionId: 'conn-1',
+      root,
+      open: async () => {
+        throw Object.assign(new Error('socket hang up near files.example.test'), { name: 'Error' })
+      },
+      check: async () => ({ ok: true }),
+    })
+    const error = await dropped
+      .fetchUrl('order_file', 'f', 'https://files.example.test/a')
+      .catch((e) => e)
+    expect(error).toBeInstanceOf(TransientDownloadError)
+    expect(error.message).not.toContain('files.example.test')
+  })
+
+  it('is refused for good when it is not a link at all, or Shopmonkey says no for another reason', async () => {
+    const { files } = stager([answer(400, '')])
+    expect(await files.fetchUrl('order_file', 'a', 'not a link')).toEqual({
+      skipped: 'refused_url',
+    })
+    expect(await files.fetchUrl('order_file', 'b', 'https://files.example.test/b')).toEqual({
+      skipped: 'refused_url',
+    })
+  })
+})

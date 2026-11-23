@@ -4,7 +4,7 @@
  */
 import {
   type PendingParent,
-  payloadHash,
+  recordHash,
   remoteIdOf,
   type SourceStore,
   type StagedRow,
@@ -43,7 +43,7 @@ export function createMemoryStore() {
       for (const r of records) {
         byId.set(remoteIdOf(table, r.payload), {
           payload: r.payload,
-          hash: r.hash ?? payloadHash(r.payload),
+          hash: r.hash ?? recordHash(r.payload),
         })
       }
       const out: StagedRow[] = []
@@ -95,6 +95,7 @@ export function createMemoryStore() {
             remoteId: r.remoteId,
             payload: structuredClone(r.payload),
             payloadHash: r.payloadHash,
+            childrenHash: r.childrenHash,
           })
         )
     },

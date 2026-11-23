@@ -40,8 +40,10 @@ export async function startShopmonkeyExtract(input: StartExtractInput): Promise<
     only: input.only ?? null,
     now: new Date(),
   })
-  await db.integrationConnection.update({
-    where: { id: connection.id },
+  // The run in progress, if any, saves its checkpoints only while its runId is the stored one
+  // (extractState.server.ts), so this write replaces it for good.
+  await db.integrationConnection.updateMany({
+    where: { id: connection.id, organizationId: input.organizationId },
     data: { state: { ...state, extract } as object },
   })
   await enqueueJob({

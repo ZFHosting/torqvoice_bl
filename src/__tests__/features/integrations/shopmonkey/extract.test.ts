@@ -344,3 +344,85 @@ describe('logs', () => {
     expect(logged).not.toMatch(/@example\.test/)
   })
 })
+
+describe('what goes wrong along the way', () => {
+  it('leaves a parent pending when a file fails for now, and fetches it on the next run', async () => {
+    const h = harness()
+    const { TransientDownloadError } = await import('@/integrations/shopmonkey/extract/files')
+    const fetchUrl = h.deps.files.fetchUrl
+    let fail = true
+    h.deps.files = {
+      ...h.deps.files,
+      fetchUrl: async (table, remoteId, url) => {
+        if (fail && table === 'order_file') throw new TransientDownloadError('status 503')
+        return fetchUrl(table, remoteId, url)
+      },
+    }
+    const first = await h.run()
+    expect(h.memory.get('order_file', 'syn_ofl_1')).toBeUndefined()
+    expect(first.steps.order.children.retry).toBe(1)
+    expect(h.memory.get('order', 'syn_ord_1003')?.childrenHash).toBeNull()
+    expect(JSON.stringify(h.logs)).toContain('Could not download order_file syn_ofl_1 for now')
+
+    fail = false
+    await h.again(first)
+    expect(h.memory.get('order_file', 'syn_ofl_1')?.payload._staged).toMatchObject({ bytes: 5 })
+    expect(h.memory.get('order', 'syn_ord_1003')?.childrenHash).not.toBeNull()
+  })
+
+  it('skips an invoice PDF Shopmonkey refuses, and tries one that failed for now again', async () => {
+    const h = harness()
+    const download = h.deps.client.download
+    let answer: 'refuse' | 'fail' | 'ok' = 'refuse'
+    const { ShopmonkeyError } = await import('@/integrations/shopmonkey/client')
+    h.deps.client = {
+      ...h.deps.client,
+      download: async (...args: Parameters<typeof download>) => {
+        if (answer === 'refuse') throw new ShopmonkeyError(400, null, null, 'req-1')
+        if (answer === 'fail') throw new ShopmonkeyError(502, null, null, 'req-2')
+        return download(...args)
+      },
+    }
+    await h.run()
+    expect(h.memory.get('invoice_pdf', 'syn_ord_1003')?.payload._staged).toEqual({
+      skipped: 'refused_url',
+    })
+
+    const h2 = harness()
+    h2.deps.client = { ...h2.deps.client, download: h.deps.client.download }
+    answer = 'fail'
+    const first = await h2.run()
+    expect(h2.memory.get('invoice_pdf', 'syn_ord_1003')).toBeUndefined()
+    expect(first.steps.order.children.retry).toBeGreaterThan(0)
+  })
+
+  it('files a payment only under the order it belongs to, even if the search ignores its filter', async () => {
+    const h = harness()
+    const searchPage = h.deps.client.searchPage
+    h.deps.client = {
+      ...h.deps.client,
+      // A search that drops its `where`: every payment, for every order.
+      searchPage: (path, skip, filter) =>
+        searchPage(path, skip, path.includes('payment') ? {} : filter),
+    }
+    await h.run()
+    for (const payment of loadFixtures().payment) {
+      expect(h.memory.get('payment', String(payment.id))?.payload.orderId).toBe(payment.orderId)
+    }
+    expect(h.memory.count('payment')).toBe(loadFixtures().payment.length)
+  })
+
+  it('does not restage a parent whose only change is a new signed link on a file', async () => {
+    const h = harness()
+    const first = await h.run()
+    // The same order, nothing changed but a freshly signed link (as a signed URL would on every read).
+    const order = h.mock.data.order.find((o) => o.id === 'syn_ord_1003') as Record<string, unknown>
+    order.files = (order.files as Record<string, unknown>[]).map((f) => ({
+      ...f,
+      url: `${f.url}?signature=fresh`,
+    }))
+    h.memory.resetWrites()
+    await h.again(first)
+    expect(h.memory.writes).toBe(0)
+  })
+})

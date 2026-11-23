@@ -7,18 +7,21 @@
  * Logs name tables, Shopmonkey ids, counts and statuses: never a name, an email, a phone number, a
  * file link (they may be signed) or a payload.
  */
+import { parseWorkshopDateTime } from '@/lib/workshop-datetime'
 import {
+  assertReadOnly,
   type Envelope,
   PAGE_SIZE,
   type Page,
   PagingStalled,
   pageContinues,
+  ReadOnlyViolation,
   SHOPMONKEY_BASE_URL,
   type ShopmonkeyClient,
   ShopmonkeyError,
   where,
 } from '../client'
-import { type FileStager, MAX_PDF_BYTES, type StagedFile } from './files'
+import { type FileStager, MAX_PDF_BYTES, type StagedFile, TransientDownloadError } from './files'
 import {
   type ExtractState,
   newCheckpoint,
@@ -48,18 +51,29 @@ export interface ExtractSettings {
   locationId: string | null
   includeFiles: boolean
   downloadInvoicePdfs: 'none' | 'last2years' | 'all'
-  /** Orders created before it are staged, but their children aren't fetched. */
+  /**
+   * Orders created before it are staged, but their children aren't fetched. The setting is a date: the
+   * instant here is that day's midnight on the workshop's clock (AGENTS.md, "Whose clock").
+   */
   historyFrom: string | null
 }
 
-export function extractSettings(raw: Record<string, unknown>): ExtractSettings {
+function workshopMidnight(value: unknown, timeZone: string): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null
+  try {
+    return parseWorkshopDateTime(value, timeZone).toISOString()
+  } catch {
+    return null
+  }
+}
+
+export function extractSettings(raw: Record<string, unknown>, timeZone = 'UTC'): ExtractSettings {
   const pdfs = raw.downloadInvoicePdfs
-  const from = typeof raw.historyFrom === 'string' && raw.historyFrom ? raw.historyFrom : null
   return {
     locationId: typeof raw.locationId === 'string' && raw.locationId ? raw.locationId : null,
     includeFiles: raw.includeFiles !== false,
     downloadInvoicePdfs: pdfs === 'none' || pdfs === 'all' ? pdfs : 'last2years',
-    historyFrom: from && !Number.isNaN(new Date(from).getTime()) ? from : null,
+    historyFrom: workshopMidnight(raw.historyFrom, timeZone),
   }
 }
 
@@ -81,8 +95,12 @@ export interface StepResult {
   summary: string
 }
 
-/** A children unit stops after this many API calls, so one job run stays short. */
+/**
+ * A children unit stops after this many API calls, or this long (downloads aren't calls), so one job run
+ * stays well inside the queue's ten minutes before it thinks a job is stuck and runs it again.
+ */
 const CHILD_CALL_BUDGET = 25
+const CHILD_UNIT_MS = 30_000
 const PARENTS_PER_UNIT = 10
 /** Bump when what a table's children are changes, so every parent's children are fetched again. */
 const CHILDREN_VERSION = 1
@@ -192,27 +210,31 @@ export async function extractStep(deps: ExtractDeps, input: ExtractState): Promi
 }
 
 /**
- * Units of work until the run is done or `budgetMs` has passed, saving the state after each one, so a
- * job run (once a minute, from the cron) keeps close to Shopmonkey's rate limit instead of doing one
- * page a minute. Returns the last unit's result.
+ * Saves a unit's state; false when the run is no longer the connection's (a new start or the CLI
+ * replaced it), and the run stops.
+ */
+export type SaveExtract = (state: ExtractState) => Promise<boolean | void>
+
+/**
+ * Units of work until the run is done, `budgetMs` has passed or another run replaced this one, saving
+ * the state after each unit, so a job run (once a minute, from the cron) keeps close to Shopmonkey's
+ * rate limit instead of doing one page a minute. Returns the last unit's result.
  */
 export async function extractFor(
   deps: ExtractDeps,
   state: ExtractState,
-  options: {
-    budgetMs: number
-    save: (state: ExtractState) => Promise<void>
-    clock?: () => number
-  }
-): Promise<StepResult & { units: number }> {
+  options: { budgetMs: number; save: SaveExtract; clock?: () => number }
+): Promise<StepResult & { units: number; replaced: boolean }> {
   const clock = options.clock ?? Date.now
   const started = clock()
   let current = state
   for (let units = 1; ; units++) {
     const result = await extractStep(deps, current)
-    await options.save(result.state)
+    if ((await options.save(result.state)) === false) return { ...result, units, replaced: true }
     current = result.state
-    if (result.done || clock() - started >= options.budgetMs) return { ...result, units }
+    if (result.done || clock() - started >= options.budgetMs) {
+      return { ...result, units, replaced: false }
+    }
   }
 }
 
@@ -315,12 +337,18 @@ async function childrenUnit(
   const parents = await deps.store.pendingChildren(spec.table, cp.cursor, PARENTS_PER_UNIT)
   if (parents.length === 0) return false
   const started = deps.client.stats.calls
+  const startedAt = Date.now()
   for (const parent of parents) {
-    await fetchChildren(deps, spec, parent, cp, now)
-    await deps.store.markChildrenFetched(spec.table, parent.remoteId, parent.payloadHash)
+    // A file that failed for now leaves the parent pending: the next run fetches its children again.
+    if (await fetchChildren(deps, spec, parent, cp, now)) {
+      await deps.store.markChildrenFetched(spec.table, parent.remoteId, parent.payloadHash)
+    } else {
+      cp.children.retry++
+    }
     cp.cursor = parent.id
     cp.children.parents++
     if (deps.client.stats.calls - started >= CHILD_CALL_BUDGET) break
+    if (Date.now() - startedAt >= CHILD_UNIT_MS) break
   }
   return true
 }
@@ -331,11 +359,13 @@ async function fetchChildren(
   parent: PendingParent,
   cp: StepCheckpoint,
   now: Date
-): Promise<void> {
+): Promise<boolean> {
   const payload = isRow(parent.payload) ? parent.payload : {}
+  let complete = true
   for (const child of activeChildren(spec, payload, deps.settings, now)) {
     try {
-      await fetchChild(deps, spec, parent, payload, child, cp, now)
+      if ((await fetchChild(deps, spec, parent, payload, child, cp, now)) === false)
+        complete = false
     } catch (err) {
       // A child Shopmonkey no longer has (a deleted order's services): noted, and the parent goes on.
       if (err instanceof ShopmonkeyError && err.status === 404) {
@@ -352,6 +382,7 @@ async function fetchChildren(
       throw err
     }
   }
+  return complete
 }
 
 async function fetchChild(
@@ -362,8 +393,11 @@ async function fetchChild(
   child: ChildSpec,
   cp: StepCheckpoint,
   now: Date
-): Promise<void> {
+): Promise<boolean | void> {
   const id = parent.remoteId
+  // Children that went missing are marked only on a refetch: a parent's first fetch has none to lose,
+  // and skipping it keeps a backfill from scanning the child table once per parent.
+  const refetch = parent.childrenHash !== null
   switch (child.kind) {
     case 'list': {
       const rows = await childList(deps, pathFor(child.path, id))
@@ -374,12 +408,13 @@ async function fetchChild(
           rows.map((row) => ({ payload: row }))
         )
       )
-      if (child.parentField)
+      if (child.parentField && refetch) {
         await markGone(deps, cp, child.table, [child.parentField], id, rows, now)
+      }
       return
     }
     case 'search': {
-      const rows = await childSearch(deps, child.path, where.equals(child.parentField, id))
+      const rows = await childSearch(deps, child.path, child.parentField, id)
       tally(
         cp.children,
         await deps.store.stage(
@@ -387,42 +422,48 @@ async function fetchChild(
           rows.map((row) => ({ payload: row }))
         )
       )
-      await markGone(deps, cp, child.table, [child.parentField], id, rows, now)
+      if (refetch) await markGone(deps, cp, child.table, [child.parentField], id, rows, now)
       return
     }
-    case 'files': {
-      // PROVISIONAL(M0:S4): `files[]` is documented on Find Order; a list that already carries it saves a call.
-      let files: unknown = payload.files
-      if (!Array.isArray(files)) {
-        const detail = await deps.client.get<Row>(pathFor(child.detailPath, id))
-        files = isRow(detail.data) ? detail.data.files : undefined
-      }
-      const entries = Array.isArray(files) ? files.filter(isRow) : []
-      const owner = { table: spec.table, remoteId: id }
-      for (const entry of entries) await stageFile(deps, cp, child.table, entry, owner)
-      await markGone(deps, cp, child.table, ['_parent', 'remoteId'], id, entries, now)
-      return
-    }
+    case 'files':
     case 'itemFiles': {
-      const items = Array.isArray(payload.items) ? payload.items.filter(isRow) : []
+      // PROVISIONAL(M0:S4): files are `files[]` on Find Order and `items[].files[]` on the inspection.
+      // Read fresh at download time: the staged parent's links may be signed and hours old.
+      const detail = await deps.client.get<Row>(pathFor(child.detailPath, id))
+      const fresh = isRow(detail.data) ? detail.data : {}
       const owner = { table: spec.table, remoteId: id }
-      const entries: Row[] = []
-      for (const item of items) {
-        for (const entry of Array.isArray(item.files) ? item.files.filter(isRow) : []) {
-          entries.push(entry)
-          await stageFile(deps, cp, child.table, entry, { ...owner, itemId: item.id ?? null })
+      const found: { entry: Row; owner: Row & { remoteId: string } }[] = []
+      if (child.kind === 'files') {
+        for (const entry of rowsOf(fresh.files)) found.push({ entry, owner })
+      } else {
+        for (const item of rowsOf(fresh.items)) {
+          for (const entry of rowsOf(item.files))
+            found.push({ entry, owner: { ...owner, itemId: item.id ?? null } })
         }
       }
-      await markGone(deps, cp, child.table, ['_parent', 'remoteId'], id, entries, now)
-      return
+      let complete = true
+      for (const { entry, owner: of } of found) {
+        if (!(await stageFile(deps, cp, child.table, entry, of))) complete = false
+      }
+      if (refetch) {
+        const kept = found.map((f) => f.entry)
+        await markGone(deps, cp, child.table, ['_parent', 'remoteId'], id, kept, now)
+      }
+      return complete
     }
     case 'invoicePdf': {
-      const file = await deps.client.download(
-        pathFor(child.path, id),
-        { document_type: 'invoice' }, // PROVISIONAL(M0:S4): required, one of invoice, estimate, ...
-        { maxBytes: MAX_PDF_BYTES, accept: 'application/pdf' }
+      const file = await downloadOrRetry(deps, child.table, id, () =>
+        deps.client.download(
+          pathFor(child.path, id),
+          { document_type: 'invoice' }, // PROVISIONAL(M0:S4): required, one of invoice, estimate, ...
+          { maxBytes: MAX_PDF_BYTES, accept: 'application/pdf' }
+        )
       )
-      const staged = await deps.files.write(child.table, id, file.bytes, file.contentType)
+      if (file === 'retry') return false
+      const staged =
+        file === 'refused'
+          ? ({ skipped: 'refused_url' } as const)
+          : await deps.files.write(child.table, id, file.bytes, file.contentType)
       if ('skipped' in staged) cp.children.skipped++
       const record = { id, orderId: id, documentType: 'invoice', _staged: staged }
       // A new PDF whenever the order changes; the bytes themselves differ per render.
@@ -478,23 +519,66 @@ async function childList(deps: ExtractDeps, path: string): Promise<Row[]> {
   }
 }
 
-async function childSearch(deps: ExtractDeps, path: string, filter: Row): Promise<Row[]> {
+/**
+ * A search for one parent's children. Rows that aren't the parent's are left out: a search that ignored
+ * its `where` would otherwise file every payment under every order.
+ */
+async function childSearch(
+  deps: ExtractDeps,
+  path: string,
+  parentField: string,
+  parentId: string
+): Promise<Row[]> {
   const out: Row[] = []
   const seen = new Set<string>()
   for (let skip = 0; ; ) {
-    const page = await deps.client.searchPage<unknown>(path, skip, { where: filter })
+    const page = await deps.client.searchPage<unknown>(path, skip, {
+      where: where.equals(parentField, parentId),
+    })
     const fresh = page.rows.filter(isRow).filter((row) => !seen.has(String(row.id)))
     for (const row of fresh) seen.add(String(row.id))
-    out.push(...fresh)
+    out.push(...fresh.filter((row) => row[parentField] === parentId))
     if (!page.more) return out
     if (fresh.length === 0) throw new PagingStalled(path, skip)
     skip += page.rows.length
   }
 }
 
+const rowsOf = (value: unknown): Row[] => (Array.isArray(value) ? value.filter(isRow) : [])
+
 /**
- * One file: staged with its owner and where its bytes are. Its hash leaves out the links, which may be
- * signed and change on every read (PROVISIONAL(M0:S4)), so an unchanged file isn't downloaded again.
+ * A download through the client. `retry` when it failed for now (a 5xx, a timeout, a dropped
+ * connection): logged by ids, and the parent stays pending for the next run. `refused` when Shopmonkey
+ * answered a redirect or a 4xx that waiting won't change. A 404 and a rate limit go on up: the first is
+ * noted as missing, the second reschedules the job.
+ */
+async function downloadOrRetry<T>(
+  deps: ExtractDeps,
+  table: string,
+  remoteId: string,
+  fetch: () => Promise<T>
+): Promise<T | 'retry' | 'refused'> {
+  try {
+    return await fetch()
+  } catch (err) {
+    if (err instanceof ShopmonkeyError && (err.status === 404 || err.status === 429)) throw err
+    if (err instanceof ReadOnlyViolation) throw err
+    const status = err instanceof ShopmonkeyError ? err.status : null
+    await deps.log('warn', `Could not download ${table} ${remoteId}`, {
+      table,
+      remoteId,
+      ...(err instanceof ShopmonkeyError ? { status, requestId: err.requestId } : {}),
+      error: err instanceof Error ? err.name : 'Error',
+    })
+    return status !== null && status < 500 ? 'refused' : 'retry'
+  }
+}
+
+/**
+ * One file: staged with its owner and where its bytes are, or why it couldn't be (too large, a type the
+ * app doesn't take, a link refused or gone). Its hash leaves out the links, which may be signed and
+ * change on every read (PROVISIONAL(M0:S4)), so an unchanged file isn't downloaded again. False when the
+ * download failed for now: nothing is staged, so the next run tries again.
  */
 async function stageFile(
   deps: ExtractDeps,
@@ -502,28 +586,53 @@ async function stageFile(
   table: string,
   entry: Row,
   owner: Row & { remoteId: string }
-) {
+): Promise<boolean> {
   const fileId = remoteIdOf(table, entry)
   const { url, thumbnailUrl: _thumbnail, ...stable } = entry
   const hash = payloadHash({ entry: stable, owner })
   if ((await deps.store.hashes(table, [fileId])).get(fileId) === hash) {
     cp.children.unchanged++
-    return
+    return true
   }
-  let staged: StagedFile
+  let staged: StagedFile | null
   if (typeof url !== 'string' || !url) {
     staged = { skipped: 'not_found' }
   } else if (url.startsWith(`${SHOPMONKEY_BASE_URL}/`)) {
-    // On Shopmonkey's API itself: through the read-only client, with the key.
+    // On Shopmonkey's API itself: through the read-only client, with the key, read into memory (capped).
     const link = new URL(url)
-    const file = await deps.client.download(link.pathname, Object.fromEntries(link.searchParams), {
-      maxBytes: MAX_PDF_BYTES,
-    })
-    staged = await deps.files.write(table, fileId, file.bytes, file.contentType)
+    try {
+      assertReadOnly('GET', link.pathname)
+      const file = await downloadOrRetry(deps, table, fileId, () =>
+        deps.client.download(link.pathname, Object.fromEntries(link.searchParams), {
+          maxBytes: MAX_PDF_BYTES,
+        })
+      )
+      staged =
+        file === 'retry'
+          ? null
+          : file === 'refused'
+            ? { skipped: 'refused_url' }
+            : await deps.files.write(table, fileId, file.bytes, file.contentType)
+    } catch (err) {
+      if (!(err instanceof ReadOnlyViolation)) throw err
+      staged = { skipped: 'refused_url' }
+    }
   } else {
-    staged = await deps.files.fetchUrl(table, fileId, url)
+    try {
+      staged = await deps.files.fetchUrl(table, fileId, url)
+    } catch (err) {
+      if (!(err instanceof TransientDownloadError)) throw err
+      await deps.log('warn', `Could not download ${table} ${fileId} for now`, {
+        table,
+        remoteId: fileId,
+        error: err.reason,
+      })
+      staged = null
+    }
   }
+  if (!staged) return false
   if ('skipped' in staged) cp.children.skipped++
   const record = { ...entry, _parent: owner, _staged: staged }
   tally(cp.children, await deps.store.stage(table, [{ payload: record, hash }]))
+  return true
 }

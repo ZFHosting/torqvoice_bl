@@ -13,7 +13,6 @@
  * no archive, or the file was taken out by hand) says nothing about the archive, and the workshop's is
  * kept.
  */
-import { once } from 'node:events'
 import { createReadStream } from 'node:fs'
 import { createInterface } from 'node:readline'
 import type { Readable } from 'node:stream'
@@ -48,14 +47,34 @@ export async function writeSourceArchive(
     })
     if (page.length > 0) out ??= open()
     for (const row of page) {
-      if (out && !out.write(`${JSON.stringify(row)}\n`)) {
-        await once(out as NodeJS.EventEmitter, 'drain')
-      }
+      if (out && !out.write(`${JSON.stringify(row)}\n`)) await drained(out)
       rows++
     }
     if (page.length < BATCH) return { rows, out }
     cursor = page[page.length - 1].id
   }
+}
+
+/**
+ * Waits for room to write again, and gives up when the output closes instead (a download the browser
+ * dropped): otherwise the writer would wait for a drain that never comes.
+ */
+function drained(out: NodeJS.WritableStream): Promise<void> {
+  const emitter = out as NodeJS.EventEmitter
+  return new Promise<void>((resolve, reject) => {
+    const done = () => {
+      emitter.off('close', closed)
+      emitter.off('error', closed)
+      resolve()
+    }
+    const closed = () => {
+      emitter.off('drain', done)
+      reject(new Error('The archive output closed before it was written'))
+    }
+    emitter.once('drain', done)
+    emitter.once('close', closed)
+    emitter.once('error', closed)
+  })
 }
 
 /** Where a backup's archive file is read from: a restored folder, or the uploaded zip. */

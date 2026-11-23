@@ -18,8 +18,22 @@ const queue = vi.hoisted(() => ({ enqueueJob: vi.fn(async (_input: unknown) => '
 const dbMock = vi.hoisted(() => ({
   integrationConnection: {
     findFirst: vi.fn(async (_args: unknown) => null as unknown),
-    update: vi.fn(async (_args: unknown) => ({})),
+    updateMany: vi.fn(async (_args: unknown) => ({ count: 1 })),
   },
+}))
+/** The connection's stored run: a save goes through only while its runId is this one's. */
+const stored = vi.hoisted(() => ({
+  runId: 'run-1',
+  saved: null as null | import('@/integrations/shopmonkey/extract/plan').ExtractState,
+  saves: 0,
+}))
+vi.mock('@/features/shopmonkey-import/Lib/extractState.server', () => ({
+  saveExtractState: vi.fn(async (_scope: unknown, next: { runId: string }) => {
+    if (next.runId !== stored.runId) return false
+    stored.saved = next as never
+    stored.saves++
+    return true
+  }),
 }))
 
 vi.mock('@/lib/db', () => ({ db: dbMock }))
@@ -85,6 +99,9 @@ beforeEach(() => {
   memory.current = createMemoryStore()
   audit.logAudit.mockClear()
   queue.enqueueJob.mockClear()
+  stored.runId = 'run-1'
+  stored.saved = null
+  stored.saves = 0
 })
 afterEach(() => {
   vi.restoreAllMocks()
@@ -97,7 +114,7 @@ describe('the extract.step job', () => {
     const outcome = await step(ctx, { runId: 'run-1' })
     expect(outcome).toMatchObject({ summary: expect.stringContaining('done') })
     expect(outcome).not.toHaveProperty('rescheduleInSeconds')
-    const saved = ctx.connection.state.extract as ExtractState
+    const saved = stored.saved as ExtractState
     expect(saved.finishedAt).not.toBeNull()
     expect(memory.current?.count('order')).toBe(5)
     expect(audit.logAudit).toHaveBeenCalledTimes(1)
@@ -124,7 +141,7 @@ describe('the extract.step job', () => {
     })
     const outcome = await step(ctx, { runId: 'run-1' })
     expect(outcome).toMatchObject({ rescheduleInSeconds: 1 })
-    const saved = ctx.connection.state.extract as ExtractState
+    const saved = stored.saved as ExtractState
     expect(saved.finishedAt).toBeNull()
     expect(Object.keys(saved.steps).length).toBeGreaterThan(0)
     expect(audit.logAudit).not.toHaveBeenCalled()
@@ -135,6 +152,24 @@ describe('the extract.step job', () => {
     const ctx = ctxFor(mock, startState(null, { runId: 'run-2', now: NOW }))
     expect(await step(ctx, { runId: 'run-1' })).toEqual({ summary: 'No extract to continue' })
     expect(mock.calls).toEqual([])
+  })
+
+  it('stops, without rescheduling or putting its state back, when replaced in the middle of its run', async () => {
+    const mock = createMockShopmonkey()
+    const ctx = ctxFor(mock, startState(null, { runId: 'run-1', now: NOW }))
+    const save = vi.mocked(
+      (await import('@/features/shopmonkey-import/Lib/extractState.server')).saveExtractState
+    )
+    save.mockImplementationOnce(async (_scope, next) => {
+      stored.saved = next
+      stored.saves++
+      // A new start lands while this run is between units.
+      stored.runId = 'run-2'
+      return true
+    })
+    expect(await step(ctx, { runId: 'run-1' })).toEqual({ summary: 'Replaced by a newer extract' })
+    expect(stored.saves).toBe(1)
+    expect(audit.logAudit).not.toHaveBeenCalled()
   })
 
   it('comes back when Shopmonkey says, on a rate limit longer than the client waits', async () => {
@@ -171,11 +206,12 @@ describe('starting an extract', () => {
         where: { id: 'conn-1', organizationId: 'org-1', connectorId: 'shopmonkey' },
       })
     )
-    const saved = (
-      dbMock.integrationConnection.update.mock.calls.at(-1)?.[0] as {
-        data: { state: { extract: ExtractState; other: number } }
-      }
-    ).data.state
+    const write = dbMock.integrationConnection.updateMany.mock.calls.at(-1)?.[0] as {
+      where: Record<string, string>
+      data: { state: { extract: ExtractState; other: number } }
+    }
+    expect(write.where).toEqual({ id: 'conn-1', organizationId: 'org-1' })
+    const saved = write.data.state
     expect(saved.other).toBe(1)
     expect(saved.extract).toMatchObject({
       runId,
@@ -266,6 +302,7 @@ describe('the CLI', () => {
         parents: 0,
         gone: 0,
         missing: 0,
+        retry: 0,
       },
     }
     expect(formatProgress(state, 5)).toBe(
@@ -305,7 +342,8 @@ describe('the CLI', () => {
       print: (line) => lines.push(line),
       everyMs: 0,
     })
-    expect(done.finishedAt).not.toBeNull()
+    expect(done.replaced).toBe(false)
+    expect(done.state.finishedAt).not.toBeNull()
     expect(saves.length).toBeGreaterThan(10)
     expect(lines.at(-1)).toMatch(/^done · \d+ calls$/)
     expect(lines.some((l) => l.includes('customer'))).toBe(true)

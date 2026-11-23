@@ -12,8 +12,8 @@ resumably, and without fetching the same unchanged record twice.
 1. `src/integrations/shopmonkey/extract/tables.ts`: one entry per Shopmonkey table in `MAPPING.md` §3.
    Each entry has the list endpoint, the get-by-id endpoint, the location filter, the `updatedDate` filter,
    and its child fetches. Order children per order are services (with nested lines), payments, files,
-   authorizations, plus the PDF when the settings ask for it. Customer children are emails and phones.
-   Vehicle children are owners.
+   authorizations, plus the PDF when the settings ask for it. Customer children are their vehicles (emails
+   and phones come embedded in each customer, RESULTS S4). Vehicle children are owners. *(Corrected in M3.)*
 2. `src/integrations/shopmonkey/extract/stage.ts`: `stageRecord(table, payload)` upserts into
    `SourceRecord` on `(organizationId, source, table, remoteId)`, setting `connectionId` to the
    connection doing the fetch (M1 review: a reconnect makes a new connection id). It computes `payloadHash` over a canonical JSON
@@ -37,10 +37,11 @@ resumably, and without fetching the same unchanged record twice.
    targets. Each file is its own `SourceRecord` (`order_file`, `inspection_file`, `invoice_pdf`): the
    file entry as Shopmonkey sent it, plus `_parent` (its owner) and `_staged` (path, bytes, sha256, type,
    or why it was skipped). Keys starting with `_` are the importer's. M5 moves them into uploads.
-6. Run order in `extract/plan.ts`: settings tables → users → customers (+contacts) → vehicles (+owners) →
-   catalog (canned services, inventory) → orders (+children) → appointments → inspection templates →
-   inspections → timesheets → workflow statuses → optional messages. Each table only starts when the one
-   before it has finished.
+6. Run order in `extract/plan.ts`, MAPPING §3's: settings tables (workflow statuses among them) → users →
+   customers (+ their vehicles) → vehicles (+owners) → catalog (canned services, inventory) → orders
+   (+children) → late sweeps for the customers and vehicles orders named → appointments → inspection
+   templates → inspections → timesheets → archive-only tables (messages among them). Each table only starts
+   when the one before it has finished. *(Corrected in M3: the brief put workflow statuses last.)*
 7. CLI `scripts/shopmonkey/run.ts extract --connection <id> [--tables a,b] [--since ISO] [--restart]`,
    run with `npx tsx --conditions=react-server` (the app's server-only modules). It drives the same
    `extractStep` in-process, carries on an unfinished run, and prints progress (table, done/total from

@@ -169,3 +169,17 @@ describe('a backup without the archive file', () => {
     expect(archiveInZip(null)).toBeNull()
   })
 })
+
+describe('a download the browser drops', () => {
+  it('stops the writer instead of leaving it waiting for room', async () => {
+    const out = new PassThrough({ highWaterMark: 16 })
+    const all = Array.from({ length: 600 }, (_, i) => row(i))
+    const findMany = vi.fn(async (args: { take: number; cursor?: { id: string } }) => {
+      const start = args.cursor ? all.findIndex((r) => r.id === args.cursor?.id) + 1 : 0
+      return all.slice(start, start + args.take)
+    })
+    const writing = writeSourceArchive('org-1', () => out, { sourceRecord: { findMany } } as never)
+    setTimeout(() => out.destroy(), 10)
+    await expect(writing).rejects.toThrow('closed')
+  })
+})

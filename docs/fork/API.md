@@ -110,7 +110,7 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
 | `/reports/sales` | R | Totals by day, week or month: invoiced, collected, tax, parts, labor, fees. |
 | `/reports/receivables` | R | Open invoices with aging buckets. |
 | `/reports/technicians` | R | Per technician: hours sold (labor lines with `technicianId`), hours clocked (time entries), shift hours, and jobs completed in a period. This is the input BlueLabel's pay calculation needs. |
-| `/source-records` | R | Raw Shopmonkey payloads (X1): `?table=`, `?remoteId=`, `?updatedSince=`. Read-only. |
+| `/source-records` | R | Shopmonkey payloads as fetched (X1): `?table=`, `?remoteId=`, `?updatedSince=`. Read-only. Two kinds of record are the importer's own: files (`order_file`, `inspection_file`: the entry as Shopmonkey sent it plus `_parent` and `_staged`) and `invoice_pdf` (made by the importer). Keys starting with `_` are never Shopmonkey's; `_staged.path` is relative to the server's data folder (MAPPING §1). |
 | `/deleted` | R | Tombstones: `?since=`, `?entityType=`. |
 | `/openapi.json` | R | Unauthenticated. |
 
