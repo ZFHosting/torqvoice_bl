@@ -556,7 +556,7 @@ word, and an English `summary` for the command line). It explains; people decide
 | `skipped` | The load left it out, for the reason it wrote on `SourceRecord.loadSkip` (below), or a reason worked out here |
 | `archive` | An archive-only table (§3, §11) |
 | `settings` | Read whole into settings and fields: `tax_config`, `labor_rate`, `workflow`, `referral_source`, `label` |
-| `folded` | Part of a loaded parent's rows: an order's `order_service` (a deferred one is linked to its finding) and `authorization`, a vehicle's `vehicle_owner`, an inspection's photos (`inspection_file`, placed in its items' `imageUrls`). A child of a parent that isn't loaded takes its parent's fate: `deleted` with it, or `skipped` as `parent_not_loaded` |
+| `folded` | Part of a loaded parent's rows: an order's `order_service` (a deferred one is linked to its finding) and `authorization`, a vehicle's `vehicle_owner`, an inspection's photos (`inspection_file`, placed in its items' `imageUrls`). A child of a parent that isn't loaded takes its parent's fate: `deleted` with it, or `skipped` as `parent_not_loaded`; a child whose parent isn't in the archive at all is `unaccounted` |
 | `unaccounted` | None of these: **named, count gate fails** |
 
 **Why a record was left out** (`SourceRecord.loadSkip`, written by the load where it decides; cleared when the
@@ -567,7 +567,7 @@ a transform's warning code from §6.6 (`payment_type_unsupported`, `payment_miss
 `files_not_on_work_order` (a quote's or a skipped order's files); `user_not_referenced` (a Shopmonkey user no order,
 timesheet or appointment names, and the operator didn't map); `not_imported` (a transform left it out without a
 warning). Worked out in the report, not written: `file_not_staged` (the extract didn't download it,
-`_staged.skipped`) and `parent_not_loaded`. A payment's reason is written every run, after its order's unit, so an
+`_staged.skipped`) and `parent_not_loaded`. A deleted order's payments are `deleted` with it. A payment's reason is written every run, after its order's unit, so an
 archive loaded before M6 has them after one more load.
 
 **Money**, in cents, over a cent. Per imported work order: Torqvoice's counted lines (§6.3: not under a Declined or
@@ -578,7 +578,7 @@ against `remainingCostCents`. Per imported estimate: its total against `totalCos
 
 | Rule | Explains |
 | --- | --- |
-| `money_mismatch` (§6.6) | A lines difference on an order the load warned about on `subtotal` (Shopmonkey's own lines and subtotal disagree), while the work order's lines still come, to the cent, to what they came to then (`state.lastLoad.mismatchedLines`). A line changed since is unexplained |
+| `money_mismatch` (§6.6) | A lines difference on an order the load warned about on `subtotal` (Shopmonkey's own lines and subtotal disagree), while the work order's lines and Shopmonkey's subtotal are both, to the cent, what they were then (`state.lastLoad.mismatchedLines`). A change on either side since is unexplained |
 | `payment_type_unsupported`, `payment_missing_date` (§6.5, §6.6) | A paid (and the matching balance) difference that comes, to the cent, to the payments the load left out for those reasons and hasn't imported since |
 
 Anything else is unexplained and fails the money gate: a line changed or broken since the load, a payment added

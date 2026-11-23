@@ -75,8 +75,9 @@ describe('where a staged record lands', () => {
       bucket: 'skipped',
       reason: 'parent_not_loaded',
     })
-    // A parent that is itself named carries its children with it.
+    // A parent that is itself named carries its children with it; a child with no parent found is named.
     expect(place(facts({ table: 'order_service', parentBucket: 'missing' })).bucket).toBe('folded')
+    expect(place(facts({ table: 'order_service', parentBucket: null })).bucket).toBe('unaccounted')
   })
 
   it('takes a payment as loaded by its row, and left out when its order is no work order', () => {
@@ -87,6 +88,8 @@ describe('where a staged record lands', () => {
       bucket: 'skipped',
       reason: 'payment_order_not_loaded',
     })
+    // A deleted order's payments go with it.
+    expect(place(facts({ table: 'payment', parentBucket: 'deleted' })).bucket).toBe('deleted')
     // On a work order, with no row and no reason: named.
     expect(place(facts({ table: 'payment', parentIsWorkOrder: true })).bucket).toBe('unaccounted')
   })
@@ -129,7 +132,7 @@ const tv = {
   discountCents: 0,
   paidCents: 5_000,
 }
-const none = { linesAtLoad: null, skippedPayments: [] }
+const none = { asLoaded: null, skippedPayments: [] }
 
 describe('a work order against its Shopmonkey order', () => {
   it('has no difference when they agree, or differ by a cent', () => {
@@ -143,12 +146,21 @@ describe('a work order against its Shopmonkey order', () => {
     expect(compareOrder(sm, asLoaded, none)).toEqual([
       expect.objectContaining({ field: 'lines', explainedBy: null, document: 'workOrder' }),
     ])
-    expect(compareOrder(sm, asLoaded, { ...none, linesAtLoad: 11_234 })).toEqual([
+    const atLoad = { lines: 11_234, subtotal: 10_000 }
+    expect(compareOrder(sm, asLoaded, { ...none, asLoaded: atLoad })).toEqual([
       expect.objectContaining({ field: 'lines', explainedBy: 'money_mismatch' }),
     ])
+    // Shopmonkey's subtotal changed since (its total didn't): unexplained.
+    expect(
+      compareOrder({ ...sm, subtotalCents: 10_500 }, asLoaded, { ...none, asLoaded: atLoad })
+    ).toEqual([expect.objectContaining({ field: 'lines', explainedBy: null })])
     // A line changed since: unexplained, though the order was warned.
     expect(
-      compareOrder(sm, { ...tv, linesCents: 12_000 }, { ...none, linesAtLoad: 11_234 })
+      compareOrder(
+        sm,
+        { ...tv, linesCents: 12_000 },
+        { ...none, asLoaded: { lines: 11_234, subtotal: 10_000 } }
+      )
     ).toEqual([expect.objectContaining({ field: 'lines', explainedBy: null })])
   })
 

@@ -38,9 +38,10 @@ export interface LoadContext {
   loadedUnlinked: { table: string; remoteId: string }[]
   /**
    * Orders whose Shopmonkey lines and subtotal disagree (`money_mismatch` on `subtotal`): what the work order's
-   * lines came to as loaded, in cents. The reconciliation explains a lines difference only at that amount (M6).
+   * lines came to as loaded, and Shopmonkey's subtotal then, in cents. The reconciliation explains a lines
+   * difference only while both are still so (M6).
    */
-  mismatchedLines: Map<string, number>
+  mismatchedLines: Map<string, { lines: number; subtotal: number }>
   /** Orders created before it are left out (the connection's `historyFrom`, as the extract reads it). */
   historyFrom: string | null
   /** ImportBatch ids of this run, by entity, created on first use. */

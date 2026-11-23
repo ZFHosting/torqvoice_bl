@@ -103,8 +103,11 @@ conflicts, B15, same upstream commit). Built on M5's synthetic fixtures, so it e
    on the SQL counting rule and refund sign; folded children take their parent's fate; gate codes and values for M8;
    estimates' totals compared; delta-phase totals not held to; exhaustive model switch; archive backup test seeds and
    checks `loadSkip`; §1 note on setting `historyFrom` after a load; symmetric cent rounding; the scale test's
-   orders carry ~2 KB of incompressible payload and a service each (7.9 s for 50,000). Next: DoD again, reviewer
-   pass 2, merge.
+   orders carry ~2 KB of incompressible payload and a service each (7.9 s for 50,000). DoD at 5bad7498: `tsc` 0,
+   Biome 14, `test:db` 33 files / 204 tests (50,000 orders 8.1 s). Reviewer pass 2: **ready for PR**, no must-fix.
+   Next (while `npm test` chunks run at 5bad7498): its should-fixes (payment and refund warnings pushed after the
+   unit, so a re-run keeps them; `money_mismatch` also bound to Shopmonkey's subtotal at load; `tvCents` via
+   `roundMoney`; an orphan child `unaccounted`; a deleted order's payments `deleted`), Shopmonkey tests, merge.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one

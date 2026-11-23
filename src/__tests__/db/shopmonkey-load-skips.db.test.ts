@@ -131,4 +131,18 @@ describe('a load', () => {
       })
     ).toBe(2)
   })
+
+  it('keeps payment and refund warnings in the last load though every order is unchanged', async () => {
+    const summary = await run()
+    expect(summary.counts.order.unchanged).toBeGreaterThan(0)
+    expect(summary.counts.order.created + summary.counts.order.updated).toBe(0)
+    const state = (
+      await db.integrationConnection.findUniqueOrThrow({
+        where: { id: shop.connectionId },
+        select: { state: true },
+      })
+    ).state as { lastLoad: { warnings: Record<string, { count: number }> } }
+    // Order 1004 is refunded in full (MAPPING §6.5).
+    expect(state.lastLoad.warnings.refund_net_nonpositive?.count).toBe(1)
+  })
 })

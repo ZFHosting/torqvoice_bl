@@ -87,9 +87,10 @@ export interface LastLoad {
   warnings: Record<string, WarningGroup>
   /**
    * Orders whose Shopmonkey lines and subtotal disagree (`money_mismatch` on `subtotal`), with what the work
-   * order's lines came to as loaded, in cents: the reconciliation explains a lines difference at that amount only.
+   * order's lines came to as loaded and Shopmonkey's subtotal then, in cents: the reconciliation explains a lines
+   * difference only while both are still so.
    */
-  mismatchedLines: Record<string, number>
+  mismatchedLines: Record<string, { lines: number; subtotal: number }>
   failures: { table: string; remoteId: string; error: string }[]
   failureCount: number
   issued: number

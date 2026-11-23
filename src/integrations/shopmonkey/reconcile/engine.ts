@@ -87,7 +87,7 @@ export async function buildReport(
   for (const { sm, tv: order } of pairs) {
     all.push(
       ...compareOrder(sm, order, {
-        linesAtLoad: linesAtLoad[sm.orderId] ?? null,
+        asLoaded: linesAtLoad[sm.orderId] ?? null,
         skippedPayments: smPayments.skipped.get(sm.orderId) ?? [],
       })
     )

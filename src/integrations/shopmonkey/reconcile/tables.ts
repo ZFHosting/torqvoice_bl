@@ -74,7 +74,9 @@ export interface Placement {
 
 /** A child's bucket from its parent's: with it when the parent is loaded, left out (or deleted) with it otherwise. */
 function withParent(parent: Bucket | null): Placement {
-  if (!parent || parent === 'loaded' || parent === 'missing' || parent === 'unaccounted') {
+  // No parent found: nothing accounts for it.
+  if (!parent) return { bucket: 'unaccounted' }
+  if (parent === 'loaded' || parent === 'missing' || parent === 'unaccounted') {
     // A missing or unaccounted parent is named itself; its children go with it.
     return { bucket: 'folded' }
   }
@@ -95,6 +97,8 @@ export function place(r: StagedFacts): Placement {
   if (ARCHIVE_TABLES.has(r.table)) return { bucket: 'archive' }
   if (SETTINGS_TABLES.has(r.table)) return { bucket: 'settings' }
   if (FOLDED_TABLES.has(r.table)) return withParent(r.parentBucket)
+  // A deleted order's payments go with it.
+  if (r.table === 'payment' && r.parentBucket === 'deleted') return { bucket: 'deleted' }
   if (r.table === 'payment' && !r.parentIsWorkOrder) {
     // MAPPING §6.6: a payment on an order that isn't a loaded work order isn't imported.
     return { bucket: 'skipped', reason: 'payment_order_not_loaded' }

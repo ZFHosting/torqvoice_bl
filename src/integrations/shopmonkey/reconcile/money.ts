@@ -11,7 +11,9 @@
  */
 import 'server-only'
 import { db } from '@/lib/db'
+import { roundMoney } from '@/lib/money'
 import { zonedParts } from '@/lib/timezone'
+import { orderSubtotalCents } from '../money'
 import type { MoneyDifference, MonthTotals, SpotCheck } from './types'
 
 /** Cents from a Shopmonkey amount (a number of cents, or text of one); 0 when there is none. */
@@ -21,12 +23,9 @@ export function smCents(value: unknown): number {
   return Number.isFinite(n) ? Math.round(n) : 0
 }
 
-/** Cents from a Torqvoice amount (major units), rounded half away from zero as `roundMoney` rounds. */
+/** Cents from a Torqvoice amount (major units), rounded to the cent as the app rounds money (`roundMoney`). */
 export function tvCents(value: unknown): number {
-  const n = typeof value === 'number' ? value : Number(value ?? 0)
-  if (!Number.isFinite(n)) return 0
-  const cents = Math.round(Math.abs(n) * 100 + Number.EPSILON)
-  return n < 0 ? -cents : cents
+  return Math.round(roundMoney(value) * 100)
 }
 
 export interface ShopmonkeyOrder {
@@ -65,15 +64,18 @@ export interface PaymentFact {
 
 /**
  * The differences of one work order over a cent, each with the rule that explains it, if one does (MAPPING §12):
- * - `money_mismatch`: the load warned that Shopmonkey's own lines and subtotal disagree, and the lines are still
- *   what they came to then (`linesAtLoad`, to the cent). A line changed since is unexplained.
+ * - `money_mismatch`: the load warned that Shopmonkey's own lines and subtotal disagree, and both are still what they
+ *   were then (`asLoaded`, to the cent). A line changed on either side since is unexplained.
  * - `payment_type_unsupported`, `payment_missing_date`: payments Shopmonkey counts as paid and the load left out
  *   (MAPPING §6.5, §6.6), when they come to the paid difference to the cent; the balance follows.
  */
 export function compareOrder(
   sm: ShopmonkeyOrder,
   tv: TorqvoiceOrder,
-  known: { linesAtLoad: number | null; skippedPayments: { reason: string; cents: number }[] }
+  known: {
+    asLoaded: { lines: number; subtotal: number } | null
+    skippedPayments: { reason: string; cents: number }[]
+  }
 ): MoneyDifference[] {
   const out: MoneyDifference[] = []
   const add = (
@@ -95,7 +97,9 @@ export function compareOrder(
     })
   }
   const linesAsLoaded =
-    known.linesAtLoad !== null && Math.abs(tv.linesCents - known.linesAtLoad) <= 1
+    known.asLoaded !== null &&
+    Math.abs(tv.linesCents - known.asLoaded.lines) <= 1 &&
+    Math.abs(sm.subtotalCents - known.asLoaded.subtotal) <= 1
   add('lines', sm.subtotalCents, tv.linesCents, linesAsLoaded ? 'money_mismatch' : null)
   add('total', sm.totalCents, tv.totalCents, null)
   // PROVISIONAL(M0:S5): Shopmonkey's paidCostCents nets refunds and leaves failed charges out, so it equals the sum
@@ -289,15 +293,8 @@ export async function readShopmonkeyOrders(
     .map((r) => ({
       orderId: String(r.remoteId),
       number: r.number ? String(r.number) : null,
-      // MAPPING §6.1: the subtotal is the categories of the services that count. PROVISIONAL(M0:S5).
-      subtotalCents:
-        smCents(r.laborCents) +
-        smCents(r.partsCents) +
-        smCents(r.tiresCents) +
-        smCents(r.subcontractsCents) +
-        smCents(r.feesCents) +
-        smCents(r.epaCents) +
-        smCents(r.shopSuppliesCents),
+      // MAPPING §6.1: the categories of the services that count, as the load reads them.
+      subtotalCents: orderSubtotalCents(r),
       totalCents: smCents(r.totalCostCents),
       taxCents: smCents(r.taxCents),
       discountCents: smCents(r.discountCents),
