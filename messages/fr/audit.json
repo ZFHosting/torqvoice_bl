@@ -237,6 +237,15 @@
     "shopmonkey_extract": "Récupéré depuis Shopmonkey",
     "shopmonkey_import": "Importé depuis Shopmonkey",
     "shopmonkey_import_undo": "Import Shopmonkey annulé",
+    "contact_create": "Contact ajouté",
+    "contact_update": "Contact modifié",
+    "contact_delete": "Contact supprimé",
+    "job_create": "Travail ajouté",
+    "job_update": "Travail modifié",
+    "job_delete": "Travail supprimé",
+    "shift_create": "Quart ajouté",
+    "shift_update": "Quart modifié",
+    "shift_delete": "Quart supprimé",
     "platform_revokeSuperAdmin": "Super administrateur retiré"
   },
   "summary": {

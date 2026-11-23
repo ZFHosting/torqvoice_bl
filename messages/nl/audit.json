@@ -237,6 +237,15 @@
     "shopmonkey_extract": "Opgehaald uit Shopmonkey",
     "shopmonkey_import": "Geïmporteerd uit Shopmonkey",
     "shopmonkey_import_undo": "Shopmonkey-import ongedaan gemaakt",
+    "contact_create": "Contact toegevoegd",
+    "contact_update": "Contact gewijzigd",
+    "contact_delete": "Contact verwijderd",
+    "job_create": "Taak toegevoegd",
+    "job_update": "Taak gewijzigd",
+    "job_delete": "Taak verwijderd",
+    "shift_create": "Dienst toegevoegd",
+    "shift_update": "Dienst gewijzigd",
+    "shift_delete": "Dienst verwijderd",
     "platform_revokeSuperAdmin": "Superbeheerder ingetrokken"
   },
   "summary": {

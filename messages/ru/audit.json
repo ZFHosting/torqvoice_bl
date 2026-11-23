@@ -237,6 +237,15 @@
     "shopmonkey_extract": "Получено из Shopmonkey",
     "shopmonkey_import": "Импортировано из Shopmonkey",
     "shopmonkey_import_undo": "Импорт из Shopmonkey отменён",
+    "contact_create": "Контакт добавлен",
+    "contact_update": "Контакт изменён",
+    "contact_delete": "Контакт удалён",
+    "job_create": "Работа добавлена",
+    "job_update": "Работа изменена",
+    "job_delete": "Работа удалена",
+    "shift_create": "Смена добавлена",
+    "shift_update": "Смена изменена",
+    "shift_delete": "Смена удалена",
     "platform_revokeSuperAdmin": "Сняты права суперадмина"
   },
   "summary": {

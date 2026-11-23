@@ -276,3 +276,95 @@ describe('another workshop’s records', () => {
     })
   })
 })
+
+describe('a customer’s other emails and phones', () => {
+  it('are added, changed and removed (with a tombstone), each with its audit event', async () => {
+    resetKeyBudgets()
+    const customer = (
+      await db.customer.create({
+        data: { organizationId: A.org, userId: A.owner, name: 'Contacts' },
+      })
+    ).id
+    const list = await route('customers/[id]/contacts')
+    const one = await route('customers/[id]/contacts/[contactId]')
+    const made = await call(list.POST, A.key, 'POST', `/customers/${customer}/contacts`, {
+      params: { id: customer },
+      body: { kind: 'email', value: 'second@example.com', label: 'Work' },
+    })
+    expect(made.status).toBe(201)
+    const contact = ((await made.json()) as { data: { id: string; value: string } }).data
+    expect(contact.value).toBe('second@example.com')
+
+    const changed = await call(one.PATCH, A.key, 'PATCH', '/contact', {
+      params: { id: customer, contactId: contact.id },
+      body: { label: 'Home' },
+    })
+    expect(changed.status).toBe(200)
+    expect(await db.customerContact.findUniqueOrThrow({ where: { id: contact.id } })).toMatchObject(
+      {
+        label: 'Home',
+        value: 'second@example.com',
+        kind: 'email',
+      }
+    )
+
+    const gone = await call(one.DELETE, A.key, 'DELETE', '/contact', {
+      params: { id: customer, contactId: contact.id },
+    })
+    expect(gone.status).toBe(200)
+    expect(await db.customerContact.count({ where: { id: contact.id } })).toBe(0)
+    expect(
+      await db.deletedRecord.count({
+        where: { organizationId: A.org, entityType: 'customer_contact', entityId: contact.id },
+      })
+    ).toBe(1)
+    for (const action of ['contact.create', 'contact.update', 'contact.delete']) {
+      expect(
+        (await eventsOf(A.org, action)).audits.map((a) => a.entityId),
+        action
+      ).toContain(contact.id)
+    }
+  })
+
+  it('refuse a bad email, and another workshop’s customer or contact with 404', async () => {
+    resetKeyBudgets()
+    const list = await route('customers/[id]/contacts')
+    const one = await route('customers/[id]/contacts/[contactId]')
+    const ours = (
+      await db.customer.create({ data: { organizationId: A.org, userId: A.owner, name: 'Ours' } })
+    ).id
+    const bad = await call(list.POST, A.key, 'POST', '/contacts', {
+      params: { id: ours },
+      body: { kind: 'email', value: 'not an email' },
+    })
+    expect(bad.status).toBe(400)
+    const theirs = await call(list.POST, A.key, 'POST', '/contacts', {
+      params: { id: B.ids.customer },
+      body: { kind: 'phone', value: '+15555550123' },
+    })
+    expect(theirs.status).toBe(404)
+    expect(await db.customerContact.count({ where: { customerId: B.ids.customer } })).toBe(0)
+    const theirContact = await db.customerContact.create({
+      data: { organizationId: B.org, customerId: B.ids.customer, kind: 'phone', value: '+1555' },
+    })
+    expect(
+      (
+        await call(one.PATCH, A.key, 'PATCH', '/c', {
+          params: { id: B.ids.customer, contactId: theirContact.id },
+          body: { value: '+1999' },
+        })
+      ).status
+    ).toBe(404)
+    // Their contact under our customer's id: still not found.
+    expect(
+      (
+        await call(one.DELETE, A.key, 'DELETE', '/c', {
+          params: { id: ours, contactId: theirContact.id },
+        })
+      ).status
+    ).toBe(404)
+    expect(
+      (await db.customerContact.findUniqueOrThrow({ where: { id: theirContact.id } })).value
+    ).toBe('+1555')
+  })
+})

@@ -10,7 +10,11 @@ import {
 } from '@/features/customers/Schema/customerSchema'
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
-import { patchBody, writeEndpoints } from '../Lib/writeSpec'
+import {
+  createContactSchema,
+  updateContactSchema,
+} from '@/features/fork-records/Schema/forkRecordSchemas'
+import { deletedSchema, patchBody, writeEndpoints } from '../Lib/writeSpec'
 import { customFieldValueSchema } from './common'
 
 export const customerContactSchema = z
@@ -75,5 +79,29 @@ export const customerEndpoints: EndpointSpec[] = [
     summary: 'A customer’s emails and phones beyond the primary ones',
     tag: 'Customers',
     response: z.array(customerContactSchema),
+  },
+  {
+    method: 'post',
+    path: '/customers/{id}/contacts',
+    summary: 'Add an email or phone to a customer',
+    tag: 'Customers',
+    body: createContactSchema,
+    response: customerContactSchema,
+    status: 201,
+  },
+  {
+    method: 'patch',
+    path: '/customers/{id}/contacts/{contactId}',
+    summary: 'Change one of a customer’s emails or phones',
+    tag: 'Customers',
+    body: updateContactSchema,
+    response: customerContactSchema,
+  },
+  {
+    method: 'delete',
+    path: '/customers/{id}/contacts/{contactId}',
+    summary: 'Remove one of a customer’s emails or phones',
+    tag: 'Customers',
+    response: deletedSchema,
   },
 ]

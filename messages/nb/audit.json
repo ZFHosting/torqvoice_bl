@@ -237,6 +237,15 @@
     "shopmonkey_extract": "Hentet fra Shopmonkey",
     "shopmonkey_import": "Importert fra Shopmonkey",
     "shopmonkey_import_undo": "Import fra Shopmonkey angret",
+    "contact_create": "Kontakt lagt til",
+    "contact_update": "Kontakt endret",
+    "contact_delete": "Kontakt fjernet",
+    "job_create": "Jobb lagt til",
+    "job_update": "Jobb endret",
+    "job_delete": "Jobb fjernet",
+    "shift_create": "Skift lagt til",
+    "shift_update": "Skift endret",
+    "shift_delete": "Skift fjernet",
     "platform_revokeSuperAdmin": "Fjernet superadmin"
   },
   "summary": {

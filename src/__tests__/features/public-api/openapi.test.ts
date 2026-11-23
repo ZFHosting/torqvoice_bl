@@ -31,6 +31,7 @@ function publicRoutes(): { path: string; methods: string[] }[] {
         const source = fs.readFileSync(full, 'utf-8')
         const builtFromResource =
           source.includes("from '@/features/public-api/Resources/") ||
+          source.includes("from '@/features/public-api/Writes/") ||
           source.includes("from '@/features/public-api/Lib/readResource'")
         if (!source.includes('withPublicApi(') && !builtFromResource) continue
         const route = path
