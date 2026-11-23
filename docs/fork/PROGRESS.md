@@ -90,11 +90,14 @@ existing tests unchanged → a service test → `tsc` → commit. Order (brief):
 5. [x] quotes (4c2d804c): create, update, status, delete, convert in `quoteService`, `quoteAuditEvents.ts`; test
    `quotes/quote-service.test.ts`; equipment-gates allows the service file. `addQuoteToServiceRecord` (validates
    before withAuth) left for A4 to decide on. Folders pass except Windows baseline (by test name); `tsc` exit 0.
-6. [ ] appointments
-7. [ ] technicians, time entries, shifts (X6)
-8. [ ] inventory (+ stock adjust), labor presets
-9. [ ] findings
-10. [ ] webhooks (subscription management)
+6. [x] appointments (7518cc93): `bookingService` (createBookingOnce, updateBooking, deleteAppointment,
+   bookAppointment), `bookingAuditEvents.ts`; test `calendar/booking-service.test.ts`; booking-token db test passes.
+7. [x] technicians, time entries (587245dd): `technicianService`, `timeEntryService` (+ the timesheet schemas),
+   audit events; test `time-tracking/time-entry-service.test.ts`. Shifts (X6): nothing to extract, A4.
+8. [x] inventory + stock adjust, labor presets (2912c2ad): `inventoryService`, `laborPresetService`, audit
+   events; test `inventory/inventory-service.test.ts`. `applyMarkupToAll` stays.
+9. [x] findings (4e8a7e76): `findingService`, `findingAuditEvents.ts`.
+10. [x] webhooks (4e8a7e76): `webhookService`, `webhookAuditEvents.ts`; test `webhooks/webhook-service.test.ts`.
 11. [ ] DoD, reviewer, merge.
 
 M0 acceptance:
