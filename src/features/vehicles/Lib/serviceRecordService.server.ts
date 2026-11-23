@@ -38,6 +38,17 @@ import { revalidatePath } from 'next/cache'
 import { isSystemStatus, statusColumns } from '@/features/work-order-statuses/Lib/stages'
 import { onInventoryChanged } from '@/features/inventory/Lib/onInventoryChanged'
 import { randomUUID } from 'crypto'
+// fork: the imported line columns the form doesn't send, carried over a save (M5 task 12)
+import {
+  carryLineColumns,
+  forkColumnsOf,
+  LABOR_LINE_COLUMNS,
+  laborColumnsSelect,
+  LABOR_MATCH,
+  PART_LINE_COLUMNS,
+  partColumnsSelect,
+  PART_MATCH,
+} from '@/integrations/shopmonkey/schema/lineColumns'
 import { releaseFiles } from '@/lib/files/manager'
 import { serviceRecordFileUrls } from '@/lib/files/collect'
 import { clearNextNumberSetting, JOB_NUMBER_SETTING_KEYS, nextJobNumber } from '@/lib/job-number'
@@ -557,10 +568,16 @@ export async function updateServiceRecordService(ctx: ServiceCtx, input: unknown
         select: { inventoryPartId: true, quantity: true },
       })
 
+      // fork: the job, kind, note and source fields of the lines being replaced
+      const forkParts = await tx.servicePart.findMany({
+        where: { serviceRecordId: id },
+        select: partColumnsSelect,
+      })
       await tx.servicePart.deleteMany({ where: { serviceRecordId: id } })
       if (taxedParts && taxedParts.length > 0) {
         await tx.servicePart.createMany({
-          data: taxedParts.map((p) => ({
+          // fork: carryLineColumns
+          data: carryLineColumns(forkParts, taxedParts, PART_MATCH, PART_LINE_COLUMNS).map((p) => ({
             partNumber: p.partNumber,
             name: p.name,
             quantity: p.quantity,
@@ -572,6 +589,8 @@ export async function updateServiceRecordService(ctx: ServiceCtx, input: unknown
             markupPercent: p.markupPercent ?? 0,
             inventoryPartId: p.inventoryPartId || null,
             taxable: p.taxable,
+            // fork: the carried columns
+            ...forkColumnsOf(p, PART_LINE_COLUMNS),
             serviceRecordId: id,
           })),
         })
@@ -641,10 +660,16 @@ export async function updateServiceRecordService(ctx: ServiceCtx, input: unknown
 
     // Replace labor if provided
     if (laborItems !== undefined) {
+      // fork: the job, kind, technician, cost and source fields of the lines being replaced
+      const forkLabor = await tx.serviceLabor.findMany({
+        where: { serviceRecordId: id },
+        select: laborColumnsSelect,
+      })
       await tx.serviceLabor.deleteMany({ where: { serviceRecordId: id } })
       if (taxedLabor && taxedLabor.length > 0) {
         await tx.serviceLabor.createMany({
-          data: taxedLabor.map((l) => ({
+          // fork: carryLineColumns
+          data: carryLineColumns(forkLabor, taxedLabor, LABOR_MATCH, LABOR_LINE_COLUMNS).map((l) => ({
             ...l,
             serviceRecordId: id,
           })),

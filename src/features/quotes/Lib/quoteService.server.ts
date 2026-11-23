@@ -13,6 +13,16 @@ import { parseTaxComponentDefinitions } from '@/lib/tax-components'
 import { savedDocumentTax, taxComponentsForCopy } from '@/features/settings/Lib/workshopTax'
 import { loadTaxApplies } from '@/features/settings/Lib/loadTaxApplies'
 import { withTaxableLabor, withTaxableParts } from '@/lib/taxable-lines'
+// fork: the imported line columns the form doesn't send, carried over a save (M5 task 12)
+import {
+  carryLineColumns,
+  LABOR_LINE_COLUMNS,
+  laborColumnsSelect,
+  LABOR_MATCH,
+  PART_LINE_COLUMNS,
+  partColumnsSelect,
+  PART_MATCH,
+} from '@/integrations/shopmonkey/schema/lineColumns'
 import { parseSentFields, sentId } from '@/lib/parse-sent-fields'
 import {
   isShopFeeLine,
@@ -186,20 +196,38 @@ export async function updateQuoteService(ctx: ServiceCtx, input: unknown) {
     }
 
     if (partItems !== undefined) {
+      // fork: the job, kind, note and source fields of the lines being replaced
+      const forkParts = await tx.quotePart.findMany({
+        where: { quoteId: id },
+        orderBy: { sortOrder: 'asc' },
+        select: partColumnsSelect,
+      })
       await tx.quotePart.deleteMany({ where: { quoteId: id } })
       if (taxedParts && taxedParts.length > 0) {
         await tx.quotePart.createMany({
           // The array order is the order the workshop arranged the lines in.
-          data: taxedParts.map((p, index) => ({ ...p, sortOrder: index, quoteId: id })),
+          // fork: carryLineColumns
+          data: carryLineColumns(forkParts, taxedParts, PART_MATCH, PART_LINE_COLUMNS).map(
+            (p, index) => ({ ...p, sortOrder: index, quoteId: id })
+          ),
         })
       }
     }
 
     if (laborItems !== undefined) {
+      // fork: the job, kind, technician, cost and source fields of the lines being replaced
+      const forkLabor = await tx.quoteLabor.findMany({
+        where: { quoteId: id },
+        orderBy: { sortOrder: 'asc' },
+        select: laborColumnsSelect,
+      })
       await tx.quoteLabor.deleteMany({ where: { quoteId: id } })
       if (taxedLabor && taxedLabor.length > 0) {
         await tx.quoteLabor.createMany({
-          data: taxedLabor.map((l, index) => ({ ...l, sortOrder: index, quoteId: id })),
+          // fork: carryLineColumns
+          data: carryLineColumns(forkLabor, taxedLabor, LABOR_MATCH, LABOR_LINE_COLUMNS).map(
+            (l, index) => ({ ...l, sortOrder: index, quoteId: id })
+          ),
         })
       }
     }
