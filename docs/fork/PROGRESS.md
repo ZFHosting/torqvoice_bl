@@ -25,7 +25,7 @@ resolved.
 | A1 | done | fork/A1-api-foundation | Merged 1c81e08e. Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (A1 done). |
 | A2 | done | fork/A2-domain-services | Merged c7f16d90. Reviewer: ready for PR after 2 passes. Upstream techName bug recorded as an A4 prerequisite. |
 | M2 | provisional | fork/M2-connector-and-client | Merged 6318fb3f. Built on documented shapes only: re-verify with a key (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M2 provisional). |
-| M3 | in_progress | fork/M3-extract-and-stage | |
+| M3 | provisional | fork/M3-extract-and-stage | Merged c79858fb. Built on documented shapes and synthetic fixtures: re-verify with a key (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M3 provisional). |
 | M4 | todo | | |
 | M5 | todo | | |
 | A3 | todo | | |
@@ -65,67 +65,21 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**M3 (extract and stage), in progress** on `fork/M3-extract-and-stage` (from `fork/integration` at db8d0810;
-upstream had nothing new). Provisional (B1): endpoints and shapes are documented only; tests run against a mock
-server serving the synthetic fixtures. Plan:
-1. [x] Client, from M2's review (pass 2): refuse a path unless `new URL(path, base)` keeps the origin and an
-   identical pathname; a refused VIN/plate path doesn't repeat the VIN; catch, log and count a fetch rejection;
-   `ShopmonkeyError.retryAfterS`. New: one-page reads (`listPage`, `searchPage`) for page-per-job extraction,
-   and a byte download for the invoice PDF. (902a8cc1)
-2. [x] `SourceRecord.childrenHash` (migration `fork_source_children_hash`): the parent hash whose children were
-   fetched. Backup restore carries it. (5e447566)
-3. [x] `extract/stage.ts`: canonical JSON, `payloadHash`, a `SourceStore` (Prisma, and an in-memory one for
-   tests): stage a page (one read for the page's hashes, upsert only changed), pending children, mark fetched,
-   mark children gone from their parent as deleted.
-4. [x] `extract/tables.ts` (every MAPPING §3 table, archive-only ones included; children; references fetched by
-   id), `extract/plan.ts` (run order; checkpoints `{ phase, stage, skip, highWatermark, total, lastPage }` per
-   step in `state.extract`), `extract/engine.ts` (one unit of work per step: a page, or a batch of parents'
-   children), `extract/files.ts` (staging area, size cap, content-type check, guarded download). (cf234717;
-   the Prisma store's own database test is still to write)
-5. [x] `startShopmonkeyExtract` (features/shopmonkey-import) + job `extract.step` (45 s of units per run,
-   the cron ticks each minute; reschedules 1 s; a long 429 reschedules for Retry-After) + one audit event per
-   finished run + CLI `scripts/shopmonkey/run.ts extract` (951f53fa).
-6. [x] Backups: the archive gets its own export option (on by default), streamed to its own file and restored
-   in batches, so a 50,000-order archive stays restorable; restore clears the workshop's archive first.
-   (ee7c928f: `source-archive.ndjson`, `data.json` keeps an empty marker; db test passes)
-7. [x] Tests (acceptance), all against the mock Shopmonkey (`shopmonkey/mockServer.ts`, synthetic fixtures):
-   - full extract stages every fixture record, second run writes nothing: `extract.test.ts` "stages every fixture
-     record…", "writes nothing the second time…"; on Postgres `db/shopmonkey-extract.db.test.ts` "stages every
-     fixture record, and the second run writes nothing";
-   - killed mid-table, resumed with the same count and no page past the checkpoint fetched twice: "resumes from
-     its checkpoint and ends with the same records", "refetches the children of a parent the run died during";
-   - changed record restaged, only its order's children refetched: "is restaged, and only its order's children
-     are fetched again"; on Postgres "finds exactly the changed parent in the children sweep…";
-   - no PII in logs (fixture emails, phones, surnames, file links): "carry no names, emails, phone numbers or
-     file links";
-   - backups: `db/shopmonkey-archive-backup.db.test.ts` "backs it up in its own file and restores every row from
-     it, twice over" (9,000 rows, archive file over the 16 MiB data-file limit, restored twice: one row per
-     object), "keeps the workshop's archive when the backup came without its archive file", "still restores a
-     backup from before M3"; `db/backup-round-trip.db.test.ts` carries the archive file.
-8. [x] Brief and MAPPING fixes (Decisions log, 4580df36). DoD at 45900214: `tsc` exit 0; Biome 14 (baseline, LF
-   checkout); `npm test` in five chunks, 816 files: failures only in the Windows baseline files (api/health,
-   photo-handoff, portal-upload, portal-file-route, equipment-gates and meters-gates on backslash paths,
-   lib/backup/engine (the same 29 test names with and without M3) and restic, files/manager,
-   only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access) and the Fiken load timeout;
-   `test:db` 18 files / 108 tests pass on `torqvoice_fork_test`.
-9. [x] Reviewer pass 1: **needs changes**. Must-fix: (1) a new start or the CLI didn't replace a running run
-   (the old run's next save put its state back): checkpoints now save through `saveExtractState`, one
-   `UPDATE … WHERE state->'extract'->>'runId' = $runId`, and a replaced run stops (`extractFor`/`driveExtract`
-   return `replaced`; tests "stops, without rescheduling or putting its state back, when replaced in the
-   middle of its run", db "goes through only while the run is the connection's…"); (2) MAPPING §1 now lists
-   the archive-only data the extractor can't reach (fleet entity, signed-document images, PO lines unless
-   embedded). Should-fixes done: a file or PDF that fails for now (5xx, 401/403, timeout, DNS, dropped
-   connection) isn't staged and leaves its parent pending for the next run, one refused for good is staged
-   `skipped` (tests "leaves a parent pending when a file fails for now…", "skips an invoice PDF Shopmonkey
-   refuses…", files "is tried again later…", "is refused for good…"); file links are read fresh from the
-   parent by id; parent hashes leave out file links ("does not restage a parent whose only change is a new
-   signed link…"); payment search rows must match the order ("files a payment only under the order…");
-   `markGone` only on a refetch; children units stop after 30 s; the export's archive writer stops when the
-   download is dropped ("stops the writer instead of leaving it waiting"); the backslash path test uses a
-   real backslash; `historyFrom` is the workshop's midnight. Nits: `startShopmonkeyExtract` updates scoped
-   by workshop; the restore takes the archive beside `data.json`; the archive file restores only with the
-   `sourceRecords` marker. Brief tasks 1 and 6, API.md `/source-records` and MAPPING §1 updated.
-10. [ ] Reviewer pass 2, merge as provisional (B1).
+**Next: M4 (transform).** Drafts (all transforms, tests, field specs) are in the session scratchpad `m4/`; they
+typecheck and 71/72 of their tests pass there (the no-database check needs the repo folder). Generate MAPPING §11
+(archive-only fields) with `scratchpad/m4_archive_table.py`.
+
+Carried over from M3's review (pass 2, should-fix, none blocking), for M7 (scheduled re-runs):
+- One order with several slow files can keep a job past the queue's 10-minute stuck limit and split a run into two
+  job chains with the same `runId` (data stays right, API calls double): check the clock between files, or keep a
+  lease (job id) in `state.extract` that the save also matches.
+- A finished run doesn't report the parents it left pending (`children.retry`): put it in the done summary, the CLI's
+  last line and the audit metadata, so the operator knows to run again.
+- A file host answering 401/403 on a freshly read link is retried every run: refuse it, or count attempts (also
+  depends on S4, whether file links need the key).
+- Nits: after a settings change `resetChildren` sets `childrenHash` to null, so that pass skips `markGone`; a search
+  that ignores `where` still pages the whole payment table per order; `startShopmonkeyExtract` writes back the whole
+  `state` instead of only `extract`.
 Notes for M5 (from M3's review): staged files (`dataRoot()/shopmonkey-staging/<connectionId>/`) hold customer
 files outside `uploads/<org>`: move them on load and remove the folder on disconnect or workshop deletion (M5/M8).
 Notes for M7: records reached only as children (vehicles, owners, services, payments) are refetched only when
@@ -258,6 +212,7 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | M3: messages are staged whatever `includeMessages` says; the setting decides whether M5 loads them. Orders before `historyFrom` are staged without their children; `includeFiles`, `downloadInvoicePdfs` and `historyFrom` are part of a table's children signature, so changing one refetches that table's children. | The manifest's own help text says messages stay in the archive when the setting is off (lossless); children are where the calls are (4–5 per order). |
 | 2026-11-23 | M3 backups: the archive is `source-archive.ndjson` beside `data.json` (manual export and scheduled snapshots), written only when the workshop has archive rows and restored line by line in batches inside the restore's transaction, refusing another workshop's ids; `data.json` keeps an empty `sourceRecords` marker, so the restore clears the archive before refilling it, and a backup without the file never touches the workshop's archive. New export option `sourceArchive` ("Import archive", on by default; optional in `ExportOptions`, so absent means not exported). Older backups with the rows inside `data.json` still restore. | The brief's acceptance (a 50,000-order archive restorable) against the 128 MiB data-file cap. Upstream touched only with marked lines: build-data, manifest, engine, restore, import, both backup routes, data settings; upstream tests: `engine.test`/`restore.test` mocks gained `sourceRecord`, `tenancy-schema.test`'s export-option list gained `sourceArchive`. The marker's read matches nothing but stays workshop-scoped, which `build-data.test` checks of every dataset. An uploaded zip is still bound by the 2 GiB uncompressed zip cap (`zip-guard.ts`); scheduled snapshots aren't. |
 | 2026-11-23 | M3: the run's audit summary takes `{records}` and `{count}` (calls). | `audit-summaries.test` renders every summary with a fixed sample set that has `count` and not `calls`. |
+| 2026-11-23 | **M3 provisional.** DoD at 45900214 (before the review fixes): `tsc` exit 0; Biome 14 (baseline); `npm test` in five chunks, 816 files, failures only the Windows baseline files and the Fiken timeout; `test:db` 18 files / 108 tests. After the review fixes (2b04d0f3): `tsc` exit 0; Biome 14; features/integrations, features/backup, lib/backup, raw-sql-qualified, backup-manifest, i18n: 95 files, failures only `lib/backup/engine` and `restic` (baseline, 51 tests); `test:db` 18 files / 109 tests. Reviewer: needs changes (pass 1), ready for PR (pass 2). Merged at c79858fb. Provisional because every Shopmonkey endpoint and shape it relies on is documented, not recorded (B1). | Acceptance evidence: PROGRESS Current step at the merge (items 7 and 9), and the tests named there: `extract.test.ts`, `extract-jobs.test.ts`, `files.test.ts`, `db/shopmonkey-extract.db.test.ts`, `db/shopmonkey-archive-backup.db.test.ts`, `db/backup-round-trip.db.test.ts`. |
 | 2026-11-23 | M3 review: a run's checkpoint saves only while its `runId` is the connection's (`saveExtractState`, one conditional UPDATE); a start or the CLI writes a new `runId` unconditionally, and the replaced run stops at its next save without rescheduling. | `saveState` overwrites the whole `extract` key; the running job (45 s of every minute) would otherwise put the old run back and the new start would be lost. |
 | 2026-11-23 | M3 review: a file or invoice PDF that fails for now is not staged and leaves its parent pending (the next run fetches its children again, file links read fresh by id); a link refused for good (not https, private address, not a link, 4xx other than 401/403/408/429, too large, wrong type) is staged with `_staged.skipped`; files on Shopmonkey's own API origin are read into memory under the 25 MiB cap; a download that takes over 5 minutes is retried on the next run. | One bad link stopped the whole extract (5 failures then a dead job); signed links expire between the list and the download. |
 | 2026-11-23 | M3 review: a record's hash leaves out the links of its `files[]` entries (`recordHash`), PROVISIONAL(M0:S4); `markGone` runs only on a refetch (a first fetch has nothing to lose, and a backfill no longer scans the child table once per parent); payment search rows must match the order; a children unit stops after 30 s as well as 25 calls. | Signed links would refetch every parent's children every run; `markGone` filters on a JSON path with no index; a search that ignored `where` would file every payment under every order; a unit must stay well inside the queue's 10-minute stuck-job window. The job holds the (sequential) runner for up to 45 s of each minute: a trade-off for import speed on a self-hosted install. |
