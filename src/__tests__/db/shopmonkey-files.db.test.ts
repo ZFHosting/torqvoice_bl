@@ -170,10 +170,10 @@ describe('the files a load brings over', () => {
     const { undoLoad } = await import('@/integrations/shopmonkey/load/undo')
     const runs = await db.importBatch.findMany({
       where: { organizationId: workshop.organizationId, status: 'completed' },
-      select: { fileName: true },
+      select: { mapping: true },
     })
     for (const runId of new Set(
-      runs.map((r) => r.fileName?.replace('Shopmonkey import ', '') ?? '')
+      runs.map((r) => String((r.mapping as { shopmonkeyRunId?: string }).shopmonkeyRunId))
     ))
       await undoLoad({ ...workshop, runId })
     // Whatever the undo left in uploads is gone too: neither copy of any file is left.

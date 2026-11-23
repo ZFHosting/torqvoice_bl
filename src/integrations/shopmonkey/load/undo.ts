@@ -4,14 +4,19 @@
  *   rules (`undoImportBatch`, importActions.ts): what was added to them since goes with them, their custom field
  *   values are removed, and their files are let go;
  * - everything else the run created (quotes, inventory, presets, appointments, templates, time, technicians,
- *   statuses), which has no batch column, by the run's links (`createdByRun`).
+ *   statuses, the custom fields it defined), which has no batch column, by the run's links (`createdByRun`).
+ *   A row the workshop has come to use since is kept, so the undo never takes the workshop's own work with it or
+ *   fails on it: a template an inspection made in the app uses, a technician with time, helpers, a login or lines
+ *   outside the run, a status a work order is in, an inventory part a line, preset or stock movement of the
+ *   workshop's names, a custom field with values. Kept rows keep their links, so a later load matches them.
  * The links and the archive's mappings of what was removed are cleared, so a later load creates them again.
+ * Settings applied with `--apply-numbering` / `--apply-settings` are not reverted (MAPPING §9.2).
  */
 import {
   deleteCustomFieldValuesOf,
   workOrderIdsOfVehicles,
 } from '@/features/custom-fields/Lib/deleteCustomFieldValues'
-import { db } from '@/lib/db'
+import { db, type TxClient } from '@/lib/db'
 import { serviceRecordFileUrls, vehicleFileUrls } from '@/lib/files/collect'
 import { releaseFiles } from '@/lib/files/manager'
 import { SOURCE } from '../extract/stage'
@@ -19,6 +24,20 @@ import type { LocalModel } from './links'
 
 export interface UndoResult {
   removed: Record<string, number>
+  /** Rows the run created that the workshop uses since, left in place, by model. */
+  kept: Record<string, number>
+}
+
+export class UndoRefused extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'UndoRefused'
+  }
+}
+
+type Delegate = {
+  findMany: (args: unknown) => Promise<{ id: string }[]>
+  deleteMany: (args: unknown) => Promise<{ count: number }>
 }
 
 /** Models without a batch column the run's links say it created, in an order that respects references. */
@@ -34,20 +53,75 @@ const LINKED: LocalModel[] = [
   'Technician',
 ]
 
+function delegateOf(tx: TxClient, model: LocalModel): Delegate {
+  const delegates: Partial<Record<LocalModel, unknown>> = {
+    TimeEntry: tx.timeEntry,
+    TechnicianShift: tx.technicianShift,
+    Appointment: tx.appointment,
+    Quote: tx.quote,
+    LaborPreset: tx.laborPreset,
+    InventoryPart: tx.inventoryPart,
+    InspectionTemplate: tx.inspectionTemplate,
+    WorkOrderStatus: tx.workOrderStatus,
+    Technician: tx.technician,
+  }
+  return delegates[model] as Delegate
+}
+
+/** What makes a created row the workshop's to keep, as a `where` it must match to be removed. */
+const UNUSED: Partial<Record<LocalModel, Record<string, unknown>>> = {
+  InspectionTemplate: { inspections: { none: {} } },
+  WorkOrderStatus: { serviceRecords: { none: {} } },
+  Technician: {
+    userId: null,
+    serviceRecords: { none: {} },
+    inspections: { none: {} },
+    statusReports: { none: {} },
+    timeEntries: { none: {} },
+    absences: { none: {} },
+    helping: { none: {} },
+    laborLines: { none: {} },
+    quoteLaborLines: { none: {} },
+    shifts: { none: {} },
+    loginCodes: { none: {} },
+  },
+  // Its own "import" movement goes with it; any other is the workshop's stock history.
+  InventoryPart: { movements: { none: { reason: { not: 'import' } } } },
+}
+
+/** Inventory parts lines and presets still name (a plain column, no relation to filter on). */
+async function namedInventoryParts(tx: TxClient, ids: string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set()
+  const where = { inventoryPartId: { in: ids } }
+  const select = { inventoryPartId: true } as const
+  const rows = [
+    ...(await tx.servicePart.findMany({ where, select })),
+    ...(await tx.quotePart.findMany({ where, select })),
+    ...(await tx.laborPresetPart.findMany({ where, select })),
+  ]
+  return new Set(rows.map((r) => r.inventoryPartId as string))
+}
+
 export async function undoLoad(input: {
   organizationId: string
   connectionId: string
   runId: string
 }): Promise<UndoResult> {
   const { organizationId, connectionId, runId } = input
+  // Links have no workshop column: the connection has to be this workshop's before its links decide anything.
+  const connection = await db.integrationConnection.findFirst({
+    where: { id: connectionId, organizationId, connectorId: 'shopmonkey' },
+    select: { id: true },
+  })
+  if (!connection) throw new UndoRefused('That is not a Shopmonkey connection of this workshop.')
   const batches = await db.importBatch.findMany({
     where: {
       organizationId,
       source: 'shopmonkey',
-      fileName: `Shopmonkey import ${runId}`,
       status: 'completed',
+      mapping: { path: ['shopmonkeyRunId'], equals: runId },
     },
-    select: { id: true, userId: true, createdAt: true },
+    select: { id: true },
   })
   const batchIds = batches.map((b) => b.id)
   const [records, vehicles, customers] = await Promise.all([
@@ -96,9 +170,10 @@ export async function undoLoad(input: {
     ]),
   ]
   const removed: Record<string, number> = {}
+  const kept: Record<string, number> = {}
+  const keptIds: string[] = []
   await db.$transaction(
     async (tx) => {
-      const where = (ids: string[]) => ({ id: { in: ids }, organizationId })
       removed.Inspection = (
         await tx.inspection.deleteMany({
           where: { organizationId, importBatchId: { in: batchIds } },
@@ -128,25 +203,30 @@ export async function undoLoad(input: {
         'customer',
         customers.map((c) => c.id)
       )
-      const quotes = created('Quote')
-      await deleteCustomFieldValuesOf(tx, organizationId, 'quote', quotes)
       for (const model of LINKED) {
         const ids = created(model)
         if (!ids.length) continue
-        const delegate = {
-          TimeEntry: tx.timeEntry,
-          TechnicianShift: tx.technicianShift,
-          Appointment: tx.appointment,
-          Quote: tx.quote,
-          LaborPreset: tx.laborPreset,
-          InventoryPart: tx.inventoryPart,
-          InspectionTemplate: tx.inspectionTemplate,
-          WorkOrderStatus: tx.workOrderStatus,
-          Technician: tx.technician,
-        }[model as 'Quote'] as unknown as {
-          deleteMany: (args: unknown) => Promise<{ count: number }>
+        const delegate = delegateOf(tx, model)
+        let removable = (
+          await delegate.findMany({
+            where: { id: { in: ids }, organizationId, ...(UNUSED[model] ?? {}) },
+            select: { id: true },
+          })
+        ).map((r) => r.id)
+        if (model === 'InventoryPart') {
+          const named = await namedInventoryParts(tx, removable)
+          removable = removable.filter((id) => !named.has(id))
         }
-        removed[model] = (await delegate.deleteMany({ where: where(ids) })).count
+        if (model === 'Quote')
+          await deleteCustomFieldValuesOf(tx, organizationId, 'quote', removable)
+        removed[model] = (
+          await delegate.deleteMany({ where: { id: { in: removable }, organizationId } })
+        ).count
+        const left = ids.filter((id) => !removable.includes(id))
+        if (left.length) {
+          kept[model] = left.length
+          keptIds.push(...left)
+        }
       }
       // Findings and attachments have no workshop column: removed by id, their vehicle or work order checked.
       removed.VehicleFinding = (
@@ -159,30 +239,40 @@ export async function undoLoad(input: {
           where: { id: { in: attachments.map((a) => a.id) } },
         })
       ).count
-      // Custom field definitions the run's user added during the run that no value uses any more.
-      const startedAt = batches.reduce<Date | null>(
-        (a, b) => (!a || b.createdAt < a ? b.createdAt : a),
-        null
-      )
-      if (startedAt) {
-        removed.CustomFieldDefinition = (
-          await tx.customFieldDefinition.deleteMany({
-            where: {
-              organizationId,
-              userId: { in: [...new Set(batches.map((b) => b.userId))] },
-              createdAt: { gte: startedAt },
-              values: { none: {} },
-            },
-          })
-        ).count
+      // Custom fields the run defined, unless a value (the workshop's, or another run's) uses them.
+      const fields = created('CustomFieldDefinition')
+      const unusedFields = (
+        await tx.customFieldDefinition.findMany({
+          where: { id: { in: fields }, organizationId, values: { none: {} } },
+          select: { id: true },
+        })
+      ).map((f) => f.id)
+      removed.CustomFieldDefinition = (
+        await tx.customFieldDefinition.deleteMany({
+          where: { id: { in: unusedFields }, organizationId },
+        })
+      ).count
+      const keptFields = fields.filter((id) => !unusedFields.includes(id))
+      if (keptFields.length) {
+        kept.CustomFieldDefinition = keptFields.length
+        keptIds.push(...keptFields)
       }
+      // The links of what's gone (whatever took it: a delete above, or a cascade from one), and the archive's
+      // mappings of it. A kept row keeps both.
       await tx.integrationLink.deleteMany({
-        where: { connectionId, metadata: { path: ['createdByRun'], equals: runId } },
+        where: {
+          connectionId,
+          metadata: { path: ['createdByRun'], equals: runId },
+          entityId: { notIn: keptIds },
+        },
       })
-      const createdIds = links.map((l) => l.entityId)
-      const batchRows = [...records, ...vehicles, ...customers].map((r) => r.id)
+      const keptSet = new Set(keptIds)
+      const goneIds = [
+        ...links.map((l) => l.entityId).filter((id) => !keptSet.has(id)),
+        ...[...records, ...vehicles, ...customers].map((r) => r.id),
+      ]
       await tx.sourceRecord.updateMany({
-        where: { organizationId, source: SOURCE, localId: { in: [...createdIds, ...batchRows] } },
+        where: { organizationId, source: SOURCE, localId: { in: goneIds } },
         data: { localEntity: null, localId: null, loadedHash: null },
       })
       await tx.importBatch.updateMany({
@@ -193,5 +283,5 @@ export async function undoLoad(input: {
     { maxWait: 30_000, timeout: 30 * 60_000 }
   )
   await releaseFiles(files, { organizationId, reason: 'import undone' })
-  return { removed }
+  return { removed, kept }
 }

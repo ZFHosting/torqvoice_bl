@@ -21,7 +21,7 @@ import {
 } from './context'
 import { loadInventory, loadPresets } from './catalog'
 import { removePlaced } from './files'
-import { assertNoInvoiceListeners, issueInvoices, recordLoad } from './finish'
+import { assertNoInvoiceListeners, issueInvoices, LoadRefused, recordLoad } from './finish'
 import { loadAppointments, loadInspections, loadInspectionTemplates, loadTime } from './history'
 import { loadOrders } from './orders'
 import {
@@ -112,6 +112,17 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
     connectionId: options.connectionId,
     runId: randomUUID(),
   }
+  // Links have no workshop column: the connection has to be this workshop's before its links decide anything.
+  const connection = await db.integrationConnection.findFirst({
+    where: {
+      id: scope.connectionId,
+      organizationId: scope.organizationId,
+      connectorId: 'shopmonkey',
+    },
+    select: { id: true },
+  })
+  if (!connection)
+    throw new LoadRefused([], 'That is not a Shopmonkey connection of this workshop.')
   // Issuing an imported invoice notifies whatever hears `service.update`: nothing is written while one is on.
   if (!options.dryRun) await assertNoInvoiceListeners(scope.organizationId)
   const resolver = await loadResolver(scope)

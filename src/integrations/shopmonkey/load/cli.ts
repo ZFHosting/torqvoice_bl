@@ -3,6 +3,7 @@
  * prints. A dry run executes every transaction and rolls it back, so its summary is what a real run would change.
  */
 import type { LoadSummary } from './run'
+import type { UndoResult } from './undo'
 
 export interface LoadArgs {
   connection: string
@@ -45,6 +46,45 @@ export function parseLoadArgs(argv: string[]): LoadArgs {
     throw new Error('A dry run applies nothing: leave out --apply-numbering and --apply-settings.')
   }
   return out
+}
+
+export interface UndoArgs {
+  connection: string
+  run: string
+}
+
+export const UNDO_USAGE = 'Usage: run.ts undo --connection <id> --run <run id>'
+
+/** `undo --connection <id> --run <run id>`: the run id is the one a load prints first. */
+export function parseUndoArgs(argv: string[]): UndoArgs {
+  const [command, ...rest] = argv
+  if (command !== 'undo') throw new Error(UNDO_USAGE)
+  const out: UndoArgs = { connection: '', run: '' }
+  for (let i = 0; i < rest.length; i++) {
+    const flag = rest[i]
+    const next = rest[++i]
+    if (!next || next.startsWith('--')) throw new Error(`${flag} needs a value. ${UNDO_USAGE}`)
+    if (flag === '--connection') out.connection = next
+    else if (flag === '--run') out.run = next
+    else throw new Error(`Unknown option ${flag}. ${UNDO_USAGE}`)
+  }
+  if (!out.connection || !out.run)
+    throw new Error(`--connection and --run are required. ${UNDO_USAGE}`)
+  return out
+}
+
+/** What an undo removed and kept, one model per line. */
+export function formatUndoSummary(runId: string, result: UndoResult): string[] {
+  const lines = [`Undid load ${runId}:`]
+  for (const [model, n] of Object.entries(result.removed))
+    if (n) lines.push(`  ${model}: ${n} removed`)
+  const kept = Object.entries(result.kept)
+  if (kept.length) {
+    lines.push('Kept, because the workshop uses them since:')
+    for (const [model, n] of kept) lines.push(`  ${model}: ${n}`)
+  }
+  lines.push('Settings applied with --apply-numbering or --apply-settings are not changed back.')
+  return lines
 }
 
 /** The summary, one fact per line. Ids and counts only: no customer names, emails or phone numbers. */

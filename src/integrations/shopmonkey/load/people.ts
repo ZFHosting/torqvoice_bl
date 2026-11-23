@@ -67,7 +67,7 @@ export async function writeCustomFields(
 ): Promise<void> {
   for (const row of rows) {
     const name = fieldName(row.name)
-    const definition = await tx.customFieldDefinition.upsert({
+    let definition = await tx.customFieldDefinition.findUnique({
       where: {
         organizationId_name_entityType: {
           organizationId: lc.scope.organizationId,
@@ -75,19 +75,32 @@ export async function writeCustomFields(
           entityType: row.entityType,
         },
       },
-      create: {
-        organizationId: lc.scope.organizationId,
-        userId: lc.runUserId,
-        // The name stays the English one's, so a workshop that changes language keeps one field; the label is
-        // what the workshop reads.
-        name,
-        label: lc.label(row.name),
-        fieldType: 'text',
-        entityType: row.entityType,
-      },
-      update: {},
       select: { id: true },
     })
+    if (!definition) {
+      definition = await tx.customFieldDefinition.create({
+        data: {
+          organizationId: lc.scope.organizationId,
+          userId: lc.runUserId,
+          // The name stays the English one's, so a workshop that changes language keeps one field; the label is
+          // what the workshop reads.
+          name,
+          label: lc.label(row.name),
+          fieldType: 'text',
+          entityType: row.entityType,
+        },
+        select: { id: true },
+      })
+      // Linked as the run's, so undo removes the fields this run defined and no other.
+      await markLoaded(tx, lc.scope, {
+        table: 'custom_field',
+        model: 'CustomFieldDefinition',
+        remoteId: `${row.entityType}:${name}`,
+        localId: definition.id,
+        hash: '',
+        created: true,
+      })
+    }
     // Only the importer's own value is translated; Shopmonkey's free text stays as it was.
     const value = row.name === 'Customer type' ? lc.label(row.value) : row.value
     await tx.customFieldValue.upsert({

@@ -73,3 +73,111 @@ describe('loading after a restore', () => {
     ).toBeGreaterThan(0)
   })
 })
+
+describe('undoing a load the workshop has worked with since', () => {
+  let shop: Awaited<ReturnType<typeof createWorkshop>>
+  afterAll(async () => {
+    if (shop) await shop.remove()
+  })
+
+  it('removes what the run made, keeps what the workshop uses, and a new load matches what was kept', async () => {
+    shop = await createWorkshop('UndoUsed')
+    const org = { organizationId: shop.organizationId }
+    // The workshop's own records, from before the load.
+    const customer = await db.customer.create({
+      data: { ...org, userId: shop.userId, name: 'Walk-in' },
+      select: { id: true },
+    })
+    const vehicle = await db.vehicle.create({
+      data: {
+        ...org,
+        userId: shop.userId,
+        customerId: customer.id,
+        make: 'Make',
+        model: 'Model',
+        year: 2020,
+      },
+      select: { id: true },
+    })
+    const job = await db.serviceRecord.create({
+      data: { ...org, title: 'Own job', vehicleId: vehicle.id, startDateTime: NOW },
+      select: { id: true },
+    })
+    await extractInto(createMockShopmonkey(), shop)
+    const loadRun = (await import('@/integrations/shopmonkey/load/run')).runLoad
+    const first = await loadRun({
+      organizationId: shop.organizationId,
+      connectionId: shop.connectionId,
+      runUserId: shop.userId,
+      now: NOW,
+    })
+    expect(first.failures).toEqual([])
+    const afterLoad = await countRows(shop.organizationId)
+
+    // The workshop uses imported rows from the app.
+    const linked = async (model: string) =>
+      (
+        await db.integrationLink.findFirstOrThrow({
+          where: { connectionId: shop.connectionId, entityType: model },
+          select: { entityId: true },
+        })
+      ).entityId
+    const template = await linked('InspectionTemplate')
+    const technician = await linked('Technician')
+    const status = await linked('WorkOrderStatus')
+    const part = await linked('InventoryPart')
+    await db.inspection.create({ data: { ...org, vehicleId: vehicle.id, templateId: template } })
+    await db.timeEntry.create({
+      data: { ...org, technicianId: technician, serviceRecordId: job.id },
+    })
+    await db.serviceRecord.update({ where: { id: job.id }, data: { customStatusId: status } })
+    await db.servicePart.create({
+      data: { serviceRecordId: job.id, name: 'From stock', inventoryPartId: part, quantity: 1 },
+    })
+    const ownField = await db.customFieldDefinition.create({
+      data: {
+        ...org,
+        userId: shop.userId,
+        name: 'own_field',
+        label: 'Own field',
+        entityType: 'customer',
+      },
+      select: { id: true },
+    })
+
+    const result = await undo.undoLoad({ ...shop, runId: first.runId })
+    expect(result.kept).toMatchObject({
+      InspectionTemplate: 1,
+      Technician: 1,
+      WorkOrderStatus: 1,
+      InventoryPart: 1,
+    })
+    expect(result.removed.CustomFieldDefinition).toBeGreaterThan(0)
+    // The workshop's own records and work are all there.
+    expect(await db.customer.findMany({ where: org, select: { id: true } })).toEqual([
+      { id: customer.id },
+    ])
+    expect(await db.serviceRecord.count({ where: { id: job.id, customStatusId: status } })).toBe(1)
+    expect(await db.inspection.count({ where: { ...org, templateId: template } })).toBe(1)
+    expect(await db.timeEntry.count({ where: { ...org, technicianId: technician } })).toBe(1)
+    expect(await db.servicePart.count({ where: { inventoryPartId: part } })).toBe(1)
+    expect(await db.customFieldDefinition.count({ where: { id: ownField.id } })).toBe(1)
+    for (const id of [template, technician, status, part]) {
+      expect(
+        await db.integrationLink.count({ where: { connectionId: shop.connectionId, entityId: id } })
+      ).toBe(1)
+    }
+
+    // Loading again matches what was kept instead of making a second one.
+    const again = await loadRun({
+      organizationId: shop.organizationId,
+      connectionId: shop.connectionId,
+      runUserId: shop.userId,
+      now: NOW,
+    })
+    expect(again.failures).toEqual([])
+    const now = await countRows(shop.organizationId)
+    for (const table of ['technician', 'workOrderStatus', 'inspectionTemplate', 'inventoryPart'])
+      expect(now[table], table).toBe(afterLoad[table])
+  })
+})

@@ -10,10 +10,11 @@ import { auditDetails, logAudit } from '@/lib/audit'
 import { db } from '@/lib/db'
 
 export class LoadRefused extends Error {
-  constructor(readonly connectors: string[]) {
-    super(
-      `Turn off ${connectors.join(', ')} before importing: issuing the imported invoices would send the whole history to it.`
-    )
+  constructor(
+    readonly connectors: string[],
+    message = `Turn off ${connectors.join(', ')} before importing: issuing the imported invoices would send the whole history to it.`
+  ) {
+    super(message)
     this.name = 'LoadRefused'
   }
 }

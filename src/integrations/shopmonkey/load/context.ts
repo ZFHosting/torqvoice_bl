@@ -153,7 +153,9 @@ export async function openBatches(lc: LoadContext): Promise<void> {
         userId: lc.runUserId,
         source: 'shopmonkey',
         entity,
-        fileName: `Shopmonkey import ${lc.scope.runId}`,
+        // What Settings → Data lists; the run it belongs to is in `mapping`, which undo looks it up by.
+        fileName: lc.label('Shopmonkey import'),
+        mapping: { shopmonkeyRunId: lc.scope.runId },
       },
       select: { id: true },
     })

@@ -2,7 +2,12 @@
  * fork: the load CLI's arguments and the summary it prints (M5 tasks 9 and 11). SYNTHETIC values.
  */
 import { describe, expect, it } from 'vitest'
-import { formatLoadSummary, parseLoadArgs } from '@/integrations/shopmonkey/load/cli'
+import {
+  formatLoadSummary,
+  formatUndoSummary,
+  parseLoadArgs,
+  parseUndoArgs,
+} from '@/integrations/shopmonkey/load/cli'
 import { unitSystemOf } from '@/integrations/shopmonkey/load/proposals'
 import type { LoadSummary } from '@/integrations/shopmonkey/load/run'
 
@@ -116,5 +121,32 @@ describe('the unit system Shopmonkey’s vehicles imply', () => {
     expect(unitSystemOf('Kilometer')).toBe('metric')
     expect(unitSystemOf('Hours')).toBeNull()
     expect(unitSystemOf(null)).toBeNull()
+  })
+})
+
+describe('undo arguments and summary', () => {
+  it('needs the connection and the run', () => {
+    expect(parseUndoArgs(['undo', '--connection', 'c1', '--run', 'r1'])).toEqual({
+      connection: 'c1',
+      run: 'r1',
+    })
+    expect(() => parseUndoArgs(['undo', '--connection', 'c1'])).toThrow('--run are required')
+    expect(() => parseUndoArgs(['undo', '--connection', 'c1', '--run'])).toThrow('needs a value')
+    expect(() => parseUndoArgs(['load', '--connection', 'c1'])).toThrow('Usage: run.ts undo')
+  })
+
+  it('lists what it removed and kept, and says settings stay', () => {
+    expect(
+      formatUndoSummary('r1', {
+        removed: { Customer: 3, Quote: 0 },
+        kept: { Technician: 1 },
+      })
+    ).toEqual([
+      'Undid load r1:',
+      '  Customer: 3 removed',
+      'Kept, because the workshop uses them since:',
+      '  Technician: 1',
+      'Settings applied with --apply-numbering or --apply-settings are not changed back.',
+    ])
   })
 })
