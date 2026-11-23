@@ -134,6 +134,19 @@ beforeAll(async () => {
       data: { organizationId, connectorId: 'shopmonkey', createdById: userId, status: 'active' },
     })
   ).id
+  // A webhook that takes every event, there from before the first load: no run, and no invoice it issues, may
+  // reach it (acceptance; asserted at the end).
+  await db.webhook.create({
+    data: {
+      organizationId,
+      name: 'Everything',
+      createdById: userId,
+      url: 'https://hooks.example.test/all',
+      secret: 'x'.repeat(32),
+      events: JSON.stringify(['*']),
+      isActive: true,
+    },
+  })
   mock = createMockShopmonkey()
   await extract()
 })
@@ -211,6 +224,33 @@ describe('loading the archive into a workshop', () => {
       select: { id: true, invoiceNumber: true, updatedAt: true },
       orderBy: { invoiceNumber: 'asc' },
     })
+    // Everything hanging off each work order, by row id: a rewrite gives new ids.
+    const rowsOf = async (serviceRecordId: string) => {
+      const where = { serviceRecordId }
+      const ids = (rows: { id: string }[]) => rows.map((r) => r.id).sort()
+      return {
+        parts: ids(await db.servicePart.findMany({ where, select: { id: true } })),
+        labor: ids(await db.serviceLabor.findMany({ where, select: { id: true } })),
+        jobs: ids(await db.workJob.findMany({ where, select: { id: true } })),
+        payments: ids(await db.payment.findMany({ where, select: { id: true } })),
+      }
+    }
+    const childrenBefore = new Map(
+      await Promise.all(before.map(async (r) => [r.id, await rowsOf(r.id)] as const))
+    )
+    const people = async () => ({
+      customers: await db.customer.findMany({
+        where: { organizationId },
+        select: { id: true, updatedAt: true },
+        orderBy: { id: 'asc' },
+      }),
+      vehicles: await db.vehicle.findMany({
+        where: { organizationId },
+        select: { id: true, updatedAt: true },
+        orderBy: { id: 'asc' },
+      }),
+    })
+    const peopleBefore = await people()
     mock.change('order', 'syn_ord_1002', { name: 'Fleet service, renamed in Shopmonkey' })
     await extract()
     const summary = await run()
@@ -225,10 +265,15 @@ describe('loading the archive into a workshop', () => {
       if (row.invoiceNumber === '1002') {
         expect(row.title).toBe('Fleet service, renamed in Shopmonkey')
         expect(row.updatedAt.getTime()).toBeGreaterThan(was?.updatedAt.getTime() ?? 0)
+        expect((await rowsOf(row.id)).labor).not.toEqual(childrenBefore.get(row.id)?.labor)
       } else {
         expect(row.updatedAt).toEqual(was?.updatedAt)
+        expect(await rowsOf(row.id), row.invoiceNumber ?? row.id).toEqual(
+          childrenBefore.get(row.id)
+        )
       }
     }
+    expect(await people()).toEqual(peopleBefore)
   })
 })
 
@@ -260,20 +305,6 @@ describe('around the records', () => {
   })
 
   it('records one audit event per run, and fires no webhook even for a webhook that takes every event', async () => {
-    await db.webhook.create({
-      data: {
-        organizationId,
-        name: 'Everything',
-        createdById: userId,
-        url: 'https://hooks.example.test/all',
-        secret: 'x'.repeat(32),
-        events: JSON.stringify(['*']),
-        isActive: true,
-      },
-    })
-    const deliveriesBefore = await db.webhookDelivery.count({
-      where: { webhook: { organizationId } },
-    })
     const auditsBefore = await db.auditLog.count({
       where: { organizationId, action: 'shopmonkey.import' },
     })
@@ -285,9 +316,8 @@ describe('around the records', () => {
     expect(
       await db.auditLog.count({ where: { organizationId, action: 'shopmonkey.import' } })
     ).toBe(auditsBefore + 1)
-    expect(await db.webhookDelivery.count({ where: { webhook: { organizationId } } })).toBe(
-      deliveriesBefore
-    )
+    // The webhook has been there since before the first load and every invoice it issued: nothing reached it.
+    expect(await db.webhookDelivery.count({ where: { webhook: { organizationId } } })).toBe(0)
   })
 
   it('refuses to run while a connection that hears service.update is on, before writing anything', async () => {

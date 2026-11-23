@@ -314,8 +314,11 @@ fallback below and return a warning (code in brackets) for the M6 report.
 - A percent catalog fee becomes a preset item with rate 0, and a canned service's percent fee one at today's amount
   [`preset_percent_fee`]: a preset holds no percentage.
 - A user's colour name maps to hex (`blue` → `#3b82f6`); an unknown one keeps Torqvoice's default.
-- Text the transforms write for people ("EPA", "Shop supplies", "Deferred (…)", "Refund of …", "Shopmonkey note") is
-  English: M5 writes it in the workshop's language (`resolveDocumentLocale`, AGENTS "Whose language").
+- Text the transforms write for people ("EPA", "Shop supplies", "Deferred (…)", "Refund of …", "Deposit", the
+  payment note's "Shopmonkey: <type>", "check …", "card ending …", "reason: …", "Shopmonkey note", "Shopmonkey
+  customer <id>") goes through `TransformContext.label`: M5 passes the workshop's translator
+  (`resolveDocumentLocale`, AGENTS "Whose language"; `messages/<locale>/integrations.json` → `shopmonkeyImport`),
+  and without one it's English (the snapshots).
 
 ## 7. Inventory
 
@@ -394,13 +397,34 @@ differs from the workshop's, never applied: renaming the workshop is the operato
   nothing.
 - **Units.** Each record (an order with everything on it) is its own transaction; a failure rolls back that
   record alone, is counted with its error's name (never its message), and the run carries on. A dry run is
-  one transaction with a savepoint per record, rolled back at the end. An order's hash covers its services,
-  payments, files, invoice PDF, owner and stage; an inspection's covers its photos.
-- **Undo** (by run id) removes what the run created and nothing it only matched or updated: customers,
-  vehicles, work orders and inspections by their import batch, by the spreadsheet importer's undo rules;
-  quotes, inventory, presets, appointments, templates, time, technicians and statuses by the run's links;
-  findings and attachments it added to rows it didn't create; custom field definitions it made that no value
-  uses. Their links and archive mappings are cleared, so a later load creates them again.
+  one transaction with a savepoint per record, rolled back at the end. A record's hash covers its source
+  payload and the local ids its rows point at (vehicle, customer, technicians, inventory parts, status, work
+  order): a dependency created again, or loaded late, re-points what uses it on the next run. An order's hash
+  also covers its services, payments, authorizations, owner and stage; an inspection's its photos. Files aren't
+  in an order's hash: each is attached once by its own link, checked on every run, so one staged later still
+  arrives. Every imported invoice is offered for issuing on every run, so one a past run didn't reach (a crash,
+  a failed issue) is issued next time; failures are counted in the summary and the audit event.
+- **Changes during the sync window.** An estimate that becomes a repair order is loaded as a work order and its
+  quote marked `converted` into it (as the app's own conversion does); one that turns back into an estimate keeps
+  its work order (warned `order_back_to_estimate`). A timesheet that moves between a shift and a time entry (its
+  order became, or stopped being, a loaded work order) replaces the importer's other row. A row deleted in the app
+  is created again on the next load, warned `row_recreated`. The vehicle's Shopmonkey note follows changes (one
+  removed in Shopmonkey is left). Estimate files stay in the archive (`order_file`) until the estimate becomes a
+  work order, when they're attached to it; the API reaches them meanwhile through `/source-records`.
+- **Undo** (`run.ts undo --connection <id> --run <run id>`, by the run id a load prints first) removes what the
+  run created and nothing it only matched or updated: customers, vehicles, work orders and inspections by their
+  import batch (found by `mapping.shopmonkeyRunId`), by the spreadsheet importer's undo rules; quotes, inventory,
+  presets, appointments, templates, time, technicians and statuses by the run's links; findings and attachments
+  it added to rows it didn't create; the custom fields it defined (linked) that no value uses. A row the
+  workshop uses since is kept with its link, so a later load matches it: a template an inspection made in the
+  app uses, a technician with time, helpers, a login or lines outside the run, a status a work order is in, an
+  inventory part a line, preset or stock movement of the workshop's names. What's removed loses its links and
+  archive mappings, so a later load creates it again. Settings applied with `--apply-*` aren't changed back.
+  Settings → Data lists a run's batches but offers no spreadsheet Undo for them (the action refuses it too).
+- **Not guarded yet (M8):** two loads of one connection at once; a dry run holds one transaction for the whole
+  run (up to an hour), which can make the app wait on the same unique keys (customer numbers) meanwhile. Each
+  committed record also wakes the workshop's open screens once (the realtime extension in `src/lib/db.ts`), so a
+  large load is best run outside opening hours.
 - **Files.** A placed file is named from the workshop, its record and its content (UUID-shaped, so the file
   manager's sweep looks after it): placing it again, as rewriting a changed inspection does, finds the copy
   already in uploads after the staged copy is gone. A file gone from both places is warned `file_missing`
@@ -408,7 +432,8 @@ differs from the workshop's, never applied: renaming the workshop is the operato
   downloads it again and the next load attaches it. Imported order files are `includeInInvoice: true`, like
   a file uploaded in the app (they show on the share page); the original invoice PDF is `false`.
 - **Words.** What the importer writes itself (the custom fields it makes, `Customer type`/`Fleet`,
-  `Labels`, `Referral source`, the original invoice's name and description) is in the workshop's language
+  `Labels`, `Referral source`, the original invoice's name and description, the batch name, and §6.6's words) is
+  in the workshop's language
   (`resolveDocumentLocale`); a custom field's machine name stays the English label's, so a language change
   doesn't make a second field. The run's time zone and phone country are the workshop's
   (`workshop.defaultCountryCode`, else US).

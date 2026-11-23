@@ -48,8 +48,12 @@ Environment (local, Windows):
   version of M1's migration and need `prisma migrate reset`, which Prisma refuses to run for an AI agent
   without your consent (B14).
 - The checkout has CRLF endings (`core.autocrlf=true`); commits are normalized to LF. Biome's format check
-  runs against an LF worktree in the session scratchpad (`git -c core.autocrlf=false worktree add --detach`),
-  using the main checkout's `node_modules/.bin/biome`. Tests and `tsc` run in the main checkout.
+  runs against an LF worktree in the session scratchpad, now `scratchpad/lf2` (the old `lf` was overwritten by a
+  reviewer's copies and pruned): check it out with `git -C <lf2> -c core.autocrlf=false checkout -q --detach
+  <branch>`, using the main checkout's `node_modules/.bin/biome`. **Never run `git config` inside the worktree**:
+  it writes the shared `.git/config` (that once set `core.autocrlf=false` for the main checkout and a commit
+  stored CRLF; caught, soft-reset before any push, and the local setting removed). Tests and `tsc` run in the
+  main checkout.
 - **Run Vitest with Node 22.23.4 from an upper-case `C:` path** (Decisions log, 2026-11-22 "Test runner"):
   the machine's Node is 22.14, which can't start 634 of the 775 test files (`undici` 8 needs ≥22.19), and a
   lower-case `c:` cwd loads vitest twice ("Cannot read properties of undefined (reading 'config')"). A
@@ -109,7 +113,19 @@ Provisional (B1). Plan:
     unpaid/partly paid balances; undo restores the per-table counts; no `WebhookDelivery` with an active `*`
     webhook; editing an imported work order and quote keeps the fork columns; after a restore a second load
     creates no duplicates.
-12. [ ] DoD, reviewer, merge as provisional.
+12. [~] DoD (done at 40d6933d: `tsc` 0, Biome 14, all chunks = baseline, `test:db` 23/128). Reviewer pass 1:
+    needs changes, 7 must-fix, all fixed with tests: (1) the issue guard also refuses connections in `error`
+    (c1330a89); (2) every imported invoice is offered for issuing on every run, failures reported (c1330a89);
+    (3) undo keeps rows the workshop uses since, removes only the custom fields the run defined, finds batches by
+    `mapping.shopmonkeyRunId` (f05438c5, `db/shopmonkey-undo.db.test.ts` "undoing a load the workshop has worked
+    with since"); (4) an estimate that becomes a repair order converts its quote, a timesheet changing kind
+    replaces its other row (dbf05adf, `db/shopmonkey-sync.db.test.ts`); (5) `row_recreated` warning, hashes
+    include resolved local ids (dbf05adf, same file); (6) `dataImport.entities.inspections`, no spreadsheet Undo
+    on Shopmonkey batches (a52fe57a); (7) §6.6 words translated, MAPPING §9.2 matches the code. Should-fix taken:
+    connection checked against the workshop in `runLoad`/`undoLoad`, the vehicle note follows changes, an
+    unchanged technician mapping writes nothing (one link per record and model), batch counts count committed
+    records only, undo CLI, the merged docstring, backup test for the three mapping columns, stronger
+    acceptance 2 and webhook tests. Next: DoD again, reviewer pass 2, merge as provisional.
 Facts found while planning: `dispatchWebhookEvent` returns unless the event is in `WEBHOOK_EVENTS` (even for `*`);
 the issue guard's connectors today are fiken, google-calendar, microsoft-365, quickbooks, xero, zoho-books, zoom
 (manifest `subscriptions` with `service.update`); the upload route names files `<randomUUID>.<ext>` under
@@ -287,6 +303,11 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | M5: placed files are named from the workshop, record and content hash; a file gone from both places is warned `file_missing` and forgotten by the archive so the next extract fetches it again; an inspection's hash covers its photos. | Found while writing the staged-files test: an inspection changed after its first load rewrote its items and crashed copying a staged photo that had been removed; an undo followed by a reload could never get its files back, since the extract skips an unchanged file. |
 | 2026-11-23 | M5: imported order files keep upstream's `includeInInvoice: true` (shown on the share page like any upload); the original invoice PDF is `false` (MAPPING). Re-verify item added (S4: a visibility flag on Shopmonkey's file entries). | Same behaviour as a file uploaded in the app; nothing in the documented shape says a file is internal. |
 | 2026-11-23 | M5: the importer's own words (custom field labels, `Fleet`, the invoice PDF's name and description) are written in the workshop's language (`integrations.json` → `shopmonkeyImport`, 14 locales written by Claude, like A1's); a definition's machine name stays the English label's; the run's time zone and phone country are the workshop's, not UTC/US. | AGENTS.md "Whose language" and "Whose clock" (M4 review carry-over). The 13 non-English strings deserve a native read before release. |
+| 2026-11-23 | M5 review: every imported invoice is offered for issuing on every run (one query keeps those with `issuedAt` null); the issue guard refuses connections in `active` or `error`, the statuses `notifyIntegrations` queues for. | A crash between the stages and issuing, or a failed issue, left invoices unlocked forever; an expired-token accounting connection would have received every imported invoice once fixed. |
+| 2026-11-23 | M5 review: a record's load hash includes the local ids its rows point at (`foreignKeys`); one link per record and model; a row deleted in the app is created again, warned `row_recreated`. | Without the ids, dependents of a re-created or late-loaded row kept a stale or empty foreign key on every rerun; two links for one record made lookups pick either. |
+| 2026-11-23 | M5 review: an estimate that becomes a repair order converts its quote (`status: converted`, `convertedToId`, as `quoteService` does); one that turns back keeps its work order (warned); a timesheet moving between shift and time entry replaces the importer's other row. | Shopmonkey's normal flow during the sync window would otherwise leave two documents for one order. Estimate files stay archive-only until the estimate becomes a work order (MAPPING §9.2) rather than going to `QuoteAttachment`: fewer moving parts, and nothing is lost. |
+| 2026-11-23 | M5 review: undo keeps created rows the workshop uses since (and their links), removes only the custom fields the run defined (now linked as `CustomFieldDefinition`), and finds a run's batches by `ImportBatch.mapping.shopmonkeyRunId`; the batch's `fileName` is a translated label. Settings → Data hides the spreadsheet Undo on Shopmonkey batches and the action refuses it (marked `// fork:` in `ImportHistoryCard.tsx`, `importActions.ts`). | A restrict FK (templates) made undo impossible once the app used an imported template; cascades would have taken the workshop's time entries and statuses; the time-window sweep deleted fields made in Settings; the spreadsheet undo covers only three of the tables a load writes. |
+| 2026-11-23 | M5 review, deferred to M8 (MAPPING §9.2): a lock against two loads of one connection at once; the dry run's single long transaction; the realtime notify per committed record. `.bin` for unknown file types stays (the files route serves it as octet-stream). | M8 adds the screen that starts loads; the CLI is the only entry point until then. |
 | 2026-11-23 | M3 review, accepted as is: the file download honours `WEBHOOKS_ALLOW_PRIVATE_TARGETS` (the same opt-out the webhook and calendar fetchers have, for testing against a local server); an uploaded backup zip is capped at 200 MiB compressed and 2 GiB uncompressed (`import/route.ts`, `zip-guard.ts`), scheduled snapshots aren't; `logAudit` never throws, so a finished run's audit event can't be lost to an exception after `finishedAt` is saved. | One switch for "this server may reach private addresses"; the zip caps are upstream's. |
 | 2026-11-23 | **A2 done.** DoD at 3329b5c4 plus review fixes: `tsc` exit 0; Biome 14 (baseline); `npm test` 808 files, failures = Windows baseline + CRLF/timeout environment cases; `test:db` 16/102. Reviewer pass 2: ready for PR. Merged at c7f16d90. | Evidence for the definition of done and acceptance. |
 | 2026-11-23 | **Upstream bug found in A2's move, not fixed in A2:** `updateTechnicianService` (formerly `updateTechnician`) renames `techName` on work orders matched by technician id alone, after a workshop-scoped update whose count it never checks, so another workshop's technician id renames that workshop's jobs. Present on upstream `main`. | The A2 brief: bugs found while moving code are noted in the PR and fixed separately. It becomes reachable by API keys with A4's `PATCH /technicians/{id}`, so it is an A4 prerequisite (A4 brief). Worth reporting upstream too. |

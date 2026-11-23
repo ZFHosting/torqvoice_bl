@@ -54,6 +54,10 @@ async function seedArchive() {
           payload: { id: `syn_ord_${stamp}_${n}`, number: String(n), note: FILLER },
           payloadHash: `hash-${n}`,
           childrenHash: n % 2 ? `hash-${n}` : null,
+          // What it was loaded as (M5): the mapping a load after a restore re-links from.
+          localEntity: n % 2 ? 'ServiceRecord' : null,
+          localId: n % 2 ? `sr-${stamp}-${n}` : null,
+          loadedHash: n % 2 ? `loaded-${n}` : null,
         }
       }),
     })
@@ -133,6 +137,9 @@ describe('a workshop whose import archive is larger than the data file a restore
       payloadHash: before?.payloadHash,
       childrenHash: before?.childrenHash,
       connectionId: `conn-${stamp}`,
+      localEntity: 'ServiceRecord',
+      localId: `sr-${stamp}-7`,
+      loadedHash: 'loaded-7',
     })
   })
 
