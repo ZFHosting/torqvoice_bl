@@ -537,3 +537,50 @@ the fields the importer reads plus a few around them; recorded fixtures will add
 | `inspection_template.items[]` | `createdDate`, `inspectionTemplateId`, `recommendedCannedServiceIds`, `status` |
 | `inspection.items[]` | `createdDate`, `inspectionDate`, `inspectionId`, `inspectorUserId`, `publicId`, `recommendedCannedServiceIds`, `reviewStatus` |
 | `files[]` | `thumbnailUrl` |
+
+## 12. Reconciliation (M6)
+
+`src/integrations/shopmonkey/reconcile/`, run by `scripts/shopmonkey/run.ts reconcile --connection <id> [--json]`
+and kept as the connection's `state.lastReconciliation`. It explains; people decide.
+
+**Every staged record lands in exactly one bucket** (`reconcile/tables.ts` `place`), checked in this order:
+
+| Bucket | When |
+| --- | --- |
+| `loaded` | Its link (`SourceRecord.localEntity/localId`) names a row that exists in the workshop; for a payment, a `Payment` with its `externalId` |
+| `missing` | Its link names a row that is gone (deleted in the app): **named, count gate fails** |
+| `deleted` | Shopmonkey deleted it (`remoteDeletedAt`, or the payload's `deleted`) |
+| `failed` | The load's unit for it threw (`loadSkip = failed`): **named, failures gate fails for orders** |
+| `skipped` | The load left it out, for the reason it wrote on `SourceRecord.loadSkip` (below) |
+| `archive` | An archive-only table (§3, §11) |
+| `settings` | Read whole into settings and fields: `tax_config`, `labor_rate`, `workflow`, `referral_source`, `label` |
+| `folded` | Part of a parent's rows: `order_service` (a deferred one is linked to its finding), `authorization`, `vehicle_owner` |
+| `unaccounted` | None of these: **named, count gate fails** |
+
+**Why a record was left out** (`SourceRecord.loadSkip`, written by the load where it decides; cleared when the
+record is linked): `history` (an order created before `historyFrom`, §1); a transform's warning code from §6.6
+(`payment_type_unsupported`, `payment_missing_date`, `appointment_missing_start`, `inspection_vehicle_unresolved`,
+`timesheet_missing_clock_in`, …); `payment_not_succeeded` (§6.5); `payment_order_not_loaded` (its order isn't a loaded
+work order: a quote, a skipped or failed order); `files_not_on_work_order` (a quote's or a skipped order's files);
+`user_not_referenced` (a Shopmonkey user no order, timesheet or appointment names, and the operator didn't map);
+`not_imported` (a transform left it out without a warning). Worked out in the report, not written: `file_not_staged`
+(the extract didn't download it, `_staged.skipped`) and `parent_not_loaded` (a file whose record wasn't loaded).
+
+**Money**, per imported work order, in cents, over a cent: Torqvoice's counted lines (§6.3: not under a Declined
+or deferred job) against Shopmonkey's subtotal (§6.1's categories); its stored total against `totalCostCents`; its
+payments against `paidCostCents`; its balance against `remainingCostCents`. A difference is **explained** only by:
+
+| Rule | Explains |
+| --- | --- |
+| `money_mismatch` (§6.6) | A lines difference on an order the load warned about: Shopmonkey's own lines and subtotal disagree |
+| `payment_type_unsupported`, `payment_missing_date` (§6.5, §6.6) | A paid (and the matching balance) difference that comes, to the cent, to the payments the load left out for those reasons |
+
+Anything else is unexplained and fails the money gate: a line changed or broken since the load, a payment added
+in the app during the sync window (M7 brings those over), a total edited by hand.
+
+**Gates** (all must pass for cutover): counts (no `missing` or `unaccounted`, and the extract read every record
+Shopmonkey listed); money (no unexplained difference); receivables (what the imported invoices still have open
+equals Shopmonkey's `remainingCostCents`, to the cent); failures (no order failed to load). By month, on the
+workshop's clock, both sides: invoiced, tax, discounts (by invoice date), payments (by payment date), and what was
+open at each month's end. 25 invoices picked at random (seeded) are listed with both totals for a person to compare.
+Unmapped fields are read from the 2,000 most recently updated records of each table.

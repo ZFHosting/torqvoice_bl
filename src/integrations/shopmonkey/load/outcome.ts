@@ -58,11 +58,19 @@ export function groupWarnings(warnings: Warning[]): Record<string, WarningGroup>
   return out
 }
 
+/**
+ * Warning codes the reconciliation explains money differences by (MAPPING §6.6): every order warned with each,
+ * not only the first examples.
+ */
+export const EXPLAINING_CODES = ['money_mismatch'] as const
+
 export interface LastLoad {
   runId: string
   finishedAt: string
   counts: Record<string, Counts>
   warnings: Record<string, WarningGroup>
+  /** By explaining code: the orders warned with it. */
+  warnedOrders: Record<string, string[]>
   failures: { table: string; remoteId: string; error: string }[]
   failureCount: number
   issued: number
@@ -80,6 +88,16 @@ export async function saveLastLoad(
     finishedAt: (run.now ?? new Date()).toISOString(),
     counts: lc.counts,
     warnings: groupWarnings(lc.warnings),
+    warnedOrders: Object.fromEntries(
+      EXPLAINING_CODES.map((code) => [
+        code,
+        [
+          ...new Set(
+            lc.warnings.filter((w) => w.code === code && w.table === 'order').map((w) => w.remoteId)
+          ),
+        ],
+      ])
+    ),
     failures: lc.failures.slice(0, FAILURES_KEPT),
     failureCount: lc.failures.length,
     issued: run.issued,
