@@ -245,6 +245,9 @@ export function sourceRecordColumns(r: Row, organizationId: string) {
     fetchedAt: date(r.fetchedAt) ?? undefined,
     remoteDeletedAt: date(r.remoteDeletedAt),
     childrenHash: text(r.childrenHash),
+    localEntity: text(r.localEntity),
+    localId: text(r.localId),
+    loadedHash: text(r.loadedHash),
     createdAt: date(r.createdAt) ?? undefined,
     updatedAt: date(r.updatedAt) ?? undefined,
   }
