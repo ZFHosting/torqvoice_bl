@@ -18,6 +18,7 @@ import {
 } from './context'
 import { loadInventory, loadPresets } from './catalog'
 import { removePlaced } from './files'
+import { assertNoInvoiceListeners, issueInvoices, recordLoad } from './finish'
 import { loadAppointments, loadInspections, loadInspectionTemplates, loadTime } from './history'
 import { loadOrders } from './orders'
 import {
@@ -93,6 +94,8 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
     connectionId: options.connectionId,
     runId: randomUUID(),
   }
+  // Issuing an imported invoice notifies whatever hears `service.update`: nothing is written while one is on.
+  if (!options.dryRun) await assertNoInvoiceListeners(scope.organizationId)
   const resolver = await loadResolver(scope)
   const statuses = await db.sourceRecord.findMany({
     where: { organizationId: scope.organizationId, source: 'shopmonkey', table: 'workflow_status' },
@@ -131,6 +134,18 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
     // The staged copies of files that loaded: uploads has them now.
     await removePlaced(lc.placedFiles)
   }
+  const issue = options.dryRun
+    ? { issued: 0, failed: 0 }
+    : await issueInvoices(scope.organizationId, lc.toIssue)
+  if (!options.dryRun) {
+    const records = Object.values(lc.counts).reduce((a, c) => a + c.created + c.updated, 0)
+    await recordLoad(scope.organizationId, options.runUserId, {
+      runId: scope.runId,
+      records,
+      counts: lc.counts,
+      issued: issue.issued,
+    })
+  }
   return {
     runId: scope.runId,
     dryRun: options.dryRun === true,
@@ -138,7 +153,7 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
     warnings: countWarnings(lc.warnings),
     failures: lc.failures,
     batches: options.dryRun ? {} : lc.batches,
-    issued: 0,
+    issued: issue.issued,
     mileageUnit,
   }
 }

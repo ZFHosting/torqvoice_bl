@@ -221,3 +221,77 @@ describe('loading the archive into a workshop', () => {
     }
   })
 })
+
+describe('around the records', () => {
+  it('issues an imported invoice: locked like the app’s own, printing Shopmonkey’s number, lines and totals', async () => {
+    const invoice = await db.serviceRecord.findFirst({
+      where: { organizationId, invoiceNumber: '1003' },
+      select: { id: true, issuedAt: true, sentAt: true, issuedData: true },
+    })
+    expect(invoice?.issuedAt).toEqual(new Date('2025-03-14T17:05:00.000Z'))
+    expect(invoice?.sentAt).toEqual(new Date('2025-03-14T17:05:00.000Z'))
+    expect(invoice?.issuedData).not.toBeNull()
+    const { assembleInvoicePrint } = await import('@/features/invoices/Lib/assembleInvoicePrint')
+    const sheet = await assembleInvoicePrint(invoice?.id as string)
+    expect(sheet?.issuedAt).not.toBeNull()
+    expect(sheet?.data).toMatchObject({
+      invoiceNumber: '1003',
+      subtotal: 1088.09,
+      taxAmount: 80.02,
+      totalAmount: 1168.11,
+    })
+    expect(sheet?.data.partItems.length).toBeGreaterThan(0)
+    // A repair order isn't issued.
+    const open = await db.serviceRecord.findFirst({
+      where: { organizationId, invoiceNumber: '1002' },
+      select: { issuedAt: true },
+    })
+    expect(open?.issuedAt).toBeNull()
+  })
+
+  it('records one audit event per run, and fires no webhook even for a webhook that takes every event', async () => {
+    await db.webhook.create({
+      data: {
+        organizationId,
+        name: 'Everything',
+        createdById: userId,
+        url: 'https://hooks.example.test/all',
+        secret: 'x'.repeat(32),
+        events: JSON.stringify(['*']),
+        isActive: true,
+      },
+    })
+    const deliveriesBefore = await db.webhookDelivery.count({
+      where: { webhook: { organizationId } },
+    })
+    const auditsBefore = await db.auditLog.count({
+      where: { organizationId, action: 'shopmonkey.import' },
+    })
+    mock.change('order', 'syn_ord_1003', { complaint: 'Changed again' })
+    await extract()
+    await run()
+    // logAudit fans out to webhooks asynchronously; give it a moment.
+    await new Promise((r) => setTimeout(r, 500))
+    expect(
+      await db.auditLog.count({ where: { organizationId, action: 'shopmonkey.import' } })
+    ).toBe(auditsBefore + 1)
+    expect(await db.webhookDelivery.count({ where: { webhook: { organizationId } } })).toBe(
+      deliveriesBefore
+    )
+  })
+
+  it('refuses to run while a connection that hears service.update is on, before writing anything', async () => {
+    const before = await counts()
+    const fiken = await db.integrationConnection.create({
+      data: { organizationId, connectorId: 'fiken', createdById: userId, status: 'active' },
+    })
+    try {
+      await expect(run()).rejects.toMatchObject({ name: 'LoadRefused' })
+      expect(await counts()).toEqual(before)
+      // A dry run issues nothing, so it may run.
+      await expect(run(true)).resolves.toMatchObject({ dryRun: true })
+    } finally {
+      await db.integrationConnection.delete({ where: { id: fiken.id } })
+    }
+  })
+})

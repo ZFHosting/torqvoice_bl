@@ -235,6 +235,7 @@
     "api_key_create": "Clé d'API créée",
     "api_key_revoke": "Clé d'API révoquée",
     "shopmonkey_extract": "Récupéré depuis Shopmonkey",
+    "shopmonkey_import": "Importé depuis Shopmonkey",
     "platform_revokeSuperAdmin": "Super administrateur retiré"
   },
   "summary": {
@@ -430,6 +431,7 @@
     "api_key_create": "Clé d'API {name} ({ref}) créée",
     "api_key_revoke": "Clé d'API {name} ({ref}) révoquée",
     "shopmonkey_extract": "{records} enregistrements nouveaux ou modifiés récupérés depuis Shopmonkey ({count} appels API)",
+    "shopmonkey_import": "{records} enregistrements nouveaux ou modifiés importés depuis Shopmonkey",
     "platform_revokeSuperAdmin": "Rôle de super administrateur retiré à {name} ({email})"
   }
 }

@@ -235,6 +235,7 @@
     "api_key_create": "API anahtarı oluşturuldu",
     "api_key_revoke": "API anahtarı iptal edildi",
     "shopmonkey_extract": "Shopmonkey'den alındı",
+    "shopmonkey_import": "Shopmonkey'den içe aktarıldı",
     "platform_revokeSuperAdmin": "Süper yönetici yetkisi kaldırıldı"
   },
   "summary": {
@@ -430,6 +431,7 @@
     "api_key_create": "API anahtarı {name} ({ref}) oluşturuldu",
     "api_key_revoke": "API anahtarı {name} ({ref}) iptal edildi",
     "shopmonkey_extract": "Shopmonkey'den {records} yeni veya değişmiş kayıt alındı ({count} API çağrısı)",
+    "shopmonkey_import": "Shopmonkey'den {records} yeni veya değişmiş kayıt içe aktarıldı",
     "platform_revokeSuperAdmin": "{name} ({email}) kullanıcısının süper yöneticiliği kaldırıldı"
   }
 }
