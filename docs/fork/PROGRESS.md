@@ -68,23 +68,26 @@ Environment (local, Windows):
 **M3 (extract and stage), in progress** on `fork/M3-extract-and-stage` (from `fork/integration` at db8d0810;
 upstream had nothing new). Provisional (B1): endpoints and shapes are documented only; tests run against a mock
 server serving the synthetic fixtures. Plan:
-1. [ ] Client, from M2's review (pass 2): refuse a path unless `new URL(path, base)` keeps the origin and an
+1. [x] Client, from M2's review (pass 2): refuse a path unless `new URL(path, base)` keeps the origin and an
    identical pathname; a refused VIN/plate path doesn't repeat the VIN; catch, log and count a fetch rejection;
    `ShopmonkeyError.retryAfterS`. New: one-page reads (`listPage`, `searchPage`) for page-per-job extraction,
-   and a byte download for the invoice PDF.
-2. [ ] `SourceRecord.childrenHash` (migration `fork_source_children_hash`): the parent hash whose children were
-   fetched. Backup restore carries it.
-3. [ ] `extract/stage.ts`: canonical JSON, `payloadHash`, a `SourceStore` (Prisma, and an in-memory one for
+   and a byte download for the invoice PDF. (902a8cc1)
+2. [x] `SourceRecord.childrenHash` (migration `fork_source_children_hash`): the parent hash whose children were
+   fetched. Backup restore carries it. (5e447566)
+3. [x] `extract/stage.ts`: canonical JSON, `payloadHash`, a `SourceStore` (Prisma, and an in-memory one for
    tests): stage a page (one read for the page's hashes, upsert only changed), pending children, mark fetched,
    mark children gone from their parent as deleted.
-4. [ ] `extract/tables.ts` (every MAPPING §3 table, archive-only ones included; children; references fetched by
+4. [x] `extract/tables.ts` (every MAPPING §3 table, archive-only ones included; children; references fetched by
    id), `extract/plan.ts` (run order; checkpoints `{ phase, stage, skip, highWatermark, total, lastPage }` per
    step in `state.extract`), `extract/engine.ts` (one unit of work per step: a page, or a batch of parents'
-   children), `extract/files.ts` (staging area, size cap, content-type check, guarded download).
-5. [ ] Jobs in `server.ts` (`extract.start`, `extract.step`, rescheduling 1 s) and the CLI
-   `scripts/shopmonkey/run.ts extract`.
-6. [ ] Backups: the archive gets its own export option (on by default), streamed to its own file and restored
+   children), `extract/files.ts` (staging area, size cap, content-type check, guarded download). (cf234717;
+   the Prisma store's own database test is still to write)
+5. [x] `startShopmonkeyExtract` (features/shopmonkey-import) + job `extract.step` (45 s of units per run,
+   the cron ticks each minute; reschedules 1 s; a long 429 reschedules for Retry-After) + one audit event per
+   finished run + CLI `scripts/shopmonkey/run.ts extract` (951f53fa).
+6. [x] Backups: the archive gets its own export option (on by default), streamed to its own file and restored
    in batches, so a 50,000-order archive stays restorable; restore clears the workshop's archive first.
+   (ee7c928f: `source-archive.ndjson`, `data.json` keeps an empty marker; db test passes)
 7. [ ] Tests (acceptance): mock server; full extract stages every fixture record and a second run writes nothing;
    kill mid-table and resume; a changed record is restaged and its order's children refetched; no PII in logs;
    backup round trip with a large archive; restoring twice leaves one row per object (db).
