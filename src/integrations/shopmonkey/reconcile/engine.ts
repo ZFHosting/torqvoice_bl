@@ -116,6 +116,7 @@ export async function buildReport(
       : []
   )
 
+  // PROVISIONAL(M0:S12): `meta.total` on a list's first page is the whole table, so reading fewer is stopping early.
   const extractSteps = (extract.steps ?? {}) as Record<
     string,
     { total?: number | null; skip?: number }
