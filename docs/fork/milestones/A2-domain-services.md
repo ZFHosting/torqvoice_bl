@@ -38,7 +38,8 @@ callers use one definition. Deletes also write `DeletedRecord`.
 1. customers (+ custom fields). Contacts (X4) have no action to extract: their service is written with
    their endpoints in A4 (`/customers/{id}/contacts`).
 2. vehicles (+ notes)
-3. service records: create draft, update header, lines (add, update, remove), status changes, jobs (X2)
+3. service records: create draft, update header, lines (add, update, remove), status changes. Jobs (X2)
+   have no action to extract: their service is written with their endpoints in A4.
 4. payments (including the invoice issuing they trigger)
 5. quotes (+ convert to job, via `src/features/quotes/Lib/copyQuoteToJob.ts`)
 6. appointments

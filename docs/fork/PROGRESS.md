@@ -78,7 +78,13 @@ existing tests unchanged → a service test → `tsc` → commit. Order (brief):
 2. [x] vehicles + notes + archive (349f3bdc): `vehicleService`, `vehicleArchiveService`, `noteService`,
    `vehicleAuditEvents.ts`; test `features/vehicles/vehicle-service.test.ts`; vehicle-related folders pass
    (only the Windows baseline file tests fail); `tsc` exit 0.
-3. [ ] service records: draft, header, lines, status, jobs (X2)
+3. [x] service records (a2e14f31, b0ccb678): `serviceRecordService` (create, update incl. lines, status,
+   internal notes, title, manually paid, delete, attachment delete, public link), `draftServiceRecordService`,
+   `serviceAttachmentService`, `serviceRecordAuditEvents.ts`; test `vehicles/service-record-service.test.ts`;
+   `meters-gates`, `equipment-gates` and `service-concerns` now read the service file (same assertions).
+   `addPartToServiceRecord` already calls a library helper. Jobs (X2) have no action to extract: their service
+   comes with their endpoints in A4, like contacts. Board scheduling and assignment writes go with
+   appointments (6). Folders pass except Windows baseline tests (checked by test name); `tsc` exit 0.
 4. [ ] payments (+ the invoice issuing they trigger)
 5. [ ] quotes (+ convert to job)
 6. [ ] appointments
