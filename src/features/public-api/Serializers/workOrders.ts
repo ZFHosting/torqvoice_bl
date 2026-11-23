@@ -3,7 +3,7 @@
  * invoice snapshot or who unlocked it: only what an integration needs and may see.
  */
 import { parseTaxComponents } from '@/lib/tax-components'
-import { day, iso, isoAlways, money, moneyOrNull } from '../Lib/serializeFormat'
+import { day, iso, isoAlways, money } from '../Lib/serializeFormat'
 import type { SerializeContext } from '../Lib/serializeFormat'
 import type {
   AttachmentOut,
