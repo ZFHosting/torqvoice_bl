@@ -29,7 +29,7 @@ resolved.
 | M4 | provisional | fork/M4-transform | Merged 634a6785. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M4 provisional). |
 | M5 | provisional | fork/M5-load | Merged 40e49b36. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 4 passes. Evidence in the Decisions log (M5 provisional). |
 | A3 | done | fork/A3-read-endpoints | Merged c7770ecc. Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (A3 done). |
-| A4 | todo | | |
+| A4 | in_progress | fork/A4-write-endpoints | |
 | M6 | todo | | |
 | M7 | todo | | |
 | M8 | todo | | |
@@ -69,9 +69,28 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**Next: A4 (write endpoints)**, from `fork/integration` at the A3 merge. Its first commit is the A2-review prerequisite:
-`updateTechnicianService` checks the workshop-scoped update's count and scopes the `techName` sync by
-`organizationId` (A4 brief, "From the A2 review"). Upstream merges stay blocked on B15 until it's resolved.
+**A4 (write endpoints), in progress** on `fork/A4-write-endpoints` (from `fork/integration` at db3ae724; the upstream
+merge is still blocked by B15). Plan:
+0. [x] Prerequisite (6ddcbc98): `updateTechnicianService` refuses another workshop's technician id (count checked)
+   and scopes the `techName` sync by `organizationId` (`workboard/technician-service.test.ts`).
+1. [ ] `Lib/writeRoute.ts`: withPublicApi + the permission + the raw body to the service (it validates) + `If-Match`
+   on PATCH/DELETE (412) + `Idempotency-Key` on POST + the action's own audit builder through `logAudit` (so
+   webhooks fire as from the UI) + errors: zod 400 with paths, document lock 409 `document_locked`, plan gate 403
+   with `details.gate`, a service's "… not found" 404, another plain `Error` (a refusal the action shows) 400,
+   a unique violation 409. The response is the record as A3 serializes it.
+2. [ ] Partial PATCH: update services that parse a `.partial()` schema with defaults switch to `parseSentFields`
+   (a field not sent stays as it is; the forms send everything, so the app is unchanged).
+3. [ ] Phase 1: customers (+ contacts, a new service with tombstones), vehicles (a customer id of another
+   workshop is a 404).
+4. [ ] Phase 2: work orders (create, update, delete, status action, lines, jobs (new service), payments, attachments
+   multipart), quotes (+ convert).
+5. [ ] Phase 3: appointments, technicians, time entries (+ start/stop), shifts (new service), inventory (+ adjust),
+   labor presets, findings, webhooks. `demoGuard()` where a service sends or calls a paid provider.
+6. [ ] Tests: parity (API vs action: same rows, audit event, webhook delivery) for create customer, create work
+   order, a labor line with a technician, a payment, a quote conversion; editing an issued invoice's lines 409
+   with `details.reason`; idempotent replay and conflict; stale `If-Match` 412; tenant isolation over every write
+   endpoint. Each endpoint asserts rows and the audit event.
+7. [ ] API.md, DoD, reviewer, merge.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
