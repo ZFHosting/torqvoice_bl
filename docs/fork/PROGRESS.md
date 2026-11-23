@@ -76,7 +76,14 @@ e522a3d2 (Settings → API keys), then docs and ledger.
 3. [x] Cron `purge-api-idempotency` (hourly at :17) in `cronTasks.ts` and `instrumentation.ts`.
 4. [x] Settings → API keys: actions, component, page, nav entry (`gate: 'api'`), icon, namespace `apiKeys`
    in 14 locales, nav and audit labels in every locale.
-5. [ ] DoD (done, below), reviewer, merge.
+5. [x] DoD (below). [x] Reviewer pass 1 (2026-11-22): **needs changes**, four must-fix, all fixed at ca5428ff:
+   tests for the key actions (`api-key-actions.test.ts`, 7); `/settings` checked against its schema on the
+   real route with a secret in the same table that never appears, plus `settings-serializer.test.ts`; the
+   allowlist's `X-Real-IP` trust in API.md §2 and the field's hint (14 locales); rate-limit headers on every
+   answer to a valid key. Should-fix taken too (Decisions log). After: public-api unit 7 files / 39 tests,
+   db 2 files / 20 tests, i18n + settings folders pass (the PDF preset timeout passes alone, 14/14), `tsc`
+   exit 0, Biome 14 (baseline).
+6. [ ] Reviewer pass 2, merge.
 
 A1 acceptance:
 - [x] A valid key; revoked → 401; expired → 401; disallowed IP → 403; missing permission → 403; rate limit
@@ -195,5 +202,11 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-22 | A1: `@apidevtools/swagger-parser@^13.1.0` added with npm 11.21.1 (the lockfile's own dialect); `ajv` moves 8.18 → 8.20 with it. | npm 10.9 rewrote the lockfile (dropped `libc`, changed `devOptional`), which would churn every upstream merge. |
 | 2026-11-22 | A1: the API keys page's strings in 13 languages besides English were written by Claude, not a translator. | The parity test needs every locale; they follow each locale's existing settings wording but deserve a native read before release. |
 | 2026-11-22 | A1: keys' service users show on Settings → Team and count as seats; left for A6 task 7 (label them, drop them from the seat count). | Self-hosted installs have every seat, so nothing is refused; editing a key's role on the Team page is how its scope is managed (API.md §2). |
+| 2026-11-22 | A1 review: the IP allowlist keeps upstream's address rules (`X-Real-IP`, or Cloudflare's header when trusted) and says plainly, in API.md §2 and under the field, that it only holds behind a proxy that overwrites `X-Real-IP`. No new environment switch. | One source for "who is calling" across the limiter and the allowlist; the shipped compose file exposes the port directly, so the doc and the UI have to say it. An opt-in variable can come with A6's security review if needed. |
+| 2026-11-22 | A1 review: failed authentication is limited per address (30 a minute) before any key lookup; a route's own rate limit counts in its own bucket. | Upstream's withApiAuth refuses cheaply first; a bad-key flood shouldn't cost a database read and an HMAC each. A tight route mustn't eat or reshape the key's default budget. |
+| 2026-11-22 | A1 review: an Idempotency-Key claim still in flight after 5 minutes is treated as abandoned; a failure to store the response is logged and the real response returned. | A crash would otherwise lock the key for 24 hours, and a committed write answered with a 500 invites a duplicate. |
+| 2026-11-22 | A1 review: `If-Match` compares strongly (a `W/` tag never matches); a short `API_KEY_PEPPER` throws; `createApiKey` has `demoGuard()`; compose passes `API_KEY_PEPPER`. | RFC 9110 §13.1.1; a silent fallback would invalidate keys the day the value is fixed; the demo takes no new users; Docker installs could never set the pepper otherwise. |
+| 2026-11-22 | A1 review: the fork's message keys are inserted before each JSON object's last key. | Appending changed upstream's last line (a trailing comma) in 42 files, a conflict on every upstream merge that touches them. |
+| 2026-11-22 | A1 review, not done: IPv6/IPv4-mapped normalisation in the allowlist (exact strings), keys outliving the admin who made them, the shared-test-DB purge assertion. | Noted for A6's security review; none is a defect in what A1 promises. |
 | 2026-11-22 | **M1 done.** DoD at 12628351: `tsc` exit 0; Biome 14 (baseline); `npm test` all 775 files on Node 22.23.4, failures = the 14 Windows-only baseline files (+ the cold-start `delete-paths` timeout); `test:db` 14 files / 82 tests on `torqvoice_fork_test`. Reviewer pass 2: ready for PR. Merged into `fork/integration` at 5605175e. | Evidence for the definition of done and acceptance (brief items 1–4). |
 | 2026-11-22 | M1 review: `readLaborSourceExtra`/`readPartSourceExtra` drop the whole object when one key is malformed. Left for M4, where the transform writes `sourceExtra` and the reader first matters. | Nothing writes or reads `sourceExtra` before M4; M4's fixture tests will show which keys need per-key leniency. |
