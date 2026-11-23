@@ -255,6 +255,9 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
 
       const record = rows.record
       let created = false
+      // Looked up before the work order is written: writing it moves the archive's mapping of this order from the
+      // quote to the work order, and after a restore (no links) the mapping is the only way to the quote.
+      const quoteId = await linkedRow(tx, lc.scope, 'order', 'Quote', order.remoteId)
       const { localId, result: outcome } = await upsertLinked(
         tx,
         lc.scope,
@@ -294,7 +297,6 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
       lc.resolver.set('order', order.remoteId, localId)
       // An estimate that became a repair order (Shopmonkey's usual flow during the sync window): its quote is
       // converted into this work order, as the app's own conversion does, instead of staying a second document.
-      const quoteId = await linkedRow(tx, lc.scope, 'order', 'Quote', order.remoteId)
       if (quoteId) {
         await tx.quote.updateMany({
           where: { id: quoteId, organizationId, convertedToId: null },

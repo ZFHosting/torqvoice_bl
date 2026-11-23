@@ -236,6 +236,7 @@
     "api_key_revoke": "Chiave API revocata",
     "shopmonkey_extract": "Recuperato da Shopmonkey",
     "shopmonkey_import": "Importato da Shopmonkey",
+    "shopmonkey_import_undo": "Importazione da Shopmonkey annullata",
     "platform_revokeSuperAdmin": "Super amministratore rimosso"
   },
   "summary": {
@@ -432,6 +433,7 @@
     "api_key_revoke": "Chiave API {name} ({ref}) revocata",
     "shopmonkey_extract": "Recuperati {records} record nuovi o modificati da Shopmonkey ({count} chiamate API)",
     "shopmonkey_import": "Importati {records} record nuovi o modificati da Shopmonkey",
+    "shopmonkey_import_undo": "Annullata un'importazione da Shopmonkey: rimossi {records} record",
     "platform_revokeSuperAdmin": "Ruolo di super amministratore rimosso da {name} ({email})"
   }
 }

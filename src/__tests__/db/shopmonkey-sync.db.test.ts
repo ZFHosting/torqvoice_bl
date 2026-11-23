@@ -122,6 +122,54 @@ describe('the operator’s technician mapping', () => {
 
     await sync({ technicianMap: { syn_usr_3: second.id } })
     expect(await linkOf('Technician', 'user:syn_usr_3')).toEqual([{ entityId: second.id }])
+
+    // Dropping the mapping later doesn't rename the workshop's own technician to the Shopmonkey user.
+    await sync()
+    expect(
+      await db.technician.findMany({
+        where: { id: { in: [first.id, second.id] } },
+        select: { name: true },
+        orderBy: { name: 'asc' },
+      })
+    ).toEqual([{ name: 'Existing tech A' }, { name: 'Existing tech B' }])
+  })
+})
+
+describe('after a restore (no links)', () => {
+  it('converts the quote when an estimate becomes a repair order, instead of leaving two documents', async () => {
+    const shop = await createWorkshop('SyncRestore')
+    try {
+      const own = createMockShopmonkey()
+      await extractInto(own, shop)
+      const runShop = () =>
+        load.runLoad({
+          organizationId: shop.organizationId,
+          connectionId: shop.connectionId,
+          runUserId: shop.userId,
+          now: NOW,
+        })
+      expect((await runShop()).failures).toEqual([])
+      const org = { organizationId: shop.organizationId }
+      const quotes = await db.quote.count({ where: org })
+      // A restore (or a reconnect) leaves the rows and the archive's mappings, not the links.
+      await db.integrationLink.deleteMany({ where: { connectionId: shop.connectionId } })
+      own.change('order', 'syn_ord_1001', { status: 'RepairOrder', workflowStatusId: 'syn_wfs_3' })
+      await extractInto(own, shop)
+      expect((await runShop()).failures).toEqual([])
+      const record = await db.serviceRecord.findFirstOrThrow({
+        where: { ...org, invoiceNumber: '1001' },
+        select: { id: true },
+      })
+      expect(
+        await db.quote.findFirstOrThrow({
+          where: { ...org, quoteNumber: '1001' },
+          select: { status: true, convertedToId: true },
+        })
+      ).toEqual({ status: 'converted', convertedToId: record.id })
+      expect(await db.quote.count({ where: org })).toBe(quotes)
+    } finally {
+      await shop.remove()
+    }
   })
 })
 

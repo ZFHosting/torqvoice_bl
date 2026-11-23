@@ -571,6 +571,7 @@ export async function updateServiceRecordService(ctx: ServiceCtx, input: unknown
       // fork: the job, kind, note and source fields of the lines being replaced
       const forkParts = await tx.servicePart.findMany({
         where: { serviceRecordId: id },
+        orderBy: { id: 'asc' },
         select: partColumnsSelect,
       })
       await tx.servicePart.deleteMany({ where: { serviceRecordId: id } })
@@ -663,6 +664,7 @@ export async function updateServiceRecordService(ctx: ServiceCtx, input: unknown
       // fork: the job, kind, technician, cost and source fields of the lines being replaced
       const forkLabor = await tx.serviceLabor.findMany({
         where: { serviceRecordId: id },
+        orderBy: { id: 'asc' },
         select: laborColumnsSelect,
       })
       await tx.serviceLabor.deleteMany({ where: { serviceRecordId: id } })

@@ -236,6 +236,7 @@
     "api_key_revoke": "Отменен API ключ",
     "shopmonkey_extract": "Извлечено от Shopmonkey",
     "shopmonkey_import": "Импортирано от Shopmonkey",
+    "shopmonkey_import_undo": "Импортът от Shopmonkey е отменен",
     "platform_revokeSuperAdmin": "Премахнат супер администратор"
   },
   "summary": {
@@ -432,6 +433,7 @@
     "api_key_revoke": "Отменен API ключ {name} ({ref})",
     "shopmonkey_extract": "Извлечени {records} нови или променени записа от Shopmonkey ({count} API заявки)",
     "shopmonkey_import": "Импортирани {records} нови или променени записа от Shopmonkey",
+    "shopmonkey_import_undo": "Отменен импорт от Shopmonkey: премахнати записи: {records}",
     "platform_revokeSuperAdmin": "Премахнати правата на супер администратор на {name} ({email})"
   }
 }

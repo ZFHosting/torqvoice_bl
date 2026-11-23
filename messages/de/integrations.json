@@ -1252,7 +1252,9 @@
     "cardEnding": "Karte mit Endziffern {digits}",
     "refundReason": "Grund: {reason}",
     "vehicleNote": "Shopmonkey-Notiz",
-    "unnamedCustomer": "Shopmonkey-Kunde {id}"
+    "unnamedCustomer": "Shopmonkey-Kunde {id}",
+    "stockImported": "Aus Shopmonkey importiert",
+    "stockUpdated": "Bestand aus Shopmonkey aktualisiert"
   },
   "aiErrors": {
     "modelAccess": "Dieser API-Schlüssel hat keinen Zugriff auf das ausgewählte Modell. Wählen Sie unter Einstellungen → Integrationen ein anderes.",

@@ -51,21 +51,24 @@ export function parseLoadArgs(argv: string[]): LoadArgs {
 export interface UndoArgs {
   connection: string
   run: string
+  /** The member the undo is recorded as; the connection's creator unless given. */
+  user: string | null
 }
 
-export const UNDO_USAGE = 'Usage: run.ts undo --connection <id> --run <run id>'
+export const UNDO_USAGE = 'Usage: run.ts undo --connection <id> --run <run id> [--user <id>]'
 
 /** `undo --connection <id> --run <run id>`: the run id is the one a load prints first. */
 export function parseUndoArgs(argv: string[]): UndoArgs {
   const [command, ...rest] = argv
   if (command !== 'undo') throw new Error(UNDO_USAGE)
-  const out: UndoArgs = { connection: '', run: '' }
+  const out: UndoArgs = { connection: '', run: '', user: null }
   for (let i = 0; i < rest.length; i++) {
     const flag = rest[i]
     const next = rest[++i]
     if (!next || next.startsWith('--')) throw new Error(`${flag} needs a value. ${UNDO_USAGE}`)
     if (flag === '--connection') out.connection = next
     else if (flag === '--run') out.run = next
+    else if (flag === '--user') out.user = next
     else throw new Error(`Unknown option ${flag}. ${UNDO_USAGE}`)
   }
   if (!out.connection || !out.run)

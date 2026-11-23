@@ -1252,7 +1252,9 @@
     "cardEnding": "kortelė, kurios pabaiga {digits}",
     "refundReason": "priežastis: {reason}",
     "vehicleNote": "Shopmonkey pastaba",
-    "unnamedCustomer": "Shopmonkey klientas {id}"
+    "unnamedCustomer": "Shopmonkey klientas {id}",
+    "stockImported": "Importuota iš Shopmonkey",
+    "stockUpdated": "Kiekis atnaujintas iš Shopmonkey"
   },
   "aiErrors": {
     "modelAccess": "Šis API raktas neturi prieigos prie pasirinkto modelio. Pasirinkite kitą skiltyje Nustatymai → Integracijos.",

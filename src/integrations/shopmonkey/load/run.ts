@@ -21,7 +21,13 @@ import {
 } from './context'
 import { loadInventory, loadPresets } from './catalog'
 import { removePlaced } from './files'
-import { assertNoInvoiceListeners, issueInvoices, LoadRefused, recordLoad } from './finish'
+import {
+  assertNoInvoiceListeners,
+  connectionsHearingInvoices,
+  issueInvoices,
+  LoadRefused,
+  recordLoad,
+} from './finish'
 import { loadAppointments, loadInspections, loadInspectionTemplates, loadTime } from './history'
 import { loadOrders } from './orders'
 import {
@@ -193,12 +199,25 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
         ...(options.applyNumbering ? proposed.numbering.changes : []),
         ...(options.applySettings ? proposed.settings : []),
       ])
-  const issue = options.dryRun
-    ? { issued: 0, failed: 0 }
-    : await issueInvoices(scope.organizationId, lc.toIssue)
+  // Checked again before issuing: a run can take an hour, and a connection turned on meanwhile would hear every
+  // imported invoice. Then nothing is issued; the next run issues them (every unissued import is offered).
+  const listeners = options.dryRun ? [] : await connectionsHearingInvoices(scope.organizationId)
+  if (listeners.length && lc.toIssue.length) {
+    lc.warnings.push({
+      code: 'issue_postponed',
+      table: 'order',
+      remoteId: '',
+      message: `Not issued while ${listeners.join(', ')} is on: the next load issues them.`,
+    })
+  }
+  const issue =
+    options.dryRun || listeners.length
+      ? { issued: 0, failed: 0 }
+      : await issueInvoices(scope.organizationId, lc.toIssue)
   if (!options.dryRun) {
     const records = Object.values(lc.counts).reduce((a, c) => a + c.created + c.updated, 0)
     await recordLoad(scope.organizationId, options.runUserId, {
+      connectionId: scope.connectionId,
       runId: scope.runId,
       records,
       counts: lc.counts,

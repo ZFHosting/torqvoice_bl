@@ -165,6 +165,7 @@
       "quote_conversion": "Wycena przekształcona",
       "manual_adjustment": "Korekta ręczna",
       "bulk_markup": "Marża zbiorcza",
+      "import": "Import z Shopmonkey",
       "stock_tracking_off": "Śledzenie stanu wyłączone"
     },
     "backToInventory": "Magazyn",

@@ -1252,7 +1252,9 @@
     "cardEnding": "{digits} ile biten kart",
     "refundReason": "neden: {reason}",
     "vehicleNote": "Shopmonkey notu",
-    "unnamedCustomer": "Shopmonkey müşterisi {id}"
+    "unnamedCustomer": "Shopmonkey müşterisi {id}",
+    "stockImported": "Shopmonkey'den içe aktarıldı",
+    "stockUpdated": "Stok Shopmonkey'den güncellendi"
   },
   "aiErrors": {
     "modelAccess": "Bu API anahtarının seçilen modele erişimi yok. Ayarlar → Entegrasyonlar bölümünden başka bir model seçin.",

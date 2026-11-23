@@ -20,6 +20,7 @@ import { db, type TxClient } from '@/lib/db'
 import { serviceRecordFileUrls, vehicleFileUrls } from '@/lib/files/collect'
 import { releaseFiles } from '@/lib/files/manager'
 import { SOURCE } from '../extract/stage'
+import { recordUndo } from './finish'
 import type { LocalModel } from './links'
 
 export interface UndoResult {
@@ -102,10 +103,58 @@ async function namedInventoryParts(tx: TxClient, ids: string[]): Promise<Set<str
   return new Set(rows.map((r) => r.inventoryPartId as string))
 }
 
+/** Each linked model's table, for clearing links and mappings whose row is gone. */
+const TABLES: Record<LocalModel, string> = {
+  Customer: 'customers',
+  Vehicle: 'vehicles',
+  Technician: 'technicians',
+  WorkOrderStatus: 'work_order_statuses',
+  ServiceRecord: 'service_records',
+  Quote: 'quotes',
+  InventoryPart: 'inventory_parts',
+  LaborPreset: 'labor_presets',
+  Appointment: 'appointments',
+  InspectionTemplate: 'inspection_templates',
+  Inspection: 'inspections',
+  TimeEntry: 'time_entries',
+  TechnicianShift: 'technician_shifts',
+  ServiceAttachment: 'service_attachments',
+  VehicleFinding: 'vehicle_findings',
+  Note: 'notes',
+  CustomFieldDefinition: 'custom_field_definitions',
+}
+
+/**
+ * Links and archive mappings of this connection whose row no longer exists, removed: an undo can take rows a
+ * later run linked (its work order on this run's vehicle), and a stale one would read as "deleted in Torqvoice".
+ */
+async function clearDangling(tx: TxClient, organizationId: string, connectionId: string) {
+  for (const [model, table] of Object.entries(TABLES)) {
+    await tx.$executeRawUnsafe(
+      `DELETE FROM "public"."integration_links" AS l
+        WHERE l."connectionId" = $1 AND l."entityType" = $2
+          AND NOT EXISTS (SELECT 1 FROM "public"."${table}" AS r WHERE r."id" = l."entityId")`,
+      connectionId,
+      model
+    )
+    await tx.$executeRawUnsafe(
+      `UPDATE "public"."source_records" AS s
+          SET "localEntity" = NULL, "localId" = NULL, "loadedHash" = NULL
+        WHERE s."organizationId" = $1 AND s."source" = $2 AND s."localEntity" = $3
+          AND NOT EXISTS (SELECT 1 FROM "public"."${table}" AS r WHERE r."id" = s."localId")`,
+      organizationId,
+      SOURCE,
+      model
+    )
+  }
+}
+
 export async function undoLoad(input: {
   organizationId: string
   connectionId: string
   runId: string
+  /** The member undoing it: the audit event's user. */
+  userId: string
 }): Promise<UndoResult> {
   const { organizationId, connectionId, runId } = input
   // Links have no workshop column: the connection has to be this workshop's before its links decide anything.
@@ -114,6 +163,11 @@ export async function undoLoad(input: {
     select: { id: true },
   })
   if (!connection) throw new UndoRefused('That is not a Shopmonkey connection of this workshop.')
+  const member = await db.organizationMember.findFirst({
+    where: { organizationId, userId: input.userId },
+    select: { id: true },
+  })
+  if (!member) throw new UndoRefused('An undo is done by a member of the workshop.')
   const batches = await db.importBatch.findMany({
     where: {
       organizationId,
@@ -239,6 +293,17 @@ export async function undoLoad(input: {
           where: { id: { in: attachments.map((a) => a.id) } },
         })
       ).count
+      // Vehicle notes it wrote on vehicles it didn't create (one deleted in the app and written again, say).
+      removed.Note = (
+        await tx.note.deleteMany({
+          where: { id: { in: created('Note') }, vehicle: { organizationId } },
+        })
+      ).count
+      // A quote it converted into a work order that's gone points at nothing now: the next load converts it again.
+      await tx.quote.updateMany({
+        where: { organizationId, convertedToId: { in: records.map((r) => r.id) } },
+        data: { convertedToId: null },
+      })
       // Custom fields the run defined, unless a value (the workshop's, or another run's) uses them.
       const fields = created('CustomFieldDefinition')
       const unusedFields = (
@@ -279,9 +344,11 @@ export async function undoLoad(input: {
         where: { id: { in: batchIds }, organizationId },
         data: { status: 'undone', undoneAt: new Date() },
       })
+      await clearDangling(tx, organizationId, connectionId)
     },
     { maxWait: 30_000, timeout: 30 * 60_000 }
   )
   await releaseFiles(files, { organizationId, reason: 'import undone' })
+  await recordUndo(organizationId, input.userId, { connectionId, runId, removed, kept })
   return { removed, kept }
 }

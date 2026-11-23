@@ -236,6 +236,7 @@
     "api_key_revoke": "Atšauktas API raktas",
     "shopmonkey_extract": "Gauta iš Shopmonkey",
     "shopmonkey_import": "Importuota iš Shopmonkey",
+    "shopmonkey_import_undo": "Importas iš Shopmonkey atšauktas",
     "platform_revokeSuperAdmin": "Atimtos vyriausiojo administratoriaus teisės"
   },
   "summary": {
@@ -432,6 +433,7 @@
     "api_key_revoke": "Atšauktas API raktas {name} ({ref})",
     "shopmonkey_extract": "Iš Shopmonkey gauta naujų ar pakeistų įrašų: {records} ({count} API užklausų)",
     "shopmonkey_import": "Iš Shopmonkey importuota naujų ar pakeistų įrašų: {records}",
+    "shopmonkey_import_undo": "Atšauktas importas iš Shopmonkey: pašalinta įrašų: {records}",
     "platform_revokeSuperAdmin": "Atimtos vyriausiojo administratoriaus teisės iš {name} ({email})"
   }
 }

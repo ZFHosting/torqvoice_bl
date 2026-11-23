@@ -12,7 +12,7 @@ import { currentOwner, transformVehicle } from '../transform/vehicle'
 import type { Row } from '../transform/types'
 import { payloadHash } from '../extract/stage'
 import { clientOf, countsFor, type LoadContext, loadOne, type Tx } from './context'
-import { findLoaded, foreignKeys, markLoaded } from './links'
+import { findLoaded, foreignKeys, linkRemoteId, markLoaded } from './links'
 import { upsertLinked } from './upsert'
 
 export interface StagedRecord {
@@ -171,6 +171,23 @@ export async function loadTechnicians(lc: LoadContext): Promise<void> {
         }
       }
       const { rows } = transformUser(user.payload, lc.transform)
+      // A technician the workshop had (matched by the operator, or re-linked after a restore) isn't the import's to
+      // rename: only one a run created follows Shopmonkey.
+      const existing = await tx.integrationLink.findFirst({
+        where: {
+          connectionId: lc.scope.connectionId,
+          entityType: 'Technician',
+          remoteId: linkRemoteId('user', user.remoteId),
+        },
+        select: { entityId: true, metadata: true },
+      })
+      if (existing && !(existing.metadata as { createdByRun?: string } | null)?.createdByRun) {
+        const found = await findLoaded(tx, lc.scope, 'user', 'Technician', user.remoteId)
+        if (found) {
+          lc.resolver.set('user', user.remoteId, found.localId)
+          return 'unchanged'
+        }
+      }
       const { localId, result } = await upsertLinked(
         tx,
         lc.scope,

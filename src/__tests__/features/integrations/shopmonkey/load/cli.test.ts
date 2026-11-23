@@ -129,7 +129,11 @@ describe('undo arguments and summary', () => {
     expect(parseUndoArgs(['undo', '--connection', 'c1', '--run', 'r1'])).toEqual({
       connection: 'c1',
       run: 'r1',
+      user: null,
     })
+    expect(parseUndoArgs(['undo', '--connection', 'c1', '--run', 'r1', '--user', 'u1']).user).toBe(
+      'u1'
+    )
     expect(() => parseUndoArgs(['undo', '--connection', 'c1'])).toThrow('--run are required')
     expect(() => parseUndoArgs(['undo', '--connection', 'c1', '--run'])).toThrow('needs a value')
     expect(() => parseUndoArgs(['load', '--connection', 'c1'])).toThrow('Usage: run.ts undo')

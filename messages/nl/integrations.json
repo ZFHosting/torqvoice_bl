@@ -1252,7 +1252,9 @@
     "cardEnding": "kaart eindigend op {digits}",
     "refundReason": "reden: {reason}",
     "vehicleNote": "Shopmonkey-notitie",
-    "unnamedCustomer": "Shopmonkey-klant {id}"
+    "unnamedCustomer": "Shopmonkey-klant {id}",
+    "stockImported": "Geïmporteerd uit Shopmonkey",
+    "stockUpdated": "Voorraad bijgewerkt uit Shopmonkey"
   },
   "aiErrors": {
     "modelAccess": "Deze API-sleutel heeft geen toegang tot het gekozen model. Kies een ander onder Instellingen → Integraties.",

@@ -18,7 +18,7 @@
  * settings it proposes are applied only with `--apply-numbering` / `--apply-settings`. Writes to whatever database
  * DATABASE_URL names: point it at the workshop's own database, never at one you aren't migrating.
  *
- *   npx tsx --conditions=react-server scripts/shopmonkey/run.ts undo --connection <id> --run <run id>
+ *   npx tsx --conditions=react-server scripts/shopmonkey/run.ts undo --connection <id> --run <run id> [--user <id>]
  *
  * Removes what that load created (and nothing the workshop uses since); settings it applied stay.
  */
@@ -67,15 +67,17 @@ async function undo() {
   const args = parseUndoArgs(process.argv.slice(2))
   const connection = await db.integrationConnection.findUnique({
     where: { id: args.connection },
-    select: { id: true, organizationId: true, connectorId: true },
+    select: { id: true, organizationId: true, connectorId: true, createdById: true },
   })
   if (!connection || connection.connectorId !== 'shopmonkey') {
     throw new Error('That connection is not a Shopmonkey connection')
   }
+  // undoLoad refuses anyone who isn't a member of the workshop.
   const result = await undoLoad({
     organizationId: connection.organizationId,
     connectionId: connection.id,
     runId: args.run,
+    userId: args.user ?? connection.createdById,
   })
   for (const line of formatUndoSummary(args.run, result)) console.log(line)
 }

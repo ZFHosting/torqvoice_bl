@@ -1252,7 +1252,9 @@
     "cardEnding": "carte se terminant par {digits}",
     "refundReason": "motif : {reason}",
     "vehicleNote": "Note Shopmonkey",
-    "unnamedCustomer": "Client Shopmonkey {id}"
+    "unnamedCustomer": "Client Shopmonkey {id}",
+    "stockImported": "Importé depuis Shopmonkey",
+    "stockUpdated": "Stock mis à jour depuis Shopmonkey"
   },
   "aiErrors": {
     "modelAccess": "Cette clé d'API n'a pas accès au modèle sélectionné. Choisissez-en un autre dans Paramètres → Intégrations.",

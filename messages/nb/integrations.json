@@ -1252,7 +1252,9 @@
     "cardEnding": "kort som slutter på {digits}",
     "refundReason": "årsak: {reason}",
     "vehicleNote": "Shopmonkey-notat",
-    "unnamedCustomer": "Shopmonkey-kunde {id}"
+    "unnamedCustomer": "Shopmonkey-kunde {id}",
+    "stockImported": "Importert fra Shopmonkey",
+    "stockUpdated": "Beholdning oppdatert fra Shopmonkey"
   },
   "aiErrors": {
     "modelAccess": "Denne API-nøkkelen har ikke tilgang til den valgte modellen. Velg en annen under Innstillinger → Integrasjoner.",

@@ -236,6 +236,7 @@
     "api_key_revoke": "API-sleutel ingetrokken",
     "shopmonkey_extract": "Opgehaald uit Shopmonkey",
     "shopmonkey_import": "Geïmporteerd uit Shopmonkey",
+    "shopmonkey_import_undo": "Shopmonkey-import ongedaan gemaakt",
     "platform_revokeSuperAdmin": "Superbeheerder ingetrokken"
   },
   "summary": {
@@ -432,6 +433,7 @@
     "api_key_revoke": "API-sleutel {name} ({ref}) ingetrokken",
     "shopmonkey_extract": "{records} nieuwe of gewijzigde records opgehaald uit Shopmonkey ({count} API-aanroepen)",
     "shopmonkey_import": "{records} nieuwe of gewijzigde records geïmporteerd uit Shopmonkey",
+    "shopmonkey_import_undo": "Shopmonkey-import ongedaan gemaakt: {records} records verwijderd",
     "platform_revokeSuperAdmin": "Superbeheerder ingetrokken voor {name} ({email})"
   }
 }

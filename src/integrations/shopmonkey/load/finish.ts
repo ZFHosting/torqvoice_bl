@@ -79,6 +79,7 @@ export async function recordLoad(
   organizationId: string,
   userId: string,
   summary: {
+    connectionId: string
     runId: string
     records: number
     counts: Record<string, unknown>
@@ -94,6 +95,7 @@ export async function recordLoad(
     {
       action: 'shopmonkey.import',
       entity: 'integration_connection',
+      entityId: summary.connectionId,
       details: auditDetails('shopmonkey_import', { records: summary.records }),
       metadata: {
         runId: summary.runId,
@@ -102,6 +104,30 @@ export async function recordLoad(
         issueFailed: summary.issueFailed,
         applied: summary.applied,
       },
+    }
+  )
+}
+
+/** An undo's one audit event (`shopmonkey.import_undo` isn't a webhook event either): what it removed and kept. */
+export async function recordUndo(
+  organizationId: string,
+  userId: string,
+  summary: {
+    connectionId: string
+    runId: string
+    removed: Record<string, number>
+    kept: Record<string, number>
+  }
+): Promise<void> {
+  const records = Object.values(summary.removed).reduce((a, n) => a + n, 0)
+  await logAudit(
+    { userId, organizationId },
+    {
+      action: 'shopmonkey.import_undo',
+      entity: 'integration_connection',
+      entityId: summary.connectionId,
+      details: auditDetails('shopmonkey_import_undo', { records }),
+      metadata: { runId: summary.runId, removed: summary.removed, kept: summary.kept },
     }
   )
 }

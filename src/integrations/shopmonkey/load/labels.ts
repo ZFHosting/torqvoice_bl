@@ -31,6 +31,8 @@ export const IMPORT_LABELS: Record<string, string> = {
   'reason: {reason}': 'refundReason',
   'Shopmonkey note': 'vehicleNote',
   'Shopmonkey customer {id}': 'unnamedCustomer',
+  'Imported from Shopmonkey': 'stockImported',
+  'Count updated from Shopmonkey': 'stockUpdated',
 }
 
 export async function importLabeler(organizationId: string): Promise<Labeler> {

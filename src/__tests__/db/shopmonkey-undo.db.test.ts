@@ -181,3 +181,116 @@ describe('undoing a load the workshop has worked with since', () => {
       expect(now[table], table).toBe(afterLoad[table])
   })
 })
+
+describe('undo and later runs', () => {
+  let shop: Awaited<ReturnType<typeof createWorkshop>>
+  let mock: ReturnType<typeof createMockShopmonkey>
+  const loadShop = async () => {
+    await extractInto(mock, shop)
+    const summary = await (await import('@/integrations/shopmonkey/load/run')).runLoad({
+      organizationId: shop.organizationId,
+      connectionId: shop.connectionId,
+      runUserId: shop.userId,
+      now: NOW,
+    })
+    expect(summary.failures).toEqual([])
+    return summary
+  }
+  const undoRun = (runId: string) => undo.undoLoad({ ...shop, runId })
+
+  beforeAll(async () => {
+    shop = await createWorkshop('UndoLater')
+    mock = createMockShopmonkey()
+  })
+  afterAll(async () => {
+    if (shop) await shop.remove()
+  })
+
+  it('removes a vehicle note the run wrote again, and records one audit event per undo', async () => {
+    await loadShop()
+    const vehicle = await db.integrationLink.findFirstOrThrow({
+      where: {
+        connectionId: shop.connectionId,
+        entityType: 'Vehicle',
+        remoteId: 'vehicle:syn_veh_1',
+      },
+      select: { entityId: true },
+    })
+    const notes = { vehicleId: vehicle.entityId }
+    // Deleted in the app; written again by the next run, which a change in Shopmonkey brings.
+    await db.note.deleteMany({ where: notes })
+    mock.change('vehicle', 'syn_veh_1', { note: 'Second note text' })
+    // A vehicle is fetched again when its customer changes (MAPPING section 1).
+    mock.change('customer', 'syn_cus_1', { note: 'Touched once' })
+    const second = await loadShop()
+    expect(await db.note.count({ where: notes })).toBe(1)
+
+    await undoRun(second.runId)
+    expect(await db.note.count({ where: notes })).toBe(0)
+    const audit = await db.auditLog.findMany({
+      where: { organizationId: shop.organizationId, action: 'shopmonkey.import_undo' },
+      select: { entityId: true, metadata: true, userId: true },
+    })
+    expect(audit).toHaveLength(1)
+    expect(audit[0]).toMatchObject({
+      entityId: shop.connectionId,
+      userId: shop.userId,
+      metadata: { runId: second.runId },
+    })
+    // The next change in Shopmonkey writes one note, not a second.
+    mock.change('vehicle', 'syn_veh_1', { note: 'Third note text' })
+    mock.change('customer', 'syn_cus_1', { note: 'Touched twice' })
+    await loadShop()
+    expect(await db.note.findMany({ where: notes, select: { content: true } })).toEqual([
+      { content: 'Third note text' },
+    ])
+  })
+
+  it('clears a converted quote pointer when the work order it became is undone, and converts it again', async () => {
+    const org = { organizationId: shop.organizationId }
+    mock.change('order', 'syn_ord_1001', { status: 'RepairOrder', workflowStatusId: 'syn_wfs_3' })
+    const converting = await loadShop()
+    const quote = { ...org, quoteNumber: '1001' }
+    expect((await db.quote.findFirstOrThrow({ where: quote })).convertedToId).not.toBeNull()
+
+    await undoRun(converting.runId)
+    expect(await db.serviceRecord.count({ where: { ...org, invoiceNumber: '1001' } })).toBe(0)
+    expect((await db.quote.findFirstOrThrow({ where: quote })).convertedToId).toBeNull()
+
+    await loadShop()
+    const record = await db.serviceRecord.findFirstOrThrow({
+      where: { ...org, invoiceNumber: '1001' },
+      select: { id: true },
+    })
+    expect((await db.quote.findFirstOrThrow({ where: quote })).convertedToId).toBe(record.id)
+  })
+
+  it('leaves no stale links when an older run is undone under a newer one', async () => {
+    const org = { organizationId: shop.organizationId }
+    // Start over: every run so far undone, newest first.
+    const runs = await db.importBatch.findMany({
+      where: { ...org, status: 'completed' },
+      select: { mapping: true },
+      orderBy: { createdAt: 'desc' },
+    })
+    for (const runId of new Set(
+      runs.map((r) => String((r.mapping as { shopmonkeyRunId?: string }).shopmonkeyRunId))
+    ))
+      await undoRun(runId)
+    // A first run, then a newer one whose work order sits on the first run's vehicle.
+    mock.change('order', 'syn_ord_1001', { status: 'Estimate', workflowStatusId: null })
+    const first = await loadShop()
+    mock.change('order', 'syn_ord_1001', { status: 'RepairOrder', workflowStatusId: 'syn_wfs_3' })
+    await loadShop()
+
+    // Undoing the first takes its vehicles, and with them the newer run's work order.
+    await undoRun(first.runId)
+    const dangling = await db.$queryRaw<{ n: bigint }[]>`
+      SELECT COUNT(*) AS n FROM "public"."integration_links" AS l
+      WHERE l."connectionId" = ${shop.connectionId} AND l."entityType" = 'ServiceRecord'
+        AND NOT EXISTS (SELECT 1 FROM "public"."service_records" AS r WHERE r."id" = l."entityId")`
+    expect(Number(dangling[0].n)).toBe(0)
+    const next = await loadShop()
+    expect(next.warnings.row_recreated ?? 0).toBe(0)
+  })
+})

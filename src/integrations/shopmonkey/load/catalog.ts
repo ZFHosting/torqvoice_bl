@@ -117,7 +117,7 @@ export async function loadInventory(lc: LoadContext): Promise<void> {
                   delta,
                   quantityAfter: part.quantity,
                   reason: 'import',
-                  note: 'Count updated from Shopmonkey',
+                  note: lc.label('Count updated from Shopmonkey'),
                   inventoryPartId: id,
                   userId: lc.runUserId,
                   organizationId: lc.scope.organizationId,
