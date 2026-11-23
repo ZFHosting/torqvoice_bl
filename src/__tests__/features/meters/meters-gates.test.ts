@@ -96,7 +96,8 @@ describe('the meter tables', () => {
     )
     for (const file of [
       'src/features/vehicles/Actions/deleteVehicle.ts',
-      'src/features/vehicles/Actions/vehicleActions.ts',
+      // fork: the vehicle list's delete moved, unchanged, into the vehicle service (A2)
+      'src/features/vehicles/Lib/vehicleService.server.ts',
     ]) {
       const source = readFileSync(file, 'utf8')
       const at = source.indexOf('unlinkMeterReadingsOfDeletedJobs(tx')
