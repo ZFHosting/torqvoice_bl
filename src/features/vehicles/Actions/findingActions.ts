@@ -3,15 +3,20 @@
 import { db } from '@/lib/db'
 import { withAuth } from '@/lib/with-auth'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
-import {
-  createFindingSchema,
-  updateFindingSchema,
-  resolveFindingSchema,
-} from '../Schema/findingSchema'
-import { revalidatePath } from 'next/cache'
-import { releaseFiles } from '@/lib/files/manager'
 import { typeKeySearch } from '@/features/vehicles/Lib/typeKeySetting'
-import { findingWebhookFields } from '@/features/fault-codes/Lib/findings'
+// fork: the write bodies and their audit events live beside the finding service (A2)
+import {
+  createFindingEvent,
+  deleteFindingEvent,
+  resolveFindingEvent,
+  updateFindingEvent,
+} from '../Lib/findingAuditEvents'
+import {
+  createFindingService,
+  deleteFindingService,
+  resolveFindingService,
+  updateFindingService,
+} from '../Lib/findingService.server'
 
 export async function getObservationsPaginated(params: {
   page?: number
@@ -186,30 +191,11 @@ export async function getVehicleFindings(
  * cross-organization write, and those do not get to depend on the UI for
  * their safety.
  */
-async function assertConcernInOrg(concernId: string | null | undefined, organizationId: string) {
-  if (!concernId) return
-  const concern = await db.serviceConcern.findFirst({
-    where: { id: concernId, serviceRecord: { organizationId } },
-    select: { id: true },
-  })
-  if (!concern) throw new Error('Concern not found')
-}
-
 export async function createFinding(input: unknown) {
   return withAuth(
-    async ({ organizationId }) => {
-      const data = createFindingSchema.parse(input)
-      const vehicle = await db.vehicle.findFirst({
-        where: { id: data.vehicleId, organizationId },
-      })
-      if (!vehicle) throw new Error('Vehicle not found')
-      await assertConcernInOrg(data.concernId, organizationId)
-
-      const finding = await db.vehicleFinding.create({ data })
-      revalidatePath(`/vehicles/${data.vehicleId}`)
-      revalidatePath('/')
-      return finding
-    },
+    // fork: the body is createFindingService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      createFindingService({ organizationId, userId, actor: 'user' }, input),
     {
       requiredPermissions: [
         {
@@ -217,45 +203,16 @@ export async function createFinding(input: unknown) {
           subject: PermissionSubject.VEHICLES,
         },
       ],
-      audit: ({ result }) => ({
-        action: 'finding.create',
-        entity: 'VehicleFinding',
-        entityId: result.id,
-        details: {
-          key: 'finding_create',
-          params: { description: result.description, vehicleId: result.vehicleId },
-        },
-        metadata: {
-          findingId: result.id,
-          vehicleId: result.vehicleId,
-          ...findingWebhookFields(result),
-        },
-      }),
+      audit: ({ result }) => createFindingEvent(result),
     }
   )
 }
 
 export async function updateFinding(input: unknown) {
   return withAuth(
-    async ({ organizationId }) => {
-      const { id, ...data } = updateFindingSchema.parse(input)
-      const finding = await db.vehicleFinding.findFirst({
-        where: { id, vehicle: { organizationId } },
-      })
-      if (!finding) throw new Error('Finding not found')
-      await assertConcernInOrg(data.concernId, organizationId)
-
-      const updated = await db.vehicleFinding.update({
-        where: { id },
-        data: {
-          ...data,
-          notes: data.notes !== undefined ? data.notes || null : undefined,
-        },
-      })
-      revalidatePath(`/vehicles/${finding.vehicleId}`)
-      revalidatePath('/')
-      return updated
-    },
+    // fork: the body is updateFindingService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      updateFindingService({ organizationId, userId, actor: 'user' }, input),
     {
       requiredPermissions: [
         {
@@ -263,41 +220,16 @@ export async function updateFinding(input: unknown) {
           subject: PermissionSubject.VEHICLES,
         },
       ],
-      audit: ({ result }) => ({
-        action: 'finding.update',
-        entity: 'VehicleFinding',
-        entityId: result.id,
-        details: { key: 'finding_update', params: { description: result.description } },
-        metadata: {
-          findingId: result.id,
-          vehicleId: result.vehicleId,
-          ...findingWebhookFields(result),
-        },
-      }),
+      audit: ({ result }) => updateFindingEvent(result),
     }
   )
 }
 
 export async function resolveFinding(input: unknown) {
   return withAuth(
-    async ({ organizationId }) => {
-      const data = resolveFindingSchema.parse(input)
-      const finding = await db.vehicleFinding.findFirst({
-        where: { id: data.id, vehicle: { organizationId } },
-      })
-      if (!finding) throw new Error('Finding not found')
-
-      const updated = await db.vehicleFinding.update({
-        where: { id: data.id },
-        data: {
-          status: 'resolved',
-          resolvedServiceRecordId: data.resolvedServiceRecordId || null,
-        },
-      })
-      revalidatePath(`/vehicles/${finding.vehicleId}`)
-      revalidatePath('/')
-      return updated
-    },
+    // fork: the body is resolveFindingService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      resolveFindingService({ organizationId, userId, actor: 'user' }, input),
     {
       requiredPermissions: [
         {
@@ -305,35 +237,16 @@ export async function resolveFinding(input: unknown) {
           subject: PermissionSubject.VEHICLES,
         },
       ],
-      audit: ({ result }) => ({
-        action: 'finding.resolve',
-        entity: 'VehicleFinding',
-        entityId: result.id,
-        details: { key: 'finding_resolve', params: { description: result.description } },
-        metadata: {
-          findingId: result.id,
-          vehicleId: result.vehicleId,
-          ...findingWebhookFields(result),
-        },
-      }),
+      audit: ({ result }) => resolveFindingEvent(result),
     }
   )
 }
 
 export async function deleteFinding(findingId: string) {
   return withAuth(
-    async ({ organizationId }) => {
-      const finding = await db.vehicleFinding.findFirst({
-        where: { id: findingId, vehicle: { organizationId } },
-      })
-      if (!finding) throw new Error('Finding not found')
-
-      await db.vehicleFinding.delete({ where: { id: findingId } })
-      await releaseFiles(finding.imageUrls, { organizationId, reason: 'finding deleted' })
-      revalidatePath(`/vehicles/${finding.vehicleId}`)
-      revalidatePath('/')
-      return { findingId }
-    },
+    // fork: the body is deleteFindingService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      deleteFindingService({ organizationId, userId, actor: 'user' }, findingId),
     {
       requiredPermissions: [
         {
@@ -341,13 +254,7 @@ export async function deleteFinding(findingId: string) {
           subject: PermissionSubject.VEHICLES,
         },
       ],
-      audit: ({ result }) => ({
-        action: 'finding.delete',
-        entity: 'VehicleFinding',
-        entityId: result.findingId,
-        details: { key: 'finding_delete', params: { id: result.findingId } },
-        metadata: { findingId: result.findingId },
-      }),
+      audit: ({ result }) => deleteFindingEvent(result),
     }
   )
 }
