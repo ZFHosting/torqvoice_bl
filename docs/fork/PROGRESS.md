@@ -77,7 +77,12 @@ new). Provisional (B1): synthetic fixtures. Plan:
    appointments, catalog, tax, inspections; 17 snapshots), `transform/fields.test.ts` (every fixture field, nested
    lines included, mapped or archived; no `@/lib/db`), `transform/mapping-doc.test.ts` (MAPPING §11 = the specs).
 3. [x] MAPPING §11 (archive-only fields per table, generated from the specs) and §6.6 (fallbacks).
-4. [ ] DoD, reviewer, merge as provisional.
+4. [x] DoD at 9e495edc: `tsc` exit 0; Biome 14 (baseline, LF checkout); features/integrations, i18n, lib, multitenancy,
+   scripts: 226 files, failures only the Windows baseline files (lib/backup/engine, restic, files/manager,
+   only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access), the Fiken timeout and
+   `backup-manifest` on CRLF schema files (passes after `sed -i 's/$//'`, 17/17); M4 adds files only in fork folders
+   and docs, so the rest of the suite is as at M3's full run; no migration or loader, so no `test:db`.
+5. [ ] Reviewer, merge as provisional.
 
 Carried over from M3's review (pass 2, should-fix, none blocking), for M7 (scheduled re-runs):
 - One order with several slow files can keep a job past the queue's 10-minute stuck limit and split a run into two
