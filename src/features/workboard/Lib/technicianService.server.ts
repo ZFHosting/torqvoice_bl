@@ -69,11 +69,14 @@ export async function updateTechnicianService(ctx: ServiceCtx, input: unknown) {
     where: { id, organizationId },
     data: updates,
   })
+  // fork: another workshop's technician id changes nothing here, and goes no further (A4 prerequisite)
+  if (technician.count === 0) throw new Error('Technician not found')
 
   // Sync denormalized techName on related service records when name changes
   if (updates.name) {
     await db.serviceRecord.updateMany({
-      where: { technicianId: id },
+      // fork: this workshop's jobs only (A4 prerequisite)
+      where: { technicianId: id, organizationId },
       data: { techName: updates.name },
     })
   }

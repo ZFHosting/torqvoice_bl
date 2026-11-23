@@ -87,13 +87,21 @@ describe('updating a technician', () => {
       data: { name: 'Kari N.' },
     })
     expect(db.serviceRecord.updateMany).toHaveBeenCalledWith({
-      where: { technicianId: 't-1' },
+      where: { technicianId: 't-1', organizationId: 'org-a' },
       data: { techName: 'Kari N.' },
     })
     expect(events.updateTechnicianEvent(result)).toMatchObject({
       action: 'technician.update',
       entityId: 't-1',
     })
+  })
+
+  it('changes nothing for another workshop’s technician id, not even the names on its jobs', async () => {
+    db.technician.updateMany.mockResolvedValue({ count: 0 })
+    await expect(
+      service.updateTechnicianService(ctx, { id: 't-other', name: 'Renamed' })
+    ).rejects.toThrow('Technician not found')
+    expect(db.serviceRecord.updateMany).not.toHaveBeenCalled()
   })
 
   it('refuses a member already linked to another technician', async () => {
