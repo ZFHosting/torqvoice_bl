@@ -25,6 +25,8 @@ const ALLOWED = [
   'src/lib/backup/',
   // A job moved to another vehicle stops working on the old one's equipment.
   'src/features/vehicles/Actions/serviceActions.ts',
+  // fork: where that save now lives, moved unchanged (A2)
+  'src/features/vehicles/Lib/serviceRecordService.server.ts',
   // And so does a quote.
   'src/features/quotes/Actions/quoteActions.ts',
   // Deletes that must find an item's report file before the rows go.

@@ -46,7 +46,8 @@ describe('service concerns', () => {
   })
 
   it('reconciles concerns by id on update instead of replacing them', () => {
-    const actions = read('src/features/vehicles/Actions/serviceActions.ts')
+    // fork: the work order save moved, unchanged, into the service record service (A2)
+    const actions = read('src/features/vehicles/Lib/serviceRecordService.server.ts')
     // The guard rail for the bug above: if this ever becomes a deleteMany over
     // the whole job again, findings lose their concern on the next autosave.
     expect(actions).not.toMatch(/serviceConcern\.deleteMany\(\{\s*where:\s*\{\s*serviceRecordId/)
