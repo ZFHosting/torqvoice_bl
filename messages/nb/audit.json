@@ -235,6 +235,8 @@
     "api_key_create": "Opprettet API-nøkkel",
     "api_key_revoke": "Tilbakekalte API-nøkkel",
     "shopmonkey_extract": "Hentet fra Shopmonkey",
+    "shopmonkey_import": "Importert fra Shopmonkey",
+    "shopmonkey_import_undo": "Import fra Shopmonkey angret",
     "platform_revokeSuperAdmin": "Fjernet superadmin"
   },
   "summary": {
@@ -430,6 +432,8 @@
     "api_key_create": "Opprettet API-nøkkel {name} ({ref})",
     "api_key_revoke": "Tilbakekalte API-nøkkel {name} ({ref})",
     "shopmonkey_extract": "Hentet {records} nye eller endrede poster fra Shopmonkey ({count} API-kall)",
+    "shopmonkey_import": "Importerte {records} nye eller endrede poster fra Shopmonkey",
+    "shopmonkey_import_undo": "Angret en import fra Shopmonkey: fjernet {records} poster",
     "platform_revokeSuperAdmin": "Fjernet superadmin fra {name} ({email})"
   }
 }

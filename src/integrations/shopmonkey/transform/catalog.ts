@@ -6,7 +6,7 @@
  */
 import { centsToAmount } from '../money'
 import { joinName } from '@/features/import/Lib/normalize'
-import { type FieldSpec, num, records, str, unmappedFields, warn } from './fields'
+import { type FieldSpec, num, records, say, str, unmappedFields, warn } from './fields'
 import { feeCents, lineCents } from './lines'
 import type { Row, TransformContext, TransformResult, Warning } from './types'
 
@@ -121,7 +121,7 @@ export function transformInventoryItem(
             delta: quantity,
             quantityAfter: quantity,
             reason: 'import',
-            note: 'Imported from Shopmonkey',
+            note: say(ctx, 'Imported from Shopmonkey'),
           }
         : null,
     },

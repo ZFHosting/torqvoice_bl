@@ -5,6 +5,7 @@
   "entities": {
     "customers": "клиенты",
     "vehicles": "автомобили",
+    "inspections": "осмотры",
     "services": "история обслуживания"
   },
   "entityHints": {

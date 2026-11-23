@@ -9,15 +9,82 @@
  * a run the queue was driving (that run's next save fails, and it stops). Reads Shopmonkey only; writes the
  * workshop's own archive (`SourceRecord`) and the staging folder, in whatever database DATABASE_URL names.
  * `--conditions=react-server` lets it load the app's server-only modules outside Next.js.
+ *
+ *   npx tsx --conditions=react-server scripts/shopmonkey/run.ts load --connection <id> \
+ *     [--dry-run] [--apply-numbering] [--apply-settings] [--user <id>]
+ *
+ * Loads the archive into the workshop (M5): every record in its own transaction, idempotent, undoable by its run
+ * id. `--dry-run` runs every transaction and rolls it back, and prints what would change. The numbering and
+ * settings it proposes are applied only with `--apply-numbering` / `--apply-settings`. Writes to whatever database
+ * DATABASE_URL names: point it at the workshop's own database, never at one you aren't migrating.
+ *
+ *   npx tsx --conditions=react-server scripts/shopmonkey/run.ts undo --connection <id> --run <run id> [--user <id>]
+ *
+ * Removes what that load created (and nothing the workshop uses since); settings it applied stay.
  */
 import { randomUUID } from 'node:crypto'
 import { loadConnection } from '@/features/integrations/Lib/connections'
 import { saveExtractState } from '@/features/shopmonkey-import/Lib/extractState.server'
 import { driveExtract, parseExtractArgs, runToDrive } from '@/integrations/shopmonkey/extract/cli'
+import {
+  formatLoadSummary,
+  formatUndoSummary,
+  parseLoadArgs,
+  parseUndoArgs,
+} from '@/integrations/shopmonkey/load/cli'
+import { runLoad } from '@/integrations/shopmonkey/load/run'
+import { undoLoad } from '@/integrations/shopmonkey/load/undo'
 import { extractDepsFor, recordExtractFinished } from '@/integrations/shopmonkey/server'
 import { db } from '@/lib/db'
 
+async function load() {
+  const args = parseLoadArgs(process.argv.slice(2))
+  const connection = await db.integrationConnection.findUnique({
+    where: { id: args.connection },
+    select: { id: true, organizationId: true, connectorId: true, createdById: true },
+  })
+  if (!connection || connection.connectorId !== 'shopmonkey') {
+    throw new Error('That connection is not a Shopmonkey connection')
+  }
+  const userId = args.user ?? connection.createdById
+  const member = await db.organizationMember.findFirst({
+    where: { organizationId: connection.organizationId, userId },
+    select: { id: true },
+  })
+  if (!member) throw new Error('The run must act as a member of the workshop: pass --user <id>')
+  const summary = await runLoad({
+    organizationId: connection.organizationId,
+    connectionId: connection.id,
+    runUserId: userId,
+    dryRun: args.dryRun,
+    applyNumbering: args.applyNumbering,
+    applySettings: args.applySettings,
+  })
+  for (const line of formatLoadSummary(summary)) console.log(line)
+}
+
+async function undo() {
+  const args = parseUndoArgs(process.argv.slice(2))
+  const connection = await db.integrationConnection.findUnique({
+    where: { id: args.connection },
+    select: { id: true, organizationId: true, connectorId: true, createdById: true },
+  })
+  if (!connection || connection.connectorId !== 'shopmonkey') {
+    throw new Error('That connection is not a Shopmonkey connection')
+  }
+  // undoLoad refuses anyone who isn't a member of the workshop.
+  const result = await undoLoad({
+    organizationId: connection.organizationId,
+    connectionId: connection.id,
+    runId: args.run,
+    userId: args.user ?? connection.createdById,
+  })
+  for (const line of formatUndoSummary(args.run, result)) console.log(line)
+}
+
 async function main() {
+  if (process.argv[2] === 'load') return load()
+  if (process.argv[2] === 'undo') return undo()
   const args = parseExtractArgs(process.argv.slice(2))
   const { ctx } = await loadConnection(args.connection)
   if (ctx.connection.connectorId !== 'shopmonkey') {

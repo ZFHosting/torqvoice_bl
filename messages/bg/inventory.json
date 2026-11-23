@@ -165,6 +165,7 @@
       "quote_conversion": "Офертата е преобразувана",
       "manual_adjustment": "Ръчна корекция",
       "bulk_markup": "Масова надценка",
+      "import": "Импорт от Shopmonkey",
       "stock_tracking_off": "Проследяването на складовите наличности е изключено"
     },
     "backToInventory": "Склад",

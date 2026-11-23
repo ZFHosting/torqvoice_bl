@@ -6,7 +6,7 @@
  * numbers, never a correction.
  */
 import { centsToAmount } from '../money'
-import { date, type FieldSpec, num, records, str, unmappedFields, warn } from './fields'
+import { date, type FieldSpec, num, records, say, str, unmappedFields, warn } from './fields'
 import type { Row, TransformContext, Warning } from './types'
 
 export type LineKind = 'labor' | 'fee' | 'epa' | 'shopSupplies' | 'part' | 'tire' | 'subcontract'
@@ -373,7 +373,7 @@ export function transformService(
     labor.push({
       remoteId: `${remoteId}:${kind}`,
       lineKind: kind,
-      description: label,
+      description: say(ctx, label),
       hours: 1,
       rate: centsToAmount(c),
       total: centsToAmount(c),
@@ -442,7 +442,12 @@ export function transformService(
       deferred: deferredDate
         ? {
             description: name,
-            notes: [note, `Deferred${reason ? ` (${reason})` : ''}`].filter(Boolean).join('\n'),
+            notes: [
+              note,
+              reason ? say(ctx, 'Deferred ({reason})', { reason }) : say(ctx, 'Deferred'),
+            ]
+              .filter(Boolean)
+              .join('\n'),
           }
         : null,
       revivesRemoteId: str(service.revivedFromId),

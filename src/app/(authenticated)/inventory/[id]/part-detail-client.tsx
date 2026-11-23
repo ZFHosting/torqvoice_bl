@@ -119,6 +119,9 @@ export function PartDetailClient({
         return t('history.reasons.bulk_markup')
       case 'stock_tracking_off':
         return t('history.reasons.stock_tracking_off')
+      // fork: a part's starting count from a Shopmonkey import (M5)
+      case 'import':
+        return t('history.reasons.import')
       default:
         // A row written by a newer build may carry a reason this one has no
         // translation for; show the raw value rather than an empty cell.

@@ -4,7 +4,7 @@
  * a refund is never counted twice. `externalId` + `provider: "shopmonkey"` make reruns safe.
  */
 import { centsToAmount } from '../money'
-import { date, type FieldSpec, num, str, unmappedFields, warn } from './fields'
+import { date, type FieldSpec, num, say, str, unmappedFields, warn } from './fields'
 import type { Row, TransformContext, TransformResult, Warning } from './types'
 
 export const PAYMENT_FIELDS: FieldSpec = {
@@ -111,13 +111,17 @@ export function transformPayment(
   // PROVISIONAL(M0:S5): refunds look stored negative already; -abs is right either way.
   const amount = centsToAmount(refund ? -Math.abs(cents) : cents)
   const type = str(payment.paymentType)
+  const charge = str(payment.chargeId)
+  const check = str(payment.checkNumber)
+  const digits = str(payment.cardDigits)
+  const why = str(payment.refundReason)
   const parts = [
-    refund ? `Refund${str(payment.chargeId) ? ` of ${str(payment.chargeId)}` : ''}` : null,
-    payment.deposit === true ? 'Deposit' : null,
-    `Shopmonkey: ${type ?? 'unknown'}`,
-    str(payment.checkNumber) ? `check ${str(payment.checkNumber)}` : null,
-    str(payment.cardDigits) ? `card ending ${str(payment.cardDigits)}` : null,
-    refund && str(payment.refundReason) ? `reason: ${str(payment.refundReason)}` : null,
+    refund ? (charge ? say(ctx, 'Refund of {charge}', { charge }) : say(ctx, 'Refund')) : null,
+    payment.deposit === true ? say(ctx, 'Deposit') : null,
+    say(ctx, 'Shopmonkey: {type}', { type: type ?? say(ctx, 'unknown') }),
+    check ? say(ctx, 'check {number}', { number: check }) : null,
+    digits ? say(ctx, 'card ending {digits}', { digits }) : null,
+    refund && why ? say(ctx, 'reason: {reason}', { reason: why }) : null,
     str(payment.note),
   ].filter((part): part is string => !!part)
 

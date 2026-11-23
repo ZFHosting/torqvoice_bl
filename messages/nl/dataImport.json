@@ -5,6 +5,7 @@
   "entities": {
     "customers": "klanten",
     "vehicles": "voertuigen",
+    "inspections": "inspecties",
     "services": "servicegeschiedenis"
   },
   "entityHints": {

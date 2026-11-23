@@ -314,8 +314,11 @@ fallback below and return a warning (code in brackets) for the M6 report.
 - A percent catalog fee becomes a preset item with rate 0, and a canned service's percent fee one at today's amount
   [`preset_percent_fee`]: a preset holds no percentage.
 - A user's colour name maps to hex (`blue` → `#3b82f6`); an unknown one keeps Torqvoice's default.
-- Text the transforms write for people ("EPA", "Shop supplies", "Deferred (…)", "Refund of …", "Shopmonkey note") is
-  English: M5 writes it in the workshop's language (`resolveDocumentLocale`, AGENTS "Whose language").
+- Text the transforms write for people ("EPA", "Shop supplies", "Deferred (…)", "Refund of …", "Deposit", the
+  payment note's "Shopmonkey: <type>", "check …", "card ending …", "reason: …", "Shopmonkey note", "Shopmonkey
+  customer <id>") goes through `TransformContext.label`: M5 passes the workshop's translator
+  (`resolveDocumentLocale`, AGENTS "Whose language"; `messages/<locale>/integrations.json` → `shopmonkeyImport`),
+  and without one it's English (the snapshots).
 
 ## 7. Inventory
 
@@ -360,6 +363,104 @@ format makes the next number continue after the highest plain number, but **left
 restarts from the newest job's digits** (spike: imported 1041, 1077, 1050 → next `2026-1051`). Confirmed
 in RESULTS T1.
 
+**Proposed, not applied (M5).** Every load works this out from the workshop's highest plain job number
+(imported or not: the next number has to clear all of them) and reports it: `workshop.invoicePrefix` → `''`,
+and `workshop.invoiceStartNumber` → highest + 1 (only when the format changes, or a different start is set).
+The CLI applies it with `--apply-numbering`, the M8 screen later; a dry run proposes the same and writes
+nothing. Quotes need nothing: a new quote is numbered `QT-` after the newest quote's digits, which no
+imported number (unprefixed) can collide with.
+
+### 9.1 Settings a load proposes (M5)
+
+Proposed with every run, applied with `--apply-settings` (written as the run's user and listed in the run's
+audit event under `applied`). Only keys whose value would change are listed.
+
+| Setting | From |
+| --- | --- |
+| `workshop.taxEnabled`, `workshop.defaultTaxRate` | Tax config: `taxPercent`, or the sum of the GST/PST/HST percents |
+| `workshop.taxMode`, `workshop.taxComponents` | `split` with one component per non-zero GST/PST/HST when there's more than one, else `single` |
+| `workshop.taxSelective`, `workshop.taxAppliesToParts` / `Labor` / `ShopFee` | Selective when parts, labor or shop supplies aren't all taxable; parts from `partTaxable*`, labor from `laborTaxable*`, shop fee from `shopSuppliesTaxable` **[provisional: S6]** |
+| `workshop.defaultLaborRate` | The default labor rate (§3) |
+| `workshop.unitSystem` | The oldest vehicle's `mileageUnit`: `Mile` → `imperial`, `Kilometer` → `metric` |
+| `workshop.timezone` | The location's `timezone`, when it's a valid IANA zone |
+
+`taxInclusive` isn't proposed (Shopmonkey's taxes are added on top). The location's name is reported when it
+differs from the workshop's, never applied: renaming the workshop is the operator's, in Settings.
+
+### 9.2 How a load writes (M5)
+
+- **Links.** One `IntegrationLink` per loaded row, written in the record's transaction, `remoteId`
+  `<table>:<id>` (a Shopmonkey id is only unique within its table), `checksum` the hash it was loaded from,
+  `metadata.createdByRun` on rows the run created. The same mapping is kept on the `SourceRecord`
+  (`localEntity`, `localId`, `loadedHash`), which a backup carries and a link doesn't: a load after a restore
+  or a reconnect finds the row through it (checked to be the workshop's), writes the link again, and creates
+  nothing.
+- **Units.** Each record (an order with everything on it) is its own transaction; a failure rolls back that
+  record alone, is counted with its error's name (never its message), and the run carries on. A dry run is
+  one transaction with a savepoint per record, rolled back at the end. A record's hash covers its source
+  payload and the local ids its rows point at (vehicle, customer, technicians, inventory parts, status, work
+  order): a dependency created again, or loaded late, re-points what uses it on the next run. An order's hash
+  also covers its services, payments, authorizations, owner and stage; an inspection's its photos. Files aren't
+  in an order's hash: each is attached once by its own link, checked on every run, so one staged later still
+  arrives. Every imported invoice is offered for issuing on every run, so one a past run didn't reach (a crash,
+  a failed issue) is issued next time; failures are counted in the summary and the audit event.
+- **Changes during the sync window.** An estimate that becomes a repair order is loaded as a work order and its
+  quote marked `converted` into it (as the app's own conversion does); one that turns back into an estimate keeps
+  its work order (warned `order_back_to_estimate`). A timesheet that moves between a shift and a time entry (its
+  order became, or stopped being, a loaded work order) replaces the importer's other row. A row deleted in the app
+  is created again on the next load, warned `row_recreated`. The vehicle's Shopmonkey note follows changes (one
+  removed in Shopmonkey is left). Estimate files stay in the archive (`order_file`) until the estimate becomes a
+  work order, when they're attached to it; the API reaches them meanwhile through `/source-records`.
+- **Undo** (`run.ts undo --connection <id> --run <run id>`, by the run id a load prints first) removes what the
+  run created and nothing it only matched or updated: customers, vehicles, work orders and inspections by their
+  import batch (found by `mapping.shopmonkeyRunId`), by the spreadsheet importer's undo rules; quotes, inventory,
+  presets, appointments, templates, time, technicians and statuses by the run's links; findings and attachments
+  it added to rows it didn't create; the vehicle notes it wrote; the custom fields it defined (linked) that no
+  value uses (converted quotes: see below). A row the workshop uses since is kept with its link, so a later load matches it: a template an inspection made in the
+  app uses, a technician with time, helpers, a login or lines outside the run, a status a work order is in, an
+  inventory part a line, preset or stock movement of the workshop's names. What's removed loses its links and
+  archive mappings, so a later load creates it again; so does any link or mapping of the connection whose row
+  is gone (undoing an older run can take a newer run's work order with its vehicle). Each undo records one audit
+  event, `shopmonkey.import_undo`, with what it removed and kept (`--user`, a member of the workshop; the
+  connection's creator by default). Settings applied with `--apply-*` aren't changed back. Settings → Data lists
+  a run's batches but offers no spreadsheet Undo for them (the action refuses it too). After a restore, links are
+  rebuilt as matched rather than created and the run's custom field links aren't rebuilt, so undoing a run from
+  before the restore removes only its batch rows (customers, vehicles, work orders, inspections).
+- **Technicians.** A technician the workshop had (one the operator matched a user to, or re-linked after a
+  restore) is never renamed or recoloured from Shopmonkey; only one a run created follows it.
+- **Issuing.** The guard against connections that hear `service.update` is checked again just before issuing:
+  with one turned on mid-run, nothing is issued (warned `issue_postponed`) and the next run issues them.
+- **Vehicle notes after a restore.** A note has no archive record of its own, so with its link gone the
+  vehicle's note under the same title is taken to be it and updated, not written a second time. The title is the
+  workshop's current language's: a workshop that changed language between a load and a restore gets a second
+  note in the new language (the old one stays).
+- **Undo and converted quotes.** A quote converted into a work order an undo removes (that run's, or a later
+  run's on that run's vehicle) is put back to `accepted` with no pointer, so the app can convert it; the next
+  load converts it again while Shopmonkey has the order as a repair order.
+- **Not guarded yet (M8):** two loads of one connection at once; a dry run holds one transaction for the whole
+  run (up to an hour), which can make the app wait on the same unique keys (customer numbers) meanwhile. Each
+  committed record also wakes the workshop's open screens once (the realtime extension in `src/lib/db.ts`), so a
+  large load is best run outside opening hours.
+- **Files.** A placed file is named from the workshop, its record and its content (UUID-shaped, so the file
+  manager's sweep looks after it): placing it again, as rewriting a changed inspection does, finds the copy
+  already in uploads after the staged copy is gone. A file gone from both places is warned `file_missing`
+  and forgotten by the archive (its hash and its parent's children fetch cleared), so the next extract
+  downloads it again and the next load attaches it. Imported order files are `includeInInvoice: true`, like
+  a file uploaded in the app (they show on the share page); the original invoice PDF is `false`.
+- **Words.** What the importer writes itself (the custom fields it makes, `Customer type`/`Fleet`,
+  `Labels`, `Referral source`, the original invoice's name and description, the batch name, the stock movement
+  notes, and §6.6's words) is in the workshop's language (the part history labels the `import` reason)
+  (`resolveDocumentLocale`); a custom field's machine name stays the English label's, so a language change
+  doesn't make a second field. The run's time zone and phone country are the workshop's
+  (`workshop.defaultCountryCode`, else US).
+- **Edits in the app** (task 12). The work order and quote pages rewrite every line on save and send no line
+  ids, so the save matches each line to the one it replaces: the same name (parts: name and part number;
+  labor: description and pricing), first not yet taken, in order; then a part left over by its part number.
+  The matched line keeps its job, kind, technician, completion, cost, discount, note and source fields. A line
+  that matches nothing (new, a renamed labor line, a part renamed and renumbered) gets none: a removed line
+  plus an added one looks like a rename, and a technician or job moved onto the wrong line is worse than one
+  lost. What it came from stays in the archive.
+
 ## 10. Known non-1:1 points (tell the client)
 
 - One Shopmonkey location per Torqvoice install, unless you have the white-label license.
@@ -376,10 +477,9 @@ in RESULTS T1.
   vehicle's current owner's portal (RESULTS T3, blocker B10).
 - Customer and vehicle details on imported invoices are frozen as they are in Shopmonkey at import time,
   not as they were on the invoice date.
-- **Editing an imported work order or quote in the app (until M5 task 12 lands)** would drop the fork's line
-  columns (job, kind, technician, completion, cost, discount, note, source fields): upstream saves lines by
-  deleting and recreating them from what the form sends, and the form doesn't carry those columns (M1
-  review). M5 task 12 keeps them; until then, imported documents are read-only in practice.
+- **Renaming a labor line, or renaming and renumbering a part, on an imported work order or quote** drops
+  that line's job, technician, cost and source fields (§9.2): the page sends no line ids, so a renamed line
+  can't be told from a new one. Every other edit keeps them; the originals stay in the archive.
 
 ---
 

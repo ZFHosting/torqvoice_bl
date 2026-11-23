@@ -8,7 +8,7 @@ import {
   normalizeEmail,
   normalizePhone,
 } from '@/features/import/Lib/normalize'
-import { date, entries, type FieldSpec, records, str, unmappedFields, warn } from './fields'
+import { date, entries, type FieldSpec, records, say, str, unmappedFields, warn } from './fields'
 import type { Row, TransformContext, TransformResult, Warning } from './types'
 
 export const CUSTOMER_FIELDS: FieldSpec = {
@@ -140,7 +140,7 @@ export function transformCustomer(
   const companyName = str(record.companyName)
   let name = person ?? companyName
   if (!name) {
-    name = `Shopmonkey customer ${str(record.publicId) ?? remoteId}`
+    name = say(ctx, 'Shopmonkey customer {id}', { id: str(record.publicId) ?? remoteId })
     warnings.push(
       warn('customer', remoteId, 'customer_missing_name', 'No name or company', 'firstName')
     )

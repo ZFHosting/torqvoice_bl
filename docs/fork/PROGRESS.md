@@ -27,7 +27,7 @@ resolved.
 | M2 | provisional | fork/M2-connector-and-client | Merged 6318fb3f. Built on documented shapes only: re-verify with a key (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M2 provisional). |
 | M3 | provisional | fork/M3-extract-and-stage | Merged c79858fb. Built on documented shapes and synthetic fixtures: re-verify with a key (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M3 provisional). |
 | M4 | provisional | fork/M4-transform | Merged 634a6785. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M4 provisional). |
-| M5 | todo | | |
+| M5 | in_progress | fork/M5-load | |
 | A3 | todo | | |
 | A4 | todo | | |
 | M6 | todo | | |
@@ -48,8 +48,12 @@ Environment (local, Windows):
   version of M1's migration and need `prisma migrate reset`, which Prisma refuses to run for an AI agent
   without your consent (B14).
 - The checkout has CRLF endings (`core.autocrlf=true`); commits are normalized to LF. Biome's format check
-  runs against an LF worktree in the session scratchpad (`git -c core.autocrlf=false worktree add --detach`),
-  using the main checkout's `node_modules/.bin/biome`. Tests and `tsc` run in the main checkout.
+  runs against an LF worktree in the session scratchpad, now `scratchpad/lf2` (the old `lf` was overwritten by a
+  reviewer's copies and pruned): check it out with `git -C <lf2> -c core.autocrlf=false checkout -q --detach
+  <branch>`, using the main checkout's `node_modules/.bin/biome`. **Never run `git config` inside the worktree**:
+  it writes the shared `.git/config` (that once set `core.autocrlf=false` for the main checkout and a commit
+  stored CRLF; caught, soft-reset before any push, and the local setting removed). Tests and `tsc` run in the
+  main checkout.
 - **Run Vitest with Node 22.23.4 from an upper-case `C:` path** (Decisions log, 2026-11-22 "Test runner"):
   the machine's Node is 22.14, which can't start 634 of the 775 test files (`undici` 8 needs ≥22.19), and a
   lower-case `c:` cwd loads vitest twice ("Cannot read properties of undefined (reading 'config')"). A
@@ -65,8 +69,85 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**Next: M5 (load).** Design notes so far (links in the transaction, re-linking after a restore, undo scope, webhooks,
-the issue guard, files, line columns through app edits) are in the session scratchpad `m5-design.md`.
+**M5 (load), in progress** on `fork/M5-load` (from `fork/integration` at 04075abc; upstream had nothing new).
+Provisional (B1). Plan:
+1. [x] Migration `fork_source_local_link`: `SourceRecord.localEntity`, `localId`, `loadedHash` (task 13: a backed-up
+   remote ↔ local mapping, so a load after a restore or a reconnect re-links instead of creating rows again).
+2. [x] `load/links.ts`: links written through the order's transaction (`tx.integrationLink`, scoped by `connectionId`;
+   `ctx.links` writes with `db` outside any transaction), plus the SourceRecord mapping in the same transaction;
+   lookup by remote id, falling back to the SourceRecord's `localId` (checked to still be this workshop's row), which
+   rebuilds the link. Skip when the stored hash equals the source's (an order's hash covers its children).
+3. [x] `load/resolver.ts` + `load/context.ts`: `TransformContext.resolve` from the links (table → model per `transform/types.ts`; `order`
+   → work orders only), `statusStageMap` complete (operator over `defaultStages`).
+4. [x] Loaders in plan order (342da595, 71760c9f; `db/shopmonkey-load.db.test.ts`: dry run keeps nothing, twice is
+   identical across every table, balances, one changed order updates only itself): technicians, workflow statuses, customers (+contacts, custom fields; numbers after
+   every numeric `publicId`), vehicles (+notes; `mileageUnit` from the oldest vehicle), inventory (+ one "import"
+   `StockMovement`; barcode only if unique), presets, orders (one transaction each: ServiceRecord or Quote, jobs,
+   lines with `jobId`/`lineKind`/X3 columns, quote lines `excluded = !counts`, concern, meta, helpers, payments
+   `provider: shopmonkey`, findings, custom field values), appointments (+ the order's `startDateTime`), inspection
+   templates, inspections, time entries and shifts. Workshop settings (tax, labor rate, name, time zone,
+   numbering) are proposed in the run's summary, applied only with `--apply-settings` / `--apply-numbering`.
+5. [x] Files (71760c9f; a db test with real staged files is still to write): staged files moved to `uploadsRoot()/<org>/services/<uuid>.<ext>` (what `isGeneratedName` accepts), then
+   `ServiceAttachment` rows; inspection photos into `imageUrls`; invoice PDFs as category `document`,
+   `includeInInvoice: false`, "Original Shopmonkey invoice"; the staging folder removed when its files are moved.
+6. [x] ImportBatch per entity type (`source: shopmonkey`) on created customers, vehicles, service records,
+   inspections; undo = the spreadsheet undo's rules (`undoImportBatch`, importActions.ts) for those, plus the other
+   rows the run created (by its IntegrationLinks), then their links and SourceRecord mappings.
+7. [x] `issueInvoice(id, org, 'backfill')` after each invoiced order commits; refuse to start while an active
+   connection's manifest subscribes to `service.update` (computed from the registry, not a fixed list).
+8. [x] One `logAudit` per run (`shopmonkey.import`, counts in metadata; not in `WEBHOOK_EVENTS`, so no webhook).
+9. [x] CLI `run.ts load --connection <id> [--dry-run] [--apply-numbering] [--apply-settings] [--user <id>]`
+   (97674a37): `load/cli.ts` (`cli.test.ts`), proposals in `load/proposals.ts` (MAPPING §9, §9.1;
+   `db/shopmonkey-proposals.db.test.ts`: a dry run proposes 1004 → `''`/`1005` and the tax, rate, units and
+   zone, writing nothing; `applyNumbering` makes `nextJobNumber` give `1005`; `applySettings` writes them and
+   leaves nothing to propose). The run uses the workshop's time zone and default country.
+10. [x] Task 12 (3dc8f8eb, b8180fed): the A2 services carry the fork line columns across a save, matched by name, then a part
+    by part number (`schema/lineColumns.ts`; the form sends no ids, brief corrected; `lineColumns.test.ts`,
+    `db/shopmonkey-edit-imported.db.test.ts`, which fails with the carry switched off).
+11. [x] Tests: everything in the list below, plus staged files (b2e67c9a, `db/shopmonkey-files.db.test.ts`: order
+    file, invoice PDF, inspection photo placed and attached, staged copies removed, nothing attached twice; an
+    inspection changed later keeps its photo from uploads; a file gone from disk is warned, re-downloaded by the
+    next extract and attached by the next load). Labels in the workshop's language (1b37f2f5,
+    `load/labels.test.ts`). The list: load twice gives identical counts and no updates; one changed order
+    updates only its rows; an invoiced order is locked and its PDF prints Shopmonkey's number, lines and totals;
+    unpaid/partly paid balances; undo restores the per-table counts; no `WebhookDelivery` with an active `*`
+    webhook; editing an imported work order and quote keeps the fork columns; after a restore a second load
+    creates no duplicates.
+12. [~] DoD (done at 40d6933d: `tsc` 0, Biome 14, all chunks = baseline, `test:db` 23/128). Reviewer pass 1:
+    needs changes, 7 must-fix, all fixed with tests: (1) the issue guard also refuses connections in `error`
+    (c1330a89); (2) every imported invoice is offered for issuing on every run, failures reported (c1330a89);
+    (3) undo keeps rows the workshop uses since, removes only the custom fields the run defined, finds batches by
+    `mapping.shopmonkeyRunId` (f05438c5, `db/shopmonkey-undo.db.test.ts` "undoing a load the workshop has worked
+    with since"); (4) an estimate that becomes a repair order converts its quote, a timesheet changing kind
+    replaces its other row (dbf05adf, `db/shopmonkey-sync.db.test.ts`); (5) `row_recreated` warning, hashes
+    include resolved local ids (dbf05adf, same file); (6) `dataImport.entities.inspections`, no spreadsheet Undo
+    on Shopmonkey batches (a52fe57a); (7) §6.6 words translated, MAPPING §9.2 matches the code. Should-fix taken:
+    connection checked against the workshop in `runLoad`/`undoLoad`, the vehicle note follows changes, an
+    unchanged technician mapping writes nothing (one link per record and model), batch counts count committed
+    records only, undo CLI, the merged docstring, backup test for the three mapping columns, stronger
+    acceptance 2 and webhook tests. DoD again at cd88e5b4: `tsc` 0, Biome 14, chunks = baseline (+ the
+    `registry.test` timeout under load, 4.5 s alone), `test:db` 24/136. Reviewer pass 2: needs changes, 4 must-fix,
+    all fixed with tests: (1) after a restore, an estimate turned repair order converts its quote (the quote is
+    looked up before the work order rewrites the mapping; `db/shopmonkey-sync.db.test.ts` "after a restore");
+    (2) undo removes the vehicle notes a run wrote; (3) one `shopmonkey.import_undo` audit event per undo, undo
+    acts as a member (`db/shopmonkey-undo.db.test.ts` "undo and later runs"); (4) the stock movement notes are
+    translated. Should-fix taken: dangling links and mappings cleared after an undo (older run under a newer
+    one), a converted quote's pointer cleared and re-pointed, the workshop's own technicians never renamed, the
+    guard checked again before issuing, the load's audit event names its connection, the import reason labelled
+    in the part history, the work order save reads lines in id order, tests for the Settings → Data hooks
+    (`features/import/shopmonkey-batches.test.tsx`). Reviewer pass 3 (at 79b0ee33): needs changes, 3 must-fix, all
+    fixed with tests: (1) a vehicle note with its link gone (a restore) is matched by its title, not written twice;
+    (2) a technician re-linked after a restore counts as the workshop's and isn't renamed (`findLoaded` first);
+    (3) the guard's re-check before issuing is tested (`db/shopmonkey-issue-guard.db.test.ts`). Should-fix taken:
+    one `row_recreated` per record (`findLoaded` clears the gone row's mapping), undo clears the pointer of quotes
+    converted into any removed work order and puts them back to `accepted`, undo works in chunks of 10,000 ids,
+    tests for the non-member refusal and a translated stock note. Next: DoD, reviewer pass 4, merge as
+    provisional.
+Facts found while planning: `dispatchWebhookEvent` returns unless the event is in `WEBHOOK_EVENTS` (even for `*`);
+the issue guard's connectors today are fiken, google-calendar, microsoft-365, quickbooks, xero, zoho-books, zoom
+(manifest `subscriptions` with `service.update`); the upload route names files `<randomUUID>.<ext>` under
+`uploadsRoot()/<org>/services/` and returns `/api/protected/files/<org>/services/<name>`; the spreadsheet undo
+doesn't cover quotes, inspections, appointments, inventory, presets, technicians or statuses (no `importBatchId`).
 
 Notes for M5 (from M4's review): quote lines take `excluded = !job.counts` (§6.3); `ctx.resolve` must follow the
 table-to-model contract in `transform/types.ts` (`order` → work orders only); build `statusStageMap` complete
@@ -165,6 +246,8 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | S8 | Timesheet `duration` is milliseconds (unused: minutes come from clock times) | `build-synthetic-fixtures.ts` (`timesheet`); MAPPING §3 |
 | S11 | `publicId` and order `number` are digits in practice (both are strings in the schema) | MAPPING §4, §9 |
 | S12 | Volumes (sizing assumes 50,000 orders) | RESULTS S12, blocker B3 |
+| S4 | Order file entries carry no visibility flag, so imported order files are `includeInInvoice: true` (shown on the share page, like an upload in the app); if recorded files have one (internal vs customer-visible), map it | `load/files.ts` (`attachOrderFiles`); MAPPING §9.2 |
+| S6 | Shop supplies (and EPA) taxability decides `workshop.taxAppliesToShopFee` | `load/proposals.ts` (`taxSettings`); MAPPING §9.1 |
 
 ## Decisions log
 
@@ -231,6 +314,19 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | M3 review: a run's checkpoint saves only while its `runId` is the connection's (`saveExtractState`, one conditional UPDATE); a start or the CLI writes a new `runId` unconditionally, and the replaced run stops at its next save without rescheduling. | `saveState` overwrites the whole `extract` key; the running job (45 s of every minute) would otherwise put the old run back and the new start would be lost. |
 | 2026-11-23 | M3 review: a file or invoice PDF that fails for now is not staged and leaves its parent pending (the next run fetches its children again, file links read fresh by id); a link refused for good (not https, private address, not a link, 4xx other than 401/403/408/429, too large, wrong type) is staged with `_staged.skipped`; files on Shopmonkey's own API origin are read into memory under the 25 MiB cap; a download that takes over 5 minutes is retried on the next run. | One bad link stopped the whole extract (5 failures then a dead job); signed links expire between the list and the download. |
 | 2026-11-23 | M3 review: a record's hash leaves out the links of its `files[]` entries (`recordHash`), PROVISIONAL(M0:S4); `markGone` runs only on a refetch (a first fetch has nothing to lose, and a backfill no longer scans the child table once per parent); payment search rows must match the order; a children unit stops after 30 s as well as 25 calls. | Signed links would refetch every parent's children every run; `markGone` filters on a JSON path with no index; a search that ignored `where` would file every payment under every order; a unit must stay well inside the queue's 10-minute stuck-job window. The job holds the (sequential) runner for up to 45 s of each minute: a trade-off for import speed on a self-hosted install. |
+| 2026-11-23 | M5 (brief corrected, task 12): the work order and quote saves match each line to the one it replaces by name (parts: name + part number; labor: description + pricing type), then a left-over part by part number; no positional guess. | The form sends no line ids (`ServiceRecordPage.tsx` builds lines without them) and an optional id would need the editors changed upstream; a removed line plus an added one is indistinguishable from a rename by position, and pinning a technician's hours or a job on the wrong line is worse than losing them (the archive keeps them). |
+| 2026-11-23 | M5: numbering and workshop settings are proposed in every run's summary and applied only with `--apply-numbering` / `--apply-settings` (MAPPING §9, §9.1); the workshop's name is reported, never applied. | The brief: offer, not force. A settings change the operator didn't ask for (tax, time zone) changes every new document. |
+| 2026-11-23 | M5: links are `IntegrationLink.remoteId` `<table>:<id>` with `metadata.createdByRun`, mirrored on `SourceRecord` (`localEntity`, `localId`, `loadedHash`; migration `fork_source_local_link`) for re-linking after a restore; undo removes exactly what a run created (MAPPING §9.2). | Ids are unique only per table; links aren't in a backup and go with their connection (M1 review, task 13); the spreadsheet undo doesn't know the tables without an `importBatchId`. |
+| 2026-11-23 | M5: placed files are named from the workshop, record and content hash; a file gone from both places is warned `file_missing` and forgotten by the archive so the next extract fetches it again; an inspection's hash covers its photos. | Found while writing the staged-files test: an inspection changed after its first load rewrote its items and crashed copying a staged photo that had been removed; an undo followed by a reload could never get its files back, since the extract skips an unchanged file. |
+| 2026-11-23 | M5: imported order files keep upstream's `includeInInvoice: true` (shown on the share page like any upload); the original invoice PDF is `false` (MAPPING). Re-verify item added (S4: a visibility flag on Shopmonkey's file entries). | Same behaviour as a file uploaded in the app; nothing in the documented shape says a file is internal. |
+| 2026-11-23 | M5: the importer's own words (custom field labels, `Fleet`, the invoice PDF's name and description) are written in the workshop's language (`integrations.json` → `shopmonkeyImport`, 14 locales written by Claude, like A1's); a definition's machine name stays the English label's; the run's time zone and phone country are the workshop's, not UTC/US. | AGENTS.md "Whose language" and "Whose clock" (M4 review carry-over). The 13 non-English strings deserve a native read before release. |
+| 2026-11-23 | M5 review: every imported invoice is offered for issuing on every run (one query keeps those with `issuedAt` null); the issue guard refuses connections in `active` or `error`, the statuses `notifyIntegrations` queues for. | A crash between the stages and issuing, or a failed issue, left invoices unlocked forever; an expired-token accounting connection would have received every imported invoice once fixed. |
+| 2026-11-23 | M5 review: a record's load hash includes the local ids its rows point at (`foreignKeys`); one link per record and model; a row deleted in the app is created again, warned `row_recreated`. | Without the ids, dependents of a re-created or late-loaded row kept a stale or empty foreign key on every rerun; two links for one record made lookups pick either. |
+| 2026-11-23 | M5 review: an estimate that becomes a repair order converts its quote (`status: converted`, `convertedToId`, as `quoteService` does); one that turns back keeps its work order (warned); a timesheet moving between shift and time entry replaces the importer's other row. | Shopmonkey's normal flow during the sync window would otherwise leave two documents for one order. Estimate files stay archive-only until the estimate becomes a work order (MAPPING §9.2) rather than going to `QuoteAttachment`: fewer moving parts, and nothing is lost. |
+| 2026-11-23 | M5 review: undo keeps created rows the workshop uses since (and their links), removes only the custom fields the run defined (now linked as `CustomFieldDefinition`), and finds a run's batches by `ImportBatch.mapping.shopmonkeyRunId`; the batch's `fileName` is a translated label. Settings → Data hides the spreadsheet Undo on Shopmonkey batches and the action refuses it (marked `// fork:` in `ImportHistoryCard.tsx`, `importActions.ts`). | A restrict FK (templates) made undo impossible once the app used an imported template; cascades would have taken the workshop's time entries and statuses; the time-window sweep deleted fields made in Settings; the spreadsheet undo covers only three of the tables a load writes. |
+| 2026-11-23 | M5 review pass 2: undo removes the run's vehicle notes, records `shopmonkey.import_undo` (labels in 14 locales), clears any link or mapping of the connection whose row is gone, and clears the pointer of a quote converted into a removed work order; a technician the workshop had is never renamed from Shopmonkey; the issue guard runs again before issuing (`issue_postponed`). Undoing a run from before a restore is partial (MAPPING §9.2). | The reviewer's probes: a restore followed by an estimate turning into a repair order left two documents; an undone run left its note and then duplicated it; undo of an older run left stale links that read as "deleted in Torqvoice". |
+| 2026-11-23 | M5 review pass 3: a vehicle note whose link is gone is matched by its title on the vehicle; a technician re-linked after a restore is the workshop's (never renamed); an undone conversion puts the quote back to `accepted`. Deferred to M8: an operator's `'create'` choice for a user matched earlier is ignored (the match stands). | A note has no archive record to re-link from; MAPPING §9.2 already promised the technician rule; a `converted` quote with no pointer can't be converted in the app. |
+| 2026-11-23 | M5 review, deferred to M8 (MAPPING §9.2): a lock against two loads of one connection at once; the dry run's single long transaction; the realtime notify per committed record. `.bin` for unknown file types stays (the files route serves it as octet-stream). | M8 adds the screen that starts loads; the CLI is the only entry point until then. |
 | 2026-11-23 | M3 review, accepted as is: the file download honours `WEBHOOKS_ALLOW_PRIVATE_TARGETS` (the same opt-out the webhook and calendar fetchers have, for testing against a local server); an uploaded backup zip is capped at 200 MiB compressed and 2 GiB uncompressed (`import/route.ts`, `zip-guard.ts`), scheduled snapshots aren't; `logAudit` never throws, so a finished run's audit event can't be lost to an exception after `finishedAt` is saved. | One switch for "this server may reach private addresses"; the zip caps are upstream's. |
 | 2026-11-23 | **A2 done.** DoD at 3329b5c4 plus review fixes: `tsc` exit 0; Biome 14 (baseline); `npm test` 808 files, failures = Windows baseline + CRLF/timeout environment cases; `test:db` 16/102. Reviewer pass 2: ready for PR. Merged at c7f16d90. | Evidence for the definition of done and acceptance. |
 | 2026-11-23 | **Upstream bug found in A2's move, not fixed in A2:** `updateTechnicianService` (formerly `updateTechnician`) renames `techName` on work orders matched by technician id alone, after a workshop-scoped update whose count it never checks, so another workshop's technician id renames that workshop's jobs. Present on upstream `main`. | The A2 brief: bugs found while moving code are noted in the PR and fixed separately. It becomes reachable by API keys with A4's `PATCH /technicians/{id}`, so it is an A4 prerequisite (A4 brief). Worth reporting upstream too. |

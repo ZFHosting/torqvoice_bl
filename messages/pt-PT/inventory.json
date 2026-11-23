@@ -165,6 +165,7 @@
       "quote_conversion": "Orçamento convertido",
       "manual_adjustment": "Ajuste manual",
       "bulk_markup": "Margem em massa",
+      "import": "Importação do Shopmonkey",
       "stock_tracking_off": "Controlo de stock desativado"
     },
     "backToInventory": "Stock",

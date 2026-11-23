@@ -37,6 +37,11 @@ export interface TransformContext {
      */
     technicianMap: Record<string, string | 'create'>
   }
+  /**
+   * Words the transforms write for people (MAPPING §6.6), in the workshop's language: `english` is the text with
+   * `{name}` placeholders, as written here. M5 passes the workshop's translator; without one, English.
+   */
+  label?: (english: string, values?: Record<string, string>) => string
 }
 
 export interface Warning {

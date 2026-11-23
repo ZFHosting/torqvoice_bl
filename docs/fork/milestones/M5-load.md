@@ -41,7 +41,9 @@ numbering and invoice locking done the way the app does them, and make the whole
    `document`, `includeInInvoice: false` and the description "Original Shopmonkey invoice".
 8. Stock: set `InventoryPart.quantity` and write one `StockMovement` with reason `import`.
 9. Numbering: after a full run, compute the highest imported number, and offer (not force) the numbering
-   update from MAPPING §9. The UI applies it in M8; the CLI has `--apply-numbering`.
+   update from MAPPING §9. The UI applies it in M8; the CLI has `--apply-numbering`. The workshop settings
+   Shopmonkey holds (tax, default labor rate, unit system, time zone) are offered the same way
+   (MAPPING §9.1, `--apply-settings`).
 10. Audit: one `logAudit` event per run (`shopmonkey.import`, with counts in metadata). **Not** per row.
     Confirm it isn't one of the events in `WEBHOOK_EVENTS`, so no webhook fires.
 11. CLI: `scripts/shopmonkey/run.ts load --connection <id> [--dry-run]`. A dry run executes every
@@ -49,8 +51,10 @@ numbering and invoice locking done the way the app does them, and make the whole
 12. **Keep the fork's line columns through edits in the app** (M1 review). Upstream's work order and quote
     saves (`serviceActions.ts`, `quoteActions.ts`) delete every line and recreate it from what the form
     sends, so an edit drops `jobId`, `lineKind`, `technicianId`, `completed`, `cost*`, `discountAmount`,
-    `note` and `sourceExtra`. Carry them across by line id in the save (a `// fork:` hook, or in the A2
-    service if that has landed), so editing an imported job keeps them; a line added in the app has none.
+    `note` and `sourceExtra`. Carry them across in the save (a `// fork:` hook in the A2 services), so
+    editing an imported job keeps them; a line added in the app has none. The form sends no line ids
+    (corrected in M5), so each line is matched to the one it replaces by name (parts: name and part number;
+    labor: description and pricing), then a part by its part number (MAPPING §9.2).
 13. **Re-link after a restore or a reconnect** (M1 review). `IntegrationLink` is not in a backup and goes
     with its connection, so a load after either would create every row again. A `SourceRecord` alone
     can't rebuild a link (it holds no local id), so keep a backed-up remote-id ↔ local-id mapping on the

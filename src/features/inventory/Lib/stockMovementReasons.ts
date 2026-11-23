@@ -13,4 +13,6 @@ export const STOCK_MOVEMENT_REASONS = [
   'manual_adjustment',
   'bulk_markup',
   'stock_tracking_off',
+  // fork: a part's starting count from a Shopmonkey import (M5)
+  'import',
 ] as const

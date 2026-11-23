@@ -38,6 +38,16 @@ export function warn(
   return { code, table, remoteId, message, ...(field ? { field } : {}) }
 }
 
+/** Text the transforms write for people (§6.6), through the context's translator, English without one. */
+export function say(
+  ctx: { label?: (english: string, values?: Record<string, string>) => string },
+  english: string,
+  values: Record<string, string> = {}
+): string {
+  if (ctx.label) return ctx.label(english, values)
+  return english.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? '')
+}
+
 export const str = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() ? value.trim() : null
 

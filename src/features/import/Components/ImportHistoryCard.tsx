@@ -120,7 +120,8 @@ export function ImportHistoryCard({ refreshKey = 0 }: { refreshKey?: number }) {
                   })}
                 </div>
               </div>
-              {b.status === 'completed' && attached > 0 && (
+              {/* fork: a Shopmonkey load is undone as a whole by its own undo (M5), not batch by batch */}
+              {b.status === 'completed' && attached > 0 && b.source !== 'shopmonkey' && (
                 <Button
                   variant="outline"
                   size="sm"
