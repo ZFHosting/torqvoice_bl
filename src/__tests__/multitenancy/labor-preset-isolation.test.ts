@@ -16,6 +16,8 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/lib/db', () => ({
   db: {
     user: { findUnique: vi.fn() },
+    // fork: a delete also leaves a tombstone for API sync (A2); the expectations are unchanged.
+    deletedRecord: { create: vi.fn(), createMany: vi.fn() },
     laborPreset: {
       findFirst: vi.fn(),
       findMany: vi.fn(),

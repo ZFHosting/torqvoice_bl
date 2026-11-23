@@ -1,24 +1,29 @@
 'use server'
 
-import { db, type TxClient } from '@/lib/db'
-import { assertOwnUploads } from '@/lib/upload-url'
+import { db } from '@/lib/db'
 import { withAuth } from '@/lib/with-auth'
-import {
-  createInventoryPartSchema,
-  updateInventoryPartSchema,
-  adjustStockSchema,
-} from '../Schema/inventorySchema'
 import { onInventoryChanged } from '../Lib/onInventoryChanged'
-import { recordAbsoluteStockChange } from '../Lib/reconcileStock'
 import { Prisma } from '@/generated/prisma/client'
 import { z } from 'zod'
 import { releaseFiles, parseStoredFileUrl } from '@/lib/files/manager'
-import { inventoryPartFileUrls } from '@/lib/files/collect'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
-import { normalizeBarcode, withBarcodeConflictMessage } from '../Lib/barcode'
-import { distinctTags, normalizePartTags } from '../Lib/partTags'
+import { distinctTags } from '../Lib/partTags'
 import { partIdsWithTag, partIdsWithTagContaining } from '../Lib/tagSearch.server'
 import { SETTING_KEYS } from '@/features/settings/Schema/settingsSchema'
+// fork: the write bodies and their audit events live beside the inventory service (A2)
+import {
+  createInventoryPartEvent,
+  deleteInventoryPartEvent,
+  deleteInventoryPartsEvent,
+  updateInventoryPartEvent,
+} from '../Lib/inventoryAuditEvents'
+import {
+  adjustInventoryStockService,
+  createInventoryPartService,
+  deleteInventoryPartService,
+  deleteInventoryPartsService,
+  updateInventoryPartService,
+} from '../Lib/inventoryService.server'
 
 /** Words of a list search looked at; the rest of a pasted paragraph is ignored. */
 const MAX_SEARCH_WORDS = 8
@@ -167,268 +172,65 @@ export async function getInventoryPart(partId: string) {
 
 export async function createInventoryPart(input: unknown) {
   return withAuth(
-    async ({ userId, organizationId }) => {
-      const data = createInventoryPartSchema.parse(input)
-      assertOwnUploads(data, organizationId)
-      const { gallery, ...rest } = data
-      const barcode = normalizeBarcode(rest.barcode)
-      const part = await withBarcodeConflictMessage(organizationId, barcode, () =>
-        db.inventoryPart.create({
-          data: {
-            ...rest,
-            // A part that does not track stock has none to start with.
-            quantity: rest.trackStock === false ? 0 : rest.quantity,
-            partNumber: rest.partNumber || undefined,
-            unit: rest.unit?.trim() || undefined,
-            barcode: barcode ?? undefined,
-            description: rest.description || undefined,
-            category: rest.category || undefined,
-            supplier: rest.supplier || undefined,
-            supplierPhone: rest.supplierPhone || undefined,
-            supplierEmail: rest.supplierEmail || undefined,
-            supplierUrl: rest.supplierUrl || undefined,
-            imageUrl: gallery?.[0]?.url || undefined,
-            location: rest.location || undefined,
-            tags: normalizePartTags(rest.tags ?? []),
-            userId,
-            organizationId,
-          },
-        })
-      )
-
-      if (gallery && gallery.length > 0) {
-        await db.storedImage.createMany({
-          data: gallery.map((img, i) => ({
-            url: img.url,
-            fileName: img.fileName || null,
-            description: img.description || null,
-            sortOrder: i,
-            inventoryPartId: part.id,
-          })),
-        })
-      }
-
-      await onInventoryChanged(organizationId)
-      return part
-    },
+    // fork: the body is createInventoryPartService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      createInventoryPartService({ organizationId, userId, actor: 'user' }, input),
     {
       requiredPermissions: [
         { action: PermissionAction.CREATE, subject: PermissionSubject.INVENTORY },
       ],
-      audit: ({ result }) => ({
-        action: 'inventory.create',
-        entity: 'InventoryPart',
-        entityId: result.id,
-        details: { key: 'inventory_create', params: { name: result.name } },
-        metadata: { partId: result.id },
-      }),
+      audit: ({ result }) => createInventoryPartEvent(result),
     }
   )
 }
 
 export async function updateInventoryPart(input: unknown) {
   return withAuth(
-    async ({ userId, organizationId }) => {
-      const data = updateInventoryPartSchema.parse(input)
-      assertOwnUploads(data, organizationId)
-      const { id, gallery: galleryData, ...updateData } = data
-
-      // The part has to be this workshop's before its gallery is touched: the
-      // gallery rows are keyed by the part alone.
-      const owned = await db.inventoryPart.findFirst({
-        where: { id, organizationId },
-        select: { id: true, trackStock: true },
-      })
-      if (!owned) throw new Error('Part not found')
-
-      // Left out (a page opened before the switch existed), the part keeps
-      // what it has.
-      const tracksStock = updateData.trackStock ?? owned.trackStock
-      const turningTrackingOff = owned.trackStock && !tracksStock
-
-      // The images the part had before a change to them, let go at the end
-      // once nothing uses them (the new gallery keeps the ones it still has).
-      const replacedImages =
-        galleryData !== undefined || 'imageUrl' in updateData
-          ? await inventoryPartFileUrls(organizationId, [id])
-          : []
-
-      // Handle gallery updates
-      if (galleryData !== undefined) {
-        // Replace all gallery records, and the main image with the first, in
-        // one transaction: never a moment where the part has no images and a
-        // cleanup elsewhere would take them for unused.
-        await db.$transaction([
-          db.storedImage.deleteMany({ where: { inventoryPartId: id } }),
-          ...(galleryData.length > 0
-            ? [
-                db.storedImage.createMany({
-                  data: galleryData.map((img, i) => ({
-                    url: img.url,
-                    fileName: img.fileName || null,
-                    description: img.description || null,
-                    sortOrder: i,
-                    inventoryPartId: id,
-                  })),
-                }),
-              ]
-            : []),
-          // Update imageUrl for backward compat
-          db.inventoryPart.updateMany({
-            where: { id, organizationId },
-            data: { imageUrl: galleryData[0]?.url || null },
-          }),
-        ])
-      }
-
-      const nextBarcode =
-        updateData.barcode !== undefined ? normalizeBarcode(updateData.barcode) : undefined
-      const changes: Prisma.InventoryPartUpdateManyMutationInput = {
-        ...updateData,
-        // An untracked part holds no stock and is never low, whatever
-        // the form sent. Turned back on, it starts from what is typed.
-        ...(tracksStock ? {} : { quantity: 0, lowStockAlertedAt: null }),
-        partNumber: updateData.partNumber !== undefined ? updateData.partNumber || null : undefined,
-        unit: updateData.unit !== undefined ? updateData.unit.trim() || null : undefined,
-        barcode: nextBarcode,
-        description:
-          updateData.description !== undefined ? updateData.description || null : undefined,
-        category: updateData.category !== undefined ? updateData.category || null : undefined,
-        supplier: updateData.supplier !== undefined ? updateData.supplier || null : undefined,
-        supplierPhone:
-          updateData.supplierPhone !== undefined ? updateData.supplierPhone || null : undefined,
-        supplierEmail:
-          updateData.supplierEmail !== undefined ? updateData.supplierEmail || null : undefined,
-        supplierUrl:
-          updateData.supplierUrl !== undefined ? updateData.supplierUrl || null : undefined,
-        location: updateData.location !== undefined ? updateData.location || null : undefined,
-        tags: updateData.tags !== undefined ? normalizePartTags(updateData.tags) : undefined,
-      }
-      const writePart = (client: Pick<TxClient, 'inventoryPart'>) =>
-        client.inventoryPart.updateMany({ where: { id, organizationId }, data: changes })
-
-      const result = await withBarcodeConflictMessage(organizationId, nextBarcode ?? null, () =>
-        turningTrackingOff
-          ? // Turning tracking off empties the shelf in the ledger first, while
-            // the part still counts: one entry takes whatever was there (often
-            // a large negative) to zero, so it stops showing in stock reports.
-            db.$transaction(async (tx) => {
-              await recordAbsoluteStockChange(
-                tx,
-                organizationId,
-                id,
-                0,
-                { reason: 'stock_tracking_off', userId },
-                // A part already at zero still gets the entry: the history
-                // is where the day tracking stopped is read from.
-                { recordUnchanged: true }
-              )
-              return writePart(tx)
-            })
-          : writePart(db)
-      )
-      if (result.count === 0) throw new Error('Part not found')
-      await releaseFiles(replacedImages, { organizationId, reason: 'inventory images replaced' })
-      await onInventoryChanged(organizationId)
-      return { updated: true, partId: id }
-    },
+    // fork: the body is updateInventoryPartService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      updateInventoryPartService({ organizationId, userId, actor: 'user' }, input),
     {
       requiredPermissions: [
         { action: PermissionAction.UPDATE, subject: PermissionSubject.INVENTORY },
       ],
-      audit: ({ result }) => ({
-        action: 'inventory.update',
-        entity: 'InventoryPart',
-        entityId: result.partId,
-        details: { key: 'inventory_update', params: { id: result.partId } },
-        metadata: { partId: result.partId },
-      }),
+      audit: ({ result }) => updateInventoryPartEvent(result),
     }
   )
 }
 
 export async function deleteInventoryPart(partId: string) {
   return withAuth(
-    async ({ userId, organizationId }) => {
-      const files = await inventoryPartFileUrls(organizationId, [partId])
-
-      const result = await db.inventoryPart.deleteMany({
-        where: { id: partId, organizationId },
-      })
-      if (result.count === 0) throw new Error('Part not found')
-      await releaseFiles(files, { organizationId, reason: 'inventory part deleted' })
-
-      await onInventoryChanged(organizationId)
-      return { deleted: true, partId }
-    },
+    // fork: the body is deleteInventoryPartService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      deleteInventoryPartService({ organizationId, userId, actor: 'user' }, partId),
     {
       requiredPermissions: [
         { action: PermissionAction.DELETE, subject: PermissionSubject.INVENTORY },
       ],
-      audit: ({ result }) => ({
-        action: 'inventory.delete',
-        entity: 'InventoryPart',
-        entityId: result.partId,
-        details: { key: 'inventory_delete', params: { id: result.partId } },
-        metadata: { partId: result.partId },
-      }),
+      audit: ({ result }) => deleteInventoryPartEvent(result),
     }
   )
 }
 
 export async function deleteInventoryParts(partIds: string[]) {
   return withAuth(
-    async ({ userId, organizationId }) => {
-      if (partIds.length === 0) throw new Error('No parts selected')
-
-      const files = await inventoryPartFileUrls(organizationId, partIds)
-
-      const result = await db.inventoryPart.deleteMany({
-        where: { id: { in: partIds }, organizationId },
-      })
-      await releaseFiles(files, { organizationId, reason: 'inventory parts deleted' })
-
-      await onInventoryChanged(organizationId)
-      return { deleted: result.count }
-    },
+    // fork: the body is deleteInventoryPartsService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      deleteInventoryPartsService({ organizationId, userId, actor: 'user' }, partIds),
     {
       requiredPermissions: [
         { action: PermissionAction.DELETE, subject: PermissionSubject.INVENTORY },
       ],
-      audit: ({ result }) => ({
-        action: 'inventory.bulkDelete',
-        entity: 'InventoryPart',
-        entityId: partIds.join(','),
-        details: { key: 'inventory_bulkDelete', params: { count: result.deleted } },
-        metadata: { partIds, deleted: result.deleted },
-      }),
+      audit: ({ result }) => deleteInventoryPartsEvent(result, partIds),
     }
   )
 }
 
 export async function adjustInventoryStock(input: unknown) {
   return withAuth(
-    async ({ userId, organizationId }) => {
-      const { id, adjustment } = adjustStockSchema.parse(input)
-      const part = await db.inventoryPart.findFirst({
-        where: { id, organizationId },
-      })
-      if (!part) throw new Error('Part not found')
-      if (part.trackStock === false) throw new Error('This part does not track stock')
-
-      const newQuantity = part.quantity + adjustment
-      if (newQuantity < 0) throw new Error('Insufficient stock')
-
-      // Tracking is checked again in the write itself: switched off between
-      // the read above and here, the part must stay at zero.
-      const written = await db.inventoryPart.updateMany({
-        where: { id, organizationId, trackStock: true },
-        data: { quantity: newQuantity },
-      })
-      if (written.count === 0) throw new Error('This part does not track stock')
-      await onInventoryChanged(organizationId)
-      return { quantity: newQuantity }
-    },
+    // fork: the body is adjustInventoryStockService (A2), shared with the public API
+    async ({ organizationId, userId }) =>
+      adjustInventoryStockService({ organizationId, userId, actor: 'user' }, input),
     {
       requiredPermissions: [
         { action: PermissionAction.UPDATE, subject: PermissionSubject.INVENTORY },
