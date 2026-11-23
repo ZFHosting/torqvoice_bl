@@ -81,6 +81,9 @@
       "labor": "Temps de main-d'œuvre sur les ordres de travail et devis",
       "fluids": "Types et capacités de fluides"
     },
+    "import": {
+      "shopmonkey": "Import depuis Shopmonkey"
+    },
     "diagnostics": {
       "codes": "Signification des codes défaut"
     }
@@ -1149,6 +1152,28 @@
         "keepWeekly": "Sauvegardes hebdomadaires à conserver",
         "keepMonthly": "Sauvegardes mensuelles à conserver",
         "keepMonthlyHelp": "Les sauvegardes plus anciennes sont supprimées après chaque exécution, en gardant les plus récentes de chaque type. Mettez un nombre à 0 pour n'en garder aucune de ce type."
+      }
+    },
+    "shopmonkey": {
+      "description": "Reprenez l'historique d'un atelier depuis Shopmonkey : clients, véhicules, ordres, factures, paiements, inspections et fichiers. En lecture seule : rien n'est jamais modifié dans Shopmonkey.",
+      "fields": {
+        "apiKey": "Clé d'API Shopmonkey",
+        "apiKeyHelp": "Un administrateur Shopmonkey la crée dans Settings, Integration, API Keys. Elle agit avec les droits de cette personne, qui doit donc avoir accès à chaque site importé."
+      },
+      "settings": {
+        "locationId": "Site",
+        "locationIdHelp": "Le site Shopmonkey à importer.",
+        "includeFiles": "Importer les fichiers",
+        "includeFilesHelp": "Photos et documents joints aux ordres et aux inspections.",
+        "downloadInvoicePdfs": "PDF d'origine des factures",
+        "downloadInvoicePdfsHelp": "Le PDF de Shopmonkey de chaque facture, conservé à côté de la facture importée.",
+        "downloadInvoicePdfsNone": "Aucun",
+        "downloadInvoicePdfsLast2Years": "Les 2 dernières années",
+        "downloadInvoicePdfsAll": "Tous",
+        "includeMessages": "Importer l'historique des messages",
+        "includeMessagesHelp": "SMS et e-mails avec les clients. Désactivé, ils restent dans l'archive d'import et dans l'API.",
+        "historyFrom": "Historique depuis",
+        "historyFromHelp": "Laissez vide pour tout importer."
       }
     },
     "torqvoice-codes": {

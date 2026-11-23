@@ -70,11 +70,28 @@ at the A2 merge). Staged in the session scratchpad `m2-final/`: `client.ts` (rea
 rate-limit headers, Retry-After, jittered 5xx backoff, paging, logs without queries or bodies), `money.ts`,
 `manifest.ts`, `server.ts` (test, identify, remoteOptions.locations, `shouldRetry: () => false`), tests, and
 `i18n_shopmonkey.py` (connectors.shopmonkey + capabilities.import.shopmonkey in 14 locales). Plan:
-1. [ ] Copy in client, money, manifest, server; register in `src/integrations/registry.ts`; a generic logo
-   `public/images/integrations/shopmonkey.svg` (not Shopmonkey's).
-2. [ ] Strings in every locale; the registry test passes.
-3. [ ] Tests: allowlist, 429 + Retry-After, slowing at low remaining, paging to the end, redacted logs, money.
-4. [ ] DoD, reviewer, merge.
+1. [x] client, money, manifest, server, registry entry, generic import icon (aa2d4e12).
+2. [x] Strings in every locale (connectors.shopmonkey, capabilities.import.shopmonkey; additions only, before
+   each object's last key); `integrations/registry.test.ts` passes.
+3. [x] Tests: `shopmonkey/client.test.ts` (allowlist before any request, redirect manual, Retry-After, slowing
+   below 10%, 5xx backoff then Shopmonkey's error, paging to the end without repeats, logs without query or
+   body), `money.test.ts`, `server.test.ts` (valid key as bearer, bad key shows Shopmonkey's message,
+   identify names the company, locations with fallback, shouldRetry off).
+4. [x] DoD: `tsc` exit 0; Biome 14 (baseline); integrations, i18n, app, components, settings, search folders:
+   145 files, 2295 tests pass (only the Fiken load timeout fails); no migration or loader, so no `test:db`.
+5. [x] Reviewer pass 1: **needs changes** (paging could loop forever on a skip Shopmonkey ignores, and ended
+   early on a short page while `hasMore` was true; a non-JSON body leaked into error messages; missing
+   PROVISIONAL markers; a missing Remaining header read as 0 stalled every call). Fixed: `paged()` ends on
+   `hasMore === false` (or a short page when `hasMore` isn't given, or an empty page), skips by rows received,
+   throws `PagingStalled` when a full page brings nothing new; `JSON.parse` guarded, `ShopmonkeyError` never
+   carries body text; no pacing unless both headers are present; a 429 waits once (the longer of Retry-After
+   and pacing), gives up past `maxRetryAfterS`; bounded attempts (`BACKFILL_BUDGET` 5, `INTERACTIVE_BUDGET`
+   2 for connect checks); 30 s request timeout; `searchPages` for customers/inventory; path hygiene (`?`,
+   `#`, `.`/`..`) and the billed VIN/plate decoders refused; base URL pinned; `where.and` deep-merges;
+   only failures and retries are logged, with `stats`; `identify` refuses a key with no company id; docs
+   link `/docs/integrations`. Tests: `shopmonkey/client.test.ts` 31, `server.test.ts` 9; integrations
+   folders 55 files / 811 tests pass; `tsc` clean.
+6. [ ] Reviewer pass 2, merge. Provisional (B1): built on documented shapes only; see "Re-verify".
 Notes for M3 (found while staging): `runJob` requeues only when `rescheduleInSeconds` is truthy, so a page
 job must return 1, not the brief's 0; the invoice PDF is binary, so the client needs a byte download.
 Staged M3 drafts: `scratchpad/m3-final/` (stage.ts, tables.ts).
@@ -121,7 +138,8 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 
 | Spike | Assumption | Where |
 | --- | --- | --- |
-| S1 | Locations come from `GET /v3/location`, falling back to `user/me.locations`; `api_key/status` 200 + `success` means valid | MAPPING §1; RESULTS S1 (M2 `server.ts` will carry the marker) |
+| S1 | Locations come from `GET /v3/location?limit=100`, falling back to `user/me.locations`; `api_key/status` 200 + `success` means valid; `user/me` gives `companyId` (or `company.id`) and `company.name` (`identify` refuses a key with neither id) | `src/integrations/shopmonkey/server.ts` (`UserMe`, `test`, `identify`, `remoteOptions.locations`) |
+| S2/S3 | Page size 100 sorted `orderby=id asc` (GET) or `orderBy: { id: 'asc' }` with `limit`/`skip` in the body (search), de-duplicated; lists answer `{ success, data, meta: { hasMore, total } }`; `where` sent on a GET as URL-encoded JSON, operators `equals`/`in`/`gte`; rate-limit headers `X-RateLimit-Limit-Minute` / `-Remaining-Minute` **documented only on a 429**, assumed on every response (the client only slows down when both are present); `Retry-After` in seconds | `src/integrations/shopmonkey/client.ts` (header comment, `PAGE_SIZE`, `Where`, `Envelope`, `toSearch`, `paceFrom`, `paged`, `searchPages`) |
 | S2 | The enumerated search allowlist (every `/search` route in the reference) is complete and every one only reads | `SEARCH_ALLOWLIST` in `scripts/shopmonkey/spike-client.ts` (and M2 `client.ts`) |
 | S2 | GET lists ignore `where` and are unstable without `orderby` on `id`; max useful `limit` is 100; incremental pulls fall back to re-list + `payloadHash` | MAPPING §1; RESULTS S2 (M3 extractor) |
 | S4 | Vehicle's current owner = the most recently created `vehicle_owner` row | `build-synthetic-fixtures.ts` (`vehicleOwner`); MAPPING §3 VehicleOwner |
@@ -182,6 +200,8 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | A2: upstream tests whose hand-written database mock lacks `deletedRecord` get it added (`// fork:`), expectations untouched. | A delete now writes a tombstone in its transaction (the brief's "deletes also write DeletedRecord"). |
 | 2026-11-23 | A2: a service takes the action's own parameters (raw input included) and validates inside, exactly as the action body did, instead of the brief's "action parses, service takes parsed input". | The body moves verbatim (no behaviour change, the brief's acceptance 3), and the API gets the very same validation, including the messages an action words through next-intl (the vehicle fleet number, in the caller's locale from cookie or Accept-Language). |
 | 2026-11-23 | A2: one branch with a commit per domain, not one PR per domain. | Autopilot merges per milestone; each domain's commit stands alone (tests, `tsc`), so the history reads as the brief's PRs would. Playwright runs in CI's shards on the merged branch. |
+| 2026-11-23 | M2: the Shopmonkey connector's `shouldRetry` answers false; its client retries 429 (Retry-After) and 5xx (jittered backoff) itself. | The framework's retry logs a slice of the response body; the brief forbids logging bodies, and pacing needs the rate-limit headers the client reads anyway. |
+| 2026-11-23 | M2: capability `import.shopmonkey` (new `capabilities.import` group in every locale); select options use translation keys under the connector's settings; the logo is a generic import glyph. | The registry test needs a label for every capability, and none of upstream's fits an importer; the settings screen translates an option label when a key exists; the brief forbids Shopmonkey's logo. |
 | 2026-11-23 | **A2 done.** DoD at 3329b5c4 plus review fixes: `tsc` exit 0; Biome 14 (baseline); `npm test` 808 files, failures = Windows baseline + CRLF/timeout environment cases; `test:db` 16/102. Reviewer pass 2: ready for PR. Merged at c7f16d90. | Evidence for the definition of done and acceptance. |
 | 2026-11-23 | **Upstream bug found in A2's move, not fixed in A2:** `updateTechnicianService` (formerly `updateTechnician`) renames `techName` on work orders matched by technician id alone, after a workshop-scoped update whose count it never checks, so another workshop's technician id renames that workshop's jobs. Present on upstream `main`. | The A2 brief: bugs found while moving code are noted in the PR and fixed separately. It becomes reachable by API keys with A4's `PATCH /technicians/{id}`, so it is an A4 prerequisite (A4 brief). Worth reporting upstream too. |
 | 2026-11-23 | A2 review, accepted: tombstones after a non-transactional delete (a note, a finding, a webhook, a payment, an appointment, an attachment, an inventory part, a labor preset, a time entry) are written right after it, not in one transaction; a few bulk paths tombstone every pre-checked id once `count > 0`. | Wrapping them would change bodies A2 promised to move verbatim and upstream's mocks; a crash between the two writes loses one tombstone, and a race can tombstone a row deleted by someone else a moment earlier, both rare and harmless to tenancy (every id is checked to be the workshop's). A6's security review lists it. |

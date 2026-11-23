@@ -81,6 +81,9 @@
       "labor": "Tempos de mão de obra em ordens de trabalho e orçamentos",
       "fluids": "Tipos e capacidades de fluidos"
     },
+    "import": {
+      "shopmonkey": "Importar do Shopmonkey"
+    },
     "diagnostics": {
       "codes": "Significado dos códigos de avaria"
     }
@@ -1149,6 +1152,28 @@
         "keepWeekly": "Manter cópias semanais",
         "keepMonthly": "Manter cópias mensais",
         "keepMonthlyHelp": "As cópias mais antigas são removidas após cada execução, mantendo as mais recentes de cada tipo. Defina um número como 0 para não manter nenhuma desse tipo."
+      }
+    },
+    "shopmonkey": {
+      "description": "Traga o histórico de uma oficina do Shopmonkey: clientes, veículos, ordens, faturas, pagamentos, inspeções e ficheiros. Só de leitura: nada é alterado no Shopmonkey.",
+      "fields": {
+        "apiKey": "Chave de API do Shopmonkey",
+        "apiKeyHelp": "Um administrador do Shopmonkey cria-a em Settings, Integration, API Keys. Atua com o acesso dessa pessoa, que precisa de acesso a cada local importado."
+      },
+      "settings": {
+        "locationId": "Local",
+        "locationIdHelp": "O local do Shopmonkey a importar.",
+        "includeFiles": "Importar ficheiros",
+        "includeFilesHelp": "Fotografias e documentos anexados a ordens e inspeções.",
+        "downloadInvoicePdfs": "PDF originais das faturas",
+        "downloadInvoicePdfsHelp": "O PDF do Shopmonkey de cada fatura, guardado junto à fatura importada.",
+        "downloadInvoicePdfsNone": "Nenhum",
+        "downloadInvoicePdfsLast2Years": "Os últimos 2 anos",
+        "downloadInvoicePdfsAll": "Todos",
+        "includeMessages": "Importar histórico de mensagens",
+        "includeMessagesHelp": "SMS e e-mails com clientes. Desligado, ficam no arquivo de importação e na API.",
+        "historyFrom": "Histórico desde",
+        "historyFromHelp": "Deixe vazio para importar tudo."
       }
     },
     "torqvoice-codes": {

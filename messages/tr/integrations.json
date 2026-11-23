@@ -81,6 +81,9 @@
       "labor": "İş emirlerinde ve tekliflerde işçilik süreleri",
       "fluids": "Sıvı türleri ve kapasiteleri"
     },
+    "import": {
+      "shopmonkey": "Shopmonkey'den içe aktarma"
+    },
     "diagnostics": {
       "codes": "Arıza kodu anlamları"
     }
@@ -1149,6 +1152,28 @@
         "keepWeekly": "Haftalık yedekleri sakla",
         "keepMonthly": "Aylık yedekleri sakla",
         "keepMonthlyHelp": "Her çalıştırmadan sonra eski yedekler silinir ve her türün en yenileri saklanır. O türden hiç saklamamak için sayıyı 0 yapın."
+      }
+    },
+    "shopmonkey": {
+      "description": "Bir atölyenin geçmişini Shopmonkey'den alın: müşteriler, araçlar, iş emirleri, faturalar, ödemeler, muayeneler ve dosyalar. Yalnızca okuma: Shopmonkey'de hiçbir şey değiştirilmez.",
+      "fields": {
+        "apiKey": "Shopmonkey API anahtarı",
+        "apiKeyHelp": "Bir Shopmonkey yöneticisi bunu Settings, Integration, API Keys altında oluşturur. O kişinin yetkileriyle çalışır; bu yüzden içe aktarılan her konuma erişimi olmalıdır."
+      },
+      "settings": {
+        "locationId": "Konum",
+        "locationIdHelp": "İçe aktarılacak Shopmonkey konumu.",
+        "includeFiles": "Dosyaları içe aktar",
+        "includeFilesHelp": "İş emirlerine ve muayenelere ekli fotoğraf ve belgeler.",
+        "downloadInvoicePdfs": "Orijinal fatura PDF'leri",
+        "downloadInvoicePdfsHelp": "Shopmonkey'in her fatura için oluşturduğu PDF, içe aktarılan faturanın yanında saklanır.",
+        "downloadInvoicePdfsNone": "Hiçbiri",
+        "downloadInvoicePdfsLast2Years": "Son 2 yıl",
+        "downloadInvoicePdfsAll": "Tümü",
+        "includeMessages": "Mesaj geçmişini içe aktar",
+        "includeMessagesHelp": "Müşterilerle SMS ve e-postalar. Kapalıyken içe aktarma arşivinde ve API'de kalır.",
+        "historyFrom": "Geçmişin başlangıcı",
+        "historyFromHelp": "Her şeyi içe aktarmak için boş bırakın."
       }
     },
     "torqvoice-codes": {

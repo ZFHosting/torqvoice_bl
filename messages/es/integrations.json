@@ -81,6 +81,9 @@
       "labor": "Tiempos de mano de obra en órdenes de trabajo y presupuestos",
       "fluids": "Tipos y capacidades de fluidos"
     },
+    "import": {
+      "shopmonkey": "Importar desde Shopmonkey"
+    },
     "diagnostics": {
       "codes": "Significado de los códigos de avería"
     }
@@ -1149,6 +1152,28 @@
         "keepWeekly": "Conservar copias semanales",
         "keepMonthly": "Conservar copias mensuales",
         "keepMonthlyHelp": "Las copias más antiguas se eliminan después de cada ejecución y se conservan las más recientes de cada tipo. Ponga un número a 0 para no conservar ninguna de ese tipo."
+      }
+    },
+    "shopmonkey": {
+      "description": "Trae el historial de un taller desde Shopmonkey: clientes, vehículos, órdenes, facturas, pagos, inspecciones y archivos. Solo lectura: nunca se cambia nada en Shopmonkey.",
+      "fields": {
+        "apiKey": "Clave de API de Shopmonkey",
+        "apiKeyHelp": "La crea un administrador de Shopmonkey en Settings, Integration, API Keys. Actúa con los permisos de esa persona, que necesita acceso a cada ubicación que importes."
+      },
+      "settings": {
+        "locationId": "Ubicación",
+        "locationIdHelp": "La ubicación de Shopmonkey que se importa.",
+        "includeFiles": "Importar archivos",
+        "includeFilesHelp": "Fotos y documentos adjuntos a órdenes e inspecciones.",
+        "downloadInvoicePdfs": "PDF originales de facturas",
+        "downloadInvoicePdfsHelp": "El PDF de Shopmonkey de cada factura, guardado junto a la factura importada.",
+        "downloadInvoicePdfsNone": "Ninguno",
+        "downloadInvoicePdfsLast2Years": "Los últimos 2 años",
+        "downloadInvoicePdfsAll": "Todos",
+        "includeMessages": "Importar el historial de mensajes",
+        "includeMessagesHelp": "SMS y correos con clientes. Si está desactivado, quedan en el archivo de importación y en la API.",
+        "historyFrom": "Historial desde",
+        "historyFromHelp": "Déjalo vacío para importarlo todo."
       }
     },
     "torqvoice-codes": {

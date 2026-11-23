@@ -46,6 +46,8 @@ import { manifest as vonageSms } from './vonage-sms/manifest'
 import { manifest as whatsappMeta } from './whatsapp-meta/manifest'
 import { manifest as whatsappTwilio } from './whatsapp-twilio/manifest'
 import { manifest as zoom } from './zoom/manifest'
+// fork: the Shopmonkey importer (docs/fork/PLAN.md)
+import { manifest as shopmonkey } from './shopmonkey/manifest'
 
 interface RegistryEntry {
   manifest: ConnectorManifest
@@ -90,6 +92,8 @@ const ALL_ENTRIES: readonly RegistryEntry[] = [
   { manifest: fiken, load: () => import('./fiken/server') },
   { manifest: s3, load: () => import('./s3/server') },
   { manifest: localFolder, load: () => import('./local-folder/server') },
+  // fork: the Shopmonkey importer (self-hosted only)
+  { manifest: shopmonkey, load: () => import('./shopmonkey/server') },
 ]
 
 /**

@@ -81,6 +81,9 @@
       "labor": "Darbo laiko normos užsakymuose ir pasiūlymuose",
       "fluids": "Skysčių tipai ir talpos"
     },
+    "import": {
+      "shopmonkey": "Importas iš Shopmonkey"
+    },
     "diagnostics": {
       "codes": "Gedimų kodų reikšmės"
     }
@@ -1149,6 +1152,28 @@
         "keepWeekly": "Laikyti savaitines atsargines kopijas",
         "keepMonthly": "Laikyti mėnesines atsargines kopijas",
         "keepMonthlyHelp": "Po kiekvieno vykdymo senesnės atsarginės kopijos pašalinamos, paliekant naujausias kiekvienos rūšies. Nustatykite skaičių 0, kad tos rūšies nebūtų laikoma nė vienos."
+      }
+    },
+    "shopmonkey": {
+      "description": "Perkelkite serviso istoriją iš Shopmonkey: klientus, automobilius, užsakymus, sąskaitas, mokėjimus, patikras ir failus. Tik skaitymas: Shopmonkey niekas nekeičiama.",
+      "fields": {
+        "apiKey": "Shopmonkey API raktas",
+        "apiKeyHelp": "Jį sukuria Shopmonkey administratorius skiltyje Settings, Integration, API Keys. Jis veikia to žmogaus teisėmis, todėl šis turi turėti prieigą prie kiekvienos importuojamos vietos."
+      },
+      "settings": {
+        "locationId": "Vieta",
+        "locationIdHelp": "Shopmonkey vieta, kurią importuoti.",
+        "includeFiles": "Importuoti failus",
+        "includeFilesHelp": "Nuotraukos ir dokumentai prie užsakymų ir patikrų.",
+        "downloadInvoicePdfs": "Originalūs sąskaitų PDF",
+        "downloadInvoicePdfsHelp": "Shopmonkey kiekvienos sąskaitos PDF, saugomas šalia importuotos sąskaitos.",
+        "downloadInvoicePdfsNone": "Jokių",
+        "downloadInvoicePdfsLast2Years": "Paskutiniai 2 metai",
+        "downloadInvoicePdfsAll": "Visi",
+        "includeMessages": "Importuoti žinučių istoriją",
+        "includeMessagesHelp": "SMS ir el. laiškai su klientais. Išjungus jie lieka importo archyve ir API.",
+        "historyFrom": "Istorija nuo",
+        "historyFromHelp": "Palikite tuščią, kad būtų importuota viskas."
       }
     },
     "torqvoice-codes": {

@@ -81,6 +81,9 @@
       "labor": "Норми за труд в работни поръчки и оферти",
       "fluids": "Видове и капацитети на течности"
     },
+    "import": {
+      "shopmonkey": "Импорт от Shopmonkey"
+    },
     "diagnostics": {
       "codes": "Обяснения на кодове за грешки"
     }
@@ -1149,6 +1152,28 @@
         "keepWeekly": "Запазвай седмични архиви",
         "keepMonthly": "Запазвай месечни архиви",
         "keepMonthlyHelp": "След всяко изпълнение по-старите архиви се премахват, като се запазват най-новите от всеки вид. Задайте 0, за да не се запазват архиви от съответния вид."
+      }
+    },
+    "shopmonkey": {
+      "description": "Пренесете историята на сервиза от Shopmonkey: клиенти, автомобили, поръчки, фактури, плащания, прегледи и файлове. Само за четене: в Shopmonkey нищо не се променя.",
+      "fields": {
+        "apiKey": "API ключ за Shopmonkey",
+        "apiKeyHelp": "Създава го администратор на Shopmonkey в Settings, Integration, API Keys. Действа с достъпа на този човек, затова той трябва да има достъп до всяко импортирано място."
+      },
+      "settings": {
+        "locationId": "Място",
+        "locationIdHelp": "Мястото в Shopmonkey, което да се импортира.",
+        "includeFiles": "Импортиране на файлове",
+        "includeFilesHelp": "Снимки и документи към поръчки и прегледи.",
+        "downloadInvoicePdfs": "Оригинални PDF фактури",
+        "downloadInvoicePdfsHelp": "PDF файлът на Shopmonkey за всяка фактура, запазен до импортираната фактура.",
+        "downloadInvoicePdfsNone": "Няма",
+        "downloadInvoicePdfsLast2Years": "Последните 2 години",
+        "downloadInvoicePdfsAll": "Всички",
+        "includeMessages": "Импортиране на историята на съобщенията",
+        "includeMessagesHelp": "SMS и имейли с клиенти. Ако е изключено, остават в архива на импорта и в API.",
+        "historyFrom": "История от",
+        "historyFromHelp": "Оставете празно, за да импортирате всичко."
       }
     },
     "torqvoice-codes": {
