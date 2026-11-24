@@ -6,6 +6,7 @@
 import { appUrl } from '@/features/integrations/Lib/connections'
 import type { Stage } from '@/features/work-order-statuses/Lib/stages'
 import { db } from '@/lib/db'
+import { type LiveJobs, liveJobs } from './liveJobs.server'
 import { type ExtractState, planFor } from '@/integrations/shopmonkey/extract/plan'
 import { SOURCE } from '@/integrations/shopmonkey/extract/stage'
 import type { LastLoad } from '@/integrations/shopmonkey/load/outcome'
@@ -70,6 +71,8 @@ export interface ImportView {
   cutoverRun: CutoverRunState | null
   cutover: CutoverState | null
   runs: LoadRunView[]
+  /** What the job queue has queued or running for the import: what the buttons and the polling go by. */
+  live: LiveJobs
 }
 
 const RUNS_LISTED = 20
@@ -77,6 +80,7 @@ const RUNS_LISTED = 20
 function extractView(
   state: ExtractState | undefined,
   stop: unknown,
+  live: LiveJobs,
   now: Date
 ): ExtractView | null {
   if (!state?.runId) return null
@@ -123,7 +127,11 @@ function extractView(
     runId: state.runId,
     startedAt: state.startedAt,
     finishedAt: state.finishedAt,
-    stopped: (stop as { runId?: string } | null)?.runId === state.runId && !state.finishedAt,
+    // Stopped once asked to and its job has ended (a stop takes effect after the unit under way).
+    stopped:
+      (stop as { runId?: string } | null)?.runId === state.runId &&
+      !state.finishedAt &&
+      !live.extract,
     sync: state.sync === true,
     calls: state.calls,
     tables,
@@ -139,6 +147,7 @@ export async function importView(
 ): Promise<ImportView> {
   const state = connection.state
   const lastLoad = (state.lastLoad as LastLoad | undefined) ?? null
+  const live = await liveJobs(organizationId, connection.id)
   const dry = state.lastDryRun as ImportView['lastDryRun'] | undefined
   const audits = await db.auditLog.findMany({
     where: {
@@ -176,7 +185,7 @@ export async function importView(
     connectionId: connection.id,
     status: connection.status,
     webhookUrl: `${appUrl()}/api/integrations/shopmonkey/${connection.id}/webhook`,
-    extract: extractView(state.extract as ExtractState | undefined, state.extractStop, now),
+    extract: extractView(state.extract as ExtractState | undefined, state.extractStop, live, now),
     loadRun: (state.loadRun as LoadRunState | undefined) ?? null,
     lastDryRun: dry
       ? {
@@ -200,6 +209,7 @@ export async function importView(
     cutoverRun: (state.cutoverRun as CutoverRunState | undefined) ?? null,
     cutover: (state.cutover as CutoverState | undefined) ?? null,
     runs,
+    live,
   }
 }
 

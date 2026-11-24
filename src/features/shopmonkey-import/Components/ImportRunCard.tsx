@@ -5,6 +5,7 @@ import { useFormatter, useTranslations } from 'next-intl'
 import { DatabaseZap, Download, FlaskConical, Loader2, Pause, Play } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppCard } from '@/components/app-card'
+import { useDateSettings } from '@/components/date-settings-context'
 import { useConfirm } from '@/components/confirm-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -41,10 +42,18 @@ export function ImportRunCard({
   const [busy, setBusy] = useState<string | null>(null)
   const extract = view.extract
   const cutOver = !!view.cutover
-  const extracting = !!extract && !extract.finishedAt && !extract.stopped
-  const loading = view.loadRun?.status === 'queued' || view.loadRun?.status === 'running'
+  // What the job queue has, not what the state last said: a job that died leaves no button stuck.
+  const extracting = view.live.extract
+  const loading = view.live.load
+  // The sync's own runs are its to carry on; an operator's run its job stopped (or lost) can carry on.
+  const resumable = !!extract && !extract.finishedAt && !extract.sync && !extracting
+  const { timezone } = useDateSettings()
   const when = (iso: string) =>
-    format.dateTime(new Date(iso), { dateStyle: 'medium', timeStyle: 'short' })
+    format.dateTime(new Date(iso), {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: timezone || undefined,
+    })
 
   const act = async (
     name: string,
@@ -95,7 +104,7 @@ export function ImportRunCard({
       description={t('description')}
       action={
         <div className="flex flex-wrap gap-2">
-          {extracting ? (
+          {extracting && !extract?.sync ? (
             <Button
               variant="outline"
               size="sm"
@@ -109,7 +118,7 @@ export function ImportRunCard({
               )}
               {t('stop')}
             </Button>
-          ) : extract?.stopped ? (
+          ) : resumable ? (
             <Button
               variant="outline"
               size="sm"
@@ -128,7 +137,7 @@ export function ImportRunCard({
             <Button
               variant="outline"
               size="sm"
-              disabled={busy !== null || cutOver}
+              disabled={busy !== null || cutOver || loading || view.live.cutover}
               onClick={() => act('extract', startShopmonkeyImportExtract, t('extractQueued'))}
             >
               {busy === 'extract' ? (

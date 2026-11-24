@@ -14,8 +14,8 @@ export const shopmonkeyStandinUrl = `http://127.0.0.1:${process.env.E2E_SHOPMONK
 /** The secret the app server signs sessions with (and seals connector keys from): the config's fallback when unset. */
 const AUTH_SECRET = process.env.BETTER_AUTH_SECRET ?? 'k3Qb8vZ1hN7pXtR2yJm5Ls9CwD4gFa6UeH0iOoT+PbY='
 
-/** Runs every integration job that is due, and those due within seconds, as the server's cron would. */
-export function runQueuedJobs(): void {
+/** Runs one of the support scripts with the app's server modules, against the suite's database. */
+function runScript(script: string): void {
   const databaseUrl = process.env.E2E_DATABASE_URL
   if (!databaseUrl) throw new Error('E2E_DATABASE_URL is not set. See e2e/README.md.')
   execFileSync(
@@ -24,7 +24,7 @@ export function runQueuedJobs(): void {
       resolve('node_modules/tsx/dist/cli.mjs'),
       '--import',
       pathToFileURL(resolve('scripts/shopmonkey/register.mjs')).href,
-      resolve('e2e/support/run-jobs.ts'),
+      resolve(script),
     ],
     {
       env: {
@@ -40,6 +40,16 @@ export function runQueuedJobs(): void {
       timeout: 180_000,
     }
   )
+}
+
+/** Runs every integration job that is due, and those due within seconds, as the server's cron would. */
+export function runQueuedJobs(): void {
+  runScript('e2e/support/run-jobs.ts')
+}
+
+/** Undoes the spec's loads and removes the import's archive, so the shared workshop is as it was. */
+export function cleanUpShopmonkey(): void {
+  runScript('e2e/support/shopmonkey-cleanup.ts')
 }
 
 /** The id of the row a Shopmonkey record was loaded as (its link), or null. */

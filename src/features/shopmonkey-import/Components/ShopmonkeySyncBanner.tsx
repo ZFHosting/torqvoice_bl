@@ -1,6 +1,7 @@
 'use client'
 
-import { useFormatter, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
+import { useWorkshopTime } from './useWorkshopTime'
 import { RefreshCcw } from 'lucide-react'
 
 /**
@@ -9,7 +10,7 @@ import { RefreshCcw } from 'lucide-react'
  */
 export function ShopmonkeySyncBanner({ lastSyncAt }: { lastSyncAt: string | null }) {
   const t = useTranslations('shopmonkeyImport.banner')
-  const format = useFormatter()
+  const when = useWorkshopTime()
   return (
     <div
       className="flex items-start gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm"
@@ -22,10 +23,7 @@ export function ShopmonkeySyncBanner({ lastSyncAt }: { lastSyncAt: string | null
         <p className="text-muted-foreground">
           {lastSyncAt
             ? t('syncedDetail', {
-                time: format.dateTime(new Date(lastSyncAt), {
-                  dateStyle: 'medium',
-                  timeStyle: 'short',
-                }),
+                time: when(lastSyncAt),
               })
             : t('syncedNever')}
         </p>

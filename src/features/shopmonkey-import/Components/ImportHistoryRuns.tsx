@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useFormatter, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import { History, Loader2, Undo2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppCard } from '@/components/app-card'
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { undoShopmonkeyLoad } from '../Actions/undoShopmonkeyLoad'
 import type { ImportView } from './types'
+import { useWorkshopTime } from './useWorkshopTime'
 
 /**
  * fork (M8): the loads of this connection, newest first, each with an undo (M5: what that load created, and nothing
@@ -24,7 +25,7 @@ export function ImportHistoryRuns({
   onChanged: () => Promise<void> | void
 }) {
   const t = useTranslations('shopmonkeyImport.history')
-  const format = useFormatter()
+  const when = useWorkshopTime()
   const confirm = useConfirm()
   const router = useRouter()
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -37,7 +38,7 @@ export function ImportHistoryRuns({
       description: t('confirmDescription'),
       subject: [
         {
-          label: format.dateTime(new Date(at), { dateStyle: 'medium', timeStyle: 'short' }),
+          label: when(at),
           detail: t('records', { count: records }),
           icon: History,
         },
@@ -72,9 +73,7 @@ export function ImportHistoryRuns({
         {view.runs.map((run) => (
           <div key={run.runId} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
             <div className="min-w-0 text-sm">
-              <span className="font-medium">
-                {format.dateTime(new Date(run.at), { dateStyle: 'medium', timeStyle: 'short' })}
-              </span>
+              <span className="font-medium">{when(run.at)}</span>
               <span className="ml-2 text-muted-foreground">
                 {t('records', { count: run.records })}
               </span>

@@ -44,11 +44,13 @@ export async function startShopmonkeyExtract(input: StartExtractInput): Promise<
     now: new Date(),
   })
   // The run in progress, if any, saves its checkpoints only while its runId is the stored one
-  // (extractState.server.ts), so this write replaces it for good.
-  await db.integrationConnection.updateMany({
-    where: { id: connection.id, organizationId: input.organizationId },
-    data: { state: { ...state, extract } as object },
-  })
+  // (extractState.server.ts), so this write replaces it for good. M8: `extract` alone, in one statement: writing
+  // back the whole state read above could undo what a load, the sync or the screen saved meanwhile.
+  await db.$executeRaw`
+    UPDATE "public"."integration_connections"
+    SET "state" = jsonb_set(COALESCE("state", '{}'::jsonb), '{extract}', ${JSON.stringify(extract)}::jsonb),
+        "updatedAt" = now()
+    WHERE "id" = ${connection.id} AND "organizationId" = ${input.organizationId}`
   await enqueueJob({
     connectionId: connection.id,
     organizationId: input.organizationId,

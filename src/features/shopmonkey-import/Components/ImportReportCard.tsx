@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/table'
 import { reconcileShopmonkeyImport } from '../Actions/reconcileShopmonkeyImport'
 import type { ImportView } from './types'
+import { useWorkshopTime } from './useWorkshopTime'
 
 const GATES = ['counts', 'money', 'receivables', 'failures'] as const
 const BUCKETS = [
@@ -45,6 +46,7 @@ export function ImportReportCard({
 }) {
   const t = useTranslations('shopmonkeyImport.report')
   const format = useFormatter()
+  const when = useWorkshopTime()
   const [running, setRunning] = useState(false)
   const report = view.report
   const money = (cents: number) =>
@@ -98,10 +100,7 @@ export function ImportReportCard({
           <div className="space-y-2" data-testid="shopmonkey-gates">
             <p className="text-muted-foreground">
               {t('generated', {
-                time: format.dateTime(new Date(report.generatedAt), {
-                  dateStyle: 'medium',
-                  timeStyle: 'short',
-                }),
+                time: when(report.generatedAt),
               })}
             </p>
             {GATES.map((name) => {

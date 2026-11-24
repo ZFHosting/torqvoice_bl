@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { connectionStatus, forgetConnections } from '../../support/db'
 import { settle } from '../../support/hydration'
-import { loadedRow, runQueuedJobs } from '../../support/shopmonkey'
+import { cleanUpShopmonkey, loadedRow, runQueuedJobs } from '../../support/shopmonkey'
 
 /**
  * fork (M8, docs/fork/milestones/M8-import-ui.md): the Shopmonkey import from its connector page, against the stand-in
@@ -13,6 +13,8 @@ import { loadedRow, runQueuedJobs } from '../../support/shopmonkey'
 test.describe.configure({ mode: 'serial' })
 
 test.afterAll(async () => {
+  // Whether or not the test got to its own undo: the loads undone, the archive gone, then the connection.
+  cleanUpShopmonkey()
   await forgetConnections(['shopmonkey'])
 })
 
@@ -53,6 +55,7 @@ test.describe('the Shopmonkey import', () => {
 
     // A dry run, then the load.
     await panel.getByRole('button', { name: 'Dry run', exact: true }).click()
+    await expect(page.getByText('Dry run queued.')).toBeVisible()
     runQueuedJobs()
     await page.reload()
     await settle(page)
@@ -61,6 +64,7 @@ test.describe('the Shopmonkey import', () => {
 
     await panel.getByRole('button', { name: 'Load', exact: true }).click()
     await page.getByRole('alertdialog').getByRole('button', { name: 'Load', exact: true }).click()
+    await expect(page.getByText('Load queued.')).toBeVisible()
     runQueuedJobs()
     await page.reload()
     await settle(page)
@@ -113,6 +117,8 @@ test.describe('the Shopmonkey import', () => {
       const panel = page.getByTestId('shopmonkey-import')
       await expect(panel).toBeVisible()
       await expect(panel.getByText('Extract and load')).toBeVisible()
+      // The page itself is in Norwegian (the import's own words fall back to English until translated).
+      await expect(page.getByRole('button', { name: 'Koble fra' })).toBeVisible()
       await expect(page.locator('html')).toHaveClass(/dark/)
     })
   })

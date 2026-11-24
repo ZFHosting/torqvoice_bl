@@ -6,8 +6,10 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ findMany: vi.fn() }))
-vi.mock('@/lib/db', () => ({ db: { auditLog: { findMany: mocks.findMany } } }))
+const mocks = vi.hoisted(() => ({ findMany: vi.fn(), jobs: vi.fn() }))
+vi.mock('@/lib/db', () => ({
+  db: { auditLog: { findMany: mocks.findMany }, integrationJob: { findMany: mocks.jobs } },
+}))
 
 import {
   emptyChildCounts,
@@ -48,6 +50,8 @@ function extract() {
 beforeEach(() => {
   mocks.findMany.mockReset()
   mocks.findMany.mockResolvedValue([])
+  mocks.jobs.mockReset()
+  mocks.jobs.mockResolvedValue([])
 })
 
 describe('the import view', () => {
@@ -78,6 +82,19 @@ describe('the import view', () => {
       NOW
     )
     expect(stopped.extract?.stopped).toBe(true)
+    // Asked to stop, but its job hasn't ended yet: not stopped, and the queue says an extract is live.
+    mocks.jobs.mockResolvedValueOnce([{ kind: 'extract.step' }])
+    const stopping = await importView(
+      'org-1',
+      {
+        id: 'conn-1',
+        status: 'active',
+        state: { extract: extract(), extractStop: { runId: 'run-1' } },
+      },
+      NOW
+    )
+    expect(stopping.extract?.stopped).toBe(false)
+    expect(stopping.live).toEqual({ extract: true, load: false, cutover: false })
     const finished = extract()
     finished.finishedAt = NOW.toISOString()
     const done = await importView(

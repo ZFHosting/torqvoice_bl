@@ -20,6 +20,7 @@ const dbMock = vi.hoisted(() => ({
     findFirst: vi.fn(async (_args: unknown) => null as unknown),
     updateMany: vi.fn(async (_args: unknown) => ({ count: 1 })),
   },
+  $executeRaw: vi.fn(async (..._args: unknown[]) => 1),
 }))
 /** The connection's stored run: a save goes through only while its runId is this one's. */
 const stored = vi.hoisted(() => ({
@@ -226,14 +227,17 @@ describe('starting an extract', () => {
         where: { id: 'conn-1', organizationId: 'org-1', connectorId: 'shopmonkey' },
       })
     )
-    const write = dbMock.integrationConnection.updateMany.mock.calls.at(-1)?.[0] as {
-      where: Record<string, string>
-      data: { state: { extract: ExtractState; other: number } }
-    }
-    expect(write.where).toEqual({ id: 'conn-1', organizationId: 'org-1' })
-    const saved = write.data.state
-    expect(saved.other).toBe(1)
-    expect(saved.extract).toMatchObject({
+    // M8: `extract` alone, with `jsonb_set`, never the whole state read before (`other` is left as it is).
+    expect(dbMock.integrationConnection.updateMany).not.toHaveBeenCalled()
+    const [sql, extractJson, id, organizationId] = dbMock.$executeRaw.mock.calls.at(-1) as [
+      TemplateStringsArray,
+      string,
+      string,
+      string,
+    ]
+    expect(sql.join('?')).toMatch(/jsonb_set\(COALESCE\("state", '\{\}'::jsonb\), '\{extract\}'/)
+    expect([id, organizationId]).toEqual(['conn-1', 'org-1'])
+    expect(JSON.parse(extractJson)).toMatchObject({
       runId,
       only: ['order'],
       step: 0,

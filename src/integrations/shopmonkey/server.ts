@@ -121,7 +121,8 @@ async function extractStepJob(ctx: ConnectorContext, payload: Record<string, unk
       // the import screen ends the run after the unit that is saving, and a resume carries on from there.
       save: async (next) =>
         (await saveExtractState(scope, next)) !== false &&
-        !(await stopRequested(scope, next.runId)),
+        // A run that just finished is done whatever was asked: it records its audit event below.
+        (!!next.finishedAt || !(await stopRequested(scope, next.runId))),
     })
     if (result.replaced) {
       return {

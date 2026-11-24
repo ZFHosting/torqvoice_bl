@@ -19,7 +19,8 @@ Everything is on the Shopmonkey connector's page, in panels shown according to w
      secret is the connection's `webhookSecret` credential. The last sync is `state.lastSync`, with the deletes
      the sync kept (`keptDeletes`: edited in Torqvoice, a locked invoice, or a record it never deletes): list them.
    - The banner on imported records until cutover, "Synced from Shopmonkey until <date>" (moved here from M7
-     task 4): shown while the connection has no `state.cutover`, gone once it has.
+     task 4): shown while the connection has no `state.cutover`, gone once it has. (Built as "Synced from Shopmonkey
+     until cutover" with the last sync's time: the cutover has no date until it happens, B8.)
    - The status and technician mappings (task 2) are stored on the connection and passed to every load, the
      sync's own (`sync/jobs.ts`, `syncLoad`) included: until then the sync loads with the defaults, as the CLI does.
 6. **Undo:** per run, using ImportBatch. Disabled after cutover.
@@ -28,11 +29,15 @@ All strings in `messages/en/shopmonkeyImport.json`. Server actions in `src/featu
 each wrapped in `withAuth` with `requiredPermissions` for settings management.
 
 ## Acceptance
-- [ ] A Playwright spec (`e2e/specs/shopmonkey-import.spec.ts`) runs connect (mock server) → mapping → dry run → load → report shows all gates passing → undo.
+- [ ] A Playwright spec runs connect (mock server) → mapping → dry run → load → report shows all gates passing → undo.
+      (Built at `e2e/specs/shopmonkey/import.spec.ts`: the suite keeps one folder per area, e2e/README.md.)
 - [ ] Works in dark mode and with a non-English locale (falls back to English strings).
 - [ ] The same spec opens an imported vehicle with no year, make or model (shows "Unknown Unknown", no
       stray "0"), and a job billed to a vehicle's previous owner, on the work order and in the current
       owner's portal (M0 spikes T3, T4; blocker B10).
+      (Decisions log, M8: the portal half waits on B10. What the current owner's portal shows is upstream's
+      behaviour, which B10 asks the client to accept or have the import split by owner period; the spec checks the
+      work order, and the portal check is written once B10 is answered.)
 - [ ] Every action is owner/admin only. A member gets `forbidden`.
 
 ## Out of scope

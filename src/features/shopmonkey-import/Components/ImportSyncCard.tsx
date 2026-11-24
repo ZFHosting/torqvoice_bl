@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useFormatter, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import { FlaskConical, Flag, Loader2, RefreshCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppCard } from '@/components/app-card'
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { queueShopmonkeyCutover } from '../Actions/queueShopmonkeyCutover'
 import type { ImportView } from './types'
+import { useWorkshopTime } from './useWorkshopTime'
 
 const STEPS = [
   'stopped',
@@ -35,13 +36,12 @@ export function ImportSyncCard({
   onChanged: () => Promise<void> | void
 }) {
   const t = useTranslations('shopmonkeyImport.sync')
-  const format = useFormatter()
   const confirm = useConfirm()
   const [busy, setBusy] = useState<'dry' | 'real' | null>(null)
-  const when = (iso: string) =>
-    format.dateTime(new Date(iso), { dateStyle: 'medium', timeStyle: 'short' })
+  const when = useWorkshopTime()
   const run = view.cutoverRun
-  const running = run?.status === 'queued' || run?.status === 'running'
+  // What the job queue has: a cutover job that died leaves the buttons usable.
+  const running = view.live.cutover
   const passed = view.report?.passed === true
 
   const cutover = async (dryRun: boolean) => {

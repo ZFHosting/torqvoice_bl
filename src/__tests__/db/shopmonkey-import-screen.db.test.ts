@@ -1,7 +1,9 @@
 /**
  * fork: what the import screen (M8) runs, on a real PostgreSQL (`npm run test:db`). The mapping saved on the screen
  * is what a load uses (a status's stage, a user matched to an existing technician); the screen's load job records a
- * dry run and a load where the screen reads them; a stopped extract stops and a resumed one carries on.
+ * dry run and a load where the screen reads them; a second copy of a running load (the queue re-runs a job it takes
+ * for stuck after ten minutes) leaves it alone; a load after cutover is refused. (Stopping an extract is tested in
+ * `extract-jobs.test.ts`.)
  *
  * Its own workshop, removed again. SYNTHETIC fixtures: extracts against the mock Shopmonkey.
  */
@@ -124,6 +126,26 @@ describe('the import screen', () => {
       select: { entityId: true },
     })
     expect(link.entityId).toBe(own.id)
+  })
+
+  it('leaves a running load alone when the queue starts a second copy of its job', async () => {
+    const { mergeState } = await import('@/integrations/shopmonkey/load/outcome')
+    const running = {
+      status: 'running',
+      dryRun: false,
+      at: new Date().toISOString(),
+      token: 'run-token-1',
+    }
+    await mergeState(shop, { loadRun: running })
+    const before = await db.customer.count({ where: { organizationId: shop.organizationId } })
+    const outcome = await runs['load.run'](await ctx(), {
+      dryRun: false,
+      userId: shop.userId,
+      token: 'run-token-1',
+    })
+    expect(outcome).toEqual({ summary: 'This load is already running' })
+    expect((await state()).loadRun).toEqual(running)
+    expect(await db.customer.count({ where: { organizationId: shop.organizationId } })).toBe(before)
   })
 
   it('refuses a load once the import is cut over, and says why', async () => {

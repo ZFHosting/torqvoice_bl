@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   },
   options: [] as unknown[],
   findUnique: vi.fn(),
+  jobs: vi.fn(),
+  technicians: vi.fn(),
 }))
 
 vi.mock('@/lib/with-auth', () => ({
@@ -34,7 +36,8 @@ vi.mock('@/lib/db', () => ({
     integrationConnection: { findUnique: mocks.findUnique },
     auditLog: { findMany: vi.fn(async () => []) },
     sourceRecord: { findMany: vi.fn(async () => []) },
-    technician: { findMany: vi.fn(async () => []) },
+    technician: { findMany: mocks.technicians },
+    integrationJob: { findMany: mocks.jobs },
   },
 }))
 vi.mock('@/lib/demo', () => ({ demoGuard: () => undefined }))
@@ -87,6 +90,10 @@ const WRITES: [string, () => Promise<{ success: boolean; forbidden?: boolean }>]
 
 beforeEach(() => {
   mocks.options.length = 0
+  mocks.jobs.mockReset()
+  mocks.jobs.mockResolvedValue([])
+  mocks.technicians.mockReset()
+  mocks.technicians.mockResolvedValue([])
   mocks.findUnique.mockReset()
   mocks.findUnique.mockResolvedValue({
     id: 'conn-1',
@@ -146,6 +153,36 @@ describe('the Shopmonkey import actions', () => {
         },
       })
     )
+  })
+
+  it('refuses a second load or cutover while one is queued or running, from any tab', async () => {
+    mocks.ctx.isAdmin = true
+    mocks.jobs.mockResolvedValue([{ kind: 'load.run' }])
+    expect(await queueShopmonkeyLoad({ dryRun: true })).toMatchObject({
+      success: false,
+      error: expect.stringMatching(/already queued or running/),
+    })
+    expect(await queueShopmonkeyCutover({ dryRun: true, shopStopped: true })).toMatchObject({
+      success: false,
+    })
+    expect(await startShopmonkeyImportExtract()).toMatchObject({ success: false })
+  })
+
+  it('refuses a mapping naming another workshop’s technician', async () => {
+    mocks.ctx.isAdmin = true
+    // The lookup is scoped by the caller's workshop: another one's technician isn't found.
+    mocks.technicians.mockResolvedValue([])
+    const result = await saveShopmonkeyMapping({
+      statusStageMap: {},
+      technicianMap: { syn_usr_1: 'technician-of-another-workshop' },
+    })
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringMatching(/not one of this workshop/),
+    })
+    const where = (mocks.technicians.mock.calls.at(-1)?.[0] as { where: Record<string, unknown> })
+      .where
+    expect(where).toMatchObject({ organizationId: 'org-1' })
   })
 
   it('refuses a cutover without the operator’s word that the shop has stopped', async () => {
