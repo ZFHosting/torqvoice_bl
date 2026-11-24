@@ -61,8 +61,11 @@ export interface WriteOptions<P extends Record<string, string>, R> {
 }
 
 /** The body, or null as soon as it passes `maxBytes` (the rest is not read). */
-export async function readBounded(request: Request, maxBytes: number): Promise<Uint8Array | null> {
-  if (!request.body) return new Uint8Array(0)
+export async function readBounded(
+  request: Request,
+  maxBytes: number
+): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (!request.body) return new Uint8Array(new ArrayBuffer(0))
   const reader = request.body.getReader()
   const chunks: Uint8Array[] = []
   let size = 0
@@ -76,7 +79,7 @@ export async function readBounded(request: Request, maxBytes: number): Promise<U
     }
     chunks.push(value)
   }
-  const out = new Uint8Array(size)
+  const out = new Uint8Array(new ArrayBuffer(size))
   let at = 0
   for (const chunk of chunks) {
     out.set(chunk, at)
