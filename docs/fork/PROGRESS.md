@@ -32,7 +32,7 @@ resolved.
 | A4 | done | fork/A4-write-endpoints | Merged c28b98d4. Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (A4 done). |
 | M6 | provisional | fork/M6-reconcile | Merged fae66342. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M6 provisional). |
 | M7 | provisional | fork/M7-delta-and-cutover | Merged 4ca6b295. Built on the synthetic fixtures and the mock server: re-verify the webhook and list facts with a key (B1). Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (M7 provisional). |
-| M8 | todo | | |
+| M8 | in_progress | fork/M8-import-ui | |
 | A5 | todo | | |
 | A6 | todo | | |
 | M9 | todo | | optional, last |
@@ -69,7 +69,23 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**Next: M8 (import UI)**, from `fork/integration` after M7's merge. Started early in the LF worktree (`scratchpad/lf2`, branch `fork/M8-import-ui`): actions, panels, banner, e2e stand-in and spec, unit and db tests, none run yet; it gets `fork/integration` merged in, then typecheck, tests, the e2e run and the reviewer. A5 has started the same way in `scratchpad/lf3` (`fork/A5-events-reports`, plan in the scratchpad's a5-plan.md).
+**M8 (import UI), in progress** on `fork/M8-import-ui` (drafted in `scratchpad/lf2` from M7's head, `fork/integration`
+merged in at 20e3dd32 after M7's merge; the upstream merge still conflicts, B15). Built on M5-M7 (provisional), so it
+ends `provisional` (B1). Plan:
+1. [x] Server: actions in `features/shopmonkey-import/Actions/` (one per file, `withImportAuth`: owner or admin plus the
+   settings permission, `forbidden` otherwise): read the import and the mapping, save the mapping (`state.mapping`, read
+   by every load), extract / stop / resume, queue a load or dry run (`load.run`), reconcile, queue the cutover
+   (`cutover.run`), undo a load. `SHOPMONKEY_API_BASE_URL` (environment only) for the e2e stand-in.
+2. [x] Screen: `ShopmonkeyImportPanel` under the connection on the connector page (mapping, run and progress, report,
+   sync and cutover, loads with undo), polling while something runs; the "Synced from Shopmonkey" banner on imported
+   work orders, customers and vehicles until cutover (moved here from M7). Strings in `messages/*/shopmonkeyImport.json`
+   (English in every locale until translated).
+3. [ ] Typecheck, Biome, unit tests (`import-actions`, `import-view`, the extract stop) and the db test
+   (`shopmonkey-import-screen`).
+4. [ ] Playwright: `e2e/specs/shopmonkey/import.spec.ts` against `e2e/shopmonkey-standin.ts`, run with
+   `scratchpad/e2e-m8.sh` (own database `torqvoice_fork_e2e` migrated with `migrate dev` and seeded, own server,
+   `E2E_SKIP_SEED=1`: the suite's reset is `prisma migrate reset`, which an agent may not run without consent).
+5. [ ] MAPPING/brief notes, DoD, reviewer, merge.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
