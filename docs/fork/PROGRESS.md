@@ -31,7 +31,7 @@ resolved.
 | A3 | done | fork/A3-read-endpoints | Merged c7770ecc. Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (A3 done). |
 | A4 | done | fork/A4-write-endpoints | Merged c28b98d4. Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (A4 done). |
 | M6 | provisional | fork/M6-reconcile | Merged fae66342. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M6 provisional). |
-| M7 | in_progress | fork/M7-delta-and-cutover | |
+| M7 | provisional | fork/M7-delta-and-cutover | Merged 4ca6b295. Built on the synthetic fixtures and the mock server: re-verify the webhook and list facts with a key (B1). Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (M7 provisional). |
 | M8 | todo | | |
 | A5 | todo | | |
 | A6 | todo | | |
@@ -69,37 +69,7 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**M7 (delta sync and cutover), in progress** on `fork/M7-delta-and-cutover` (from `fork/integration` at b4d8a9d7; the
-upstream merge still conflicts, B15). Built on M6 (provisional) and the mock server, so it ends `provisional` (B1).
-Plan (steps 1-7 built; commits 11d20515, f130e7b5, baf3d8b9, cbc6723f):
-1. [x] `webhook.ts`: Standard Webhooks verification, constant-time, 5-minute tolerance, rotated secrets
-   (`webhook-signature.test.ts`, 6 tests). The secret is the connection's `webhookSecret` credential (optional field).
-2. [x] `receive`: dedupe in `InboundWebhookDelivery` (migration `fork_inbound_webhook_deliveries`; the name
-   `WebhookDelivery` is upstream's outbound table), pruned after a week; one `refetch` job per record while it waits
-   (`refetch:<table>:<id>`); 200 at once; the payload only names the record (a payment: its order).
-3. [x] `refetch` job (`sync/jobs.ts`): `refetchRecord` in the engine reads the record and its children by id and
-   stages them (404: `remoteDeletedAt`); the last refetch of a burst loads, in the same job run. Delete policy in
-   `sync/deletes.ts` (MAPPING §13): untouched work orders, quotes, appointments deleted through the app's own delete
-   (tombstones); edited, locked or other kept and listed in `state.lastSync.keptDeletes`.
-4. [x] `sync.delta` every 10 minutes (manifest `schedules`): a delta from each table's watermark − 5 minutes
-   (`sinceByTable`), large GET lists newest first with an order check (`recentFirst`), then a load if anything changed
-   or a refetch left one pending. Loads hold a per-connection advisory lock (`load/lock.ts`, `LoadBusy`; `sync.load`
-   retries a minute later).
-5. [x] Conflicts: `local_edit_overwritten` when a load overwrites a row edited since its link's `lastSyncedAt`;
-   `stampSynced` after each load. The banner moved to M8 (both briefs updated).
-6. [x] `run.ts cutover --connection <id> --shop-stopped [--dry-run] [--user <id>]` (`sync/cutover.ts`), and
-   `docs/fork/CUTOVER.md`.
-7. [x] Tests: `shopmonkey-delta.db.test.ts` (12), `shopmonkey-cutover.db.test.ts` (4), `sync-extract.test.ts` (10),
-   `sync-cli.test.ts` (3). Also: the upstream schedule writer now sets only `state.scheduleRuns` (`// fork:`).
-Reviewer pass 1 (on 291780fc): needs changes (4 must-fix, 10 should-fix); all fixed in 3452c921 (Decisions log, "M7
-review, pass 1"). Shopmonkey db tests 14 files / 69 tests and `tsc` pass at 3452c921. Now: reviewer pass 2 and the full
-DoD (unit suite in chunks, then `test:db`) at 3452c921, then merge.
-Pass 2: needs changes (3 must-fix); fixed in 320bd968. Pass 3 at 320bd968: **ready for PR** (nits carried over below).
-Unit suite (`m7dod2`, started at 3452c921, Shopmonkey files edited during it): rest, lib, f1, f2 fail only on the
-Windows/CRLF baseline, plus `fiken.test.ts`'s exhaustive loop timing out at 5 s under load (M7 doesn't touch it;
-rerun alone when idle). Still to run: f3, the Shopmonkey unit folder again at 320bd968, `test:db`, `tsc`, Biome.
-M8 has started early in the LF worktree (`scratchpad/lf2`, branch `fork/M8-import-ui` from M7's head, M7's fixes merged
-in): actions, panels, banner, e2e stand-in and spec, untested; it gets `fork/integration` merged in once M7 lands.
+**Next: M8 (import UI)**, from `fork/integration` after M7's merge. Started early in the LF worktree (`scratchpad/lf2`, branch `fork/M8-import-ui`): actions, panels, banner, e2e stand-in and spec, unit and db tests, none run yet; it gets `fork/integration` merged in, then typecheck, tests, the e2e run and the reviewer. A5 has started the same way in `scratchpad/lf3` (`fork/A5-events-reports`, plan in the scratchpad's a5-plan.md).
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
@@ -118,6 +88,11 @@ Carry-over notes:
   - Records reached only as children (vehicles, owners, services, payments) are refetched only when their parent
     changes (MAPPING §1, "How a re-run sees changes"); webhooks must cover them. (M7: a webhook's refetch reads a
     record's children whatever its own hash says; polling still misses a child-only change, MAPPING §13.)
+  - From M7's review (pass 3, nits, none blocking): a lost load lock only warns on the console (put it in the
+    load's log or summary); two safe false "edited" cases (a complaint cleared in Shopmonkey leaves the imported
+    concern; after a reconnect, imported attachments aren't linked to the new connection until their order loads
+    again); a quote counts as edited only by its own `updatedAt`; `deleteImportedWorkOrder` (sync/deletes.ts) mirrors
+    upstream's `deleteServiceRecordService` by hand (a parity test would guard it).
   - Still open after M7 (for M9's hardening): the stuck-limit lease, `children.retry` in the done summary, the
     401/403 file host, and `startShopmonkeyExtract` writing back the whole `state` (now that the sync writes its own
     keys, it should set `extract` alone, as `scheduleDueSyncs` does since M7).
@@ -339,3 +314,4 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | M7: the Shopmonkey server module loads the load and the delete services lazily, inside the jobs. | The registry test loads every connector's server and timed out (5 s) with them imported eagerly. |
 | 2026-11-23 | **M7 review, pass 1 (needs changes): fixed.** (1) A synced delete of a work order no longer goes through the app's delete service, which put its parts back on the shelf though imported lines never took any (a fixture part went 24 → 25): `sync/deletes.ts` deletes imported work orders and quotes itself (tombstones, meters, custom fields, files, no stock), with a test on the counts. (2) The cutover reads the queued webhook refetches, finishes a sync run under way, then starts a fresh delta from where it ended. (3) Links are synced per unit of work, for exactly the rows it wrote (and those it touched in passing, and the invoices it issued), not for every row changed since the load started: an edit made during a load stays an edit (tested). (4) Status reports, equipment, helpers, concerns and jobs added to a work order keep it from a delete (tested). Also: the lock is a session advisory lock on its own `pg` connection (no pool connection held, no realtime hold); `syncPending` survives a failed load; an undo takes the lock and clears `state.lastLoad`; loads and extracts are refused after cutover; the cutover puts the schedule off for good and releases cancelled jobs' keys; quiet sync loads record no audit event; deletes record one; `InboundWebhookDelivery` has a foreign key (migration `fork_inbound_webhook_delivery_connection`, orphans removed first); newest-first pages re-read ten records and check order across pages, and the watermark counts every location's rows; the webhook secret is trimmed and a concurrent enqueue joins; job queries carry the workshop; `scheduleDueSyncs` has a test and bumps `updatedAt` again. Documented, not built: deletes arrive only by webhook (MAPPING §13, CUTOVER.md, the secret's help); the no-op load at 50,000 orders is unmeasured (B3). | Reviewer's must-fix 1-4 and should-fix 1-10. Evidence: Shopmonkey db tests 14 files / 69 tests pass; `tsc` exit 0. |
 | 2026-11-23 | **M7 review, pass 2 (needs changes): fixed.** (1) What the workshop added to a work order is told by kind and link, never by time (a later load re-syncs the order and a time comparison forgot the addition: the reviewer's probe lost a status report): a status report or equipment, a payment whose provider isn't `shopmonkey`, an attachment or time entry without an import link, a concern beside the complaint's, more jobs than Shopmonkey's services; and a write in passing no longer re-syncs a row the workshop had edited (`editedBeforeWrite`). Tests: a status report and a payment each keep their order through a Shopmonkey change and then a delete. (2) The lock's `pg` client has an `error` listener. (3) The cross-page order check compares first records (the pages overlap); a distinct-dates test keeps `unordered` unset. Also: a real cutover sets `syncPending` when it staged changes; the schedule stop is one `jsonb` statement on its key, and a no-op `sync.delta` after cutover puts it back if a scheduler race undid it; MAPPING says the sync uses the default mappings until M8. Helpers aren't counted as additions (the editor saves them with the order, moving its `updatedAt`). | Reviewer's pass-2 must-fix 1-3 and should-fix 1-4. |
+| 2026-11-23 | **M7 provisional.** DoD at f654f7f7: `tsc` exit 0; Biome 14 (the baseline, LF checkout); `npm test` in chunks (`m7dod2`, run at 3452c921 with the Shopmonkey files changing under it): failures only on the Windows/CRLF baseline, and `fiken.test.ts`'s exhaustive loop timing out under load (passes alone, untouched by M7); the Shopmonkey unit folder, `schedule-due-syncs` and `fiken` rerun at f654f7f7: 22 files / 312 tests pass; `registry.test` 3/3 alone; `test:db` 35 files / 224 tests at f654f7f7 (the delta, cutover and every Shopmonkey db file among them); the two CRLF-only unit files pass with LF schema files. Reviewer: needs changes (pass 1: 4 must-fix; pass 2: 3 must-fix), ready for PR (pass 3). Provisional: the webhook signature, body and table names, by-id reads and `orderby` on GET lists rest on M0 facts S1, S2 (Re-verify list). | Acceptance evidence: signature tests (`webhook-signature.test.ts`: valid, tampered body, wrong secret, old and future timestamp, rotated secret with two signatures); a replayed delivery queues nothing new, before and after its job is claimed (`shopmonkey-delta.db.test.ts` "queues one refetch, and a replay of it queues nothing new…"); a changed fixture order delivered by webhook is updated within one job run ("updates an order changed in Shopmonkey within one job run"); polling catches a change without a webhook ("catches a change no webhook told of"); a cutover dry run goes through every step and a forced money mismatch stops it at step 3 (`shopmonkey-cutover.db.test.ts`). |
