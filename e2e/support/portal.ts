@@ -46,8 +46,14 @@ export async function portalAs(
     .browser()
     ?.newPage({ storageState: { cookies: [], origins: [] } })
   if (!portal) throw new Error('no browser to open the portal with')
+  // The link only checks itself and leads to a page with a button (a mail scanner opening it signs nobody in); the
+  // button signs the customer in.
   await portal.goto(link)
-  await expect(portal, 'the link lands the customer inside the portal').toHaveURL(/\/portal\//, {
+  await expect(portal, 'the link leads to the sign-in button').toHaveURL(/\/auth\/confirm/, {
+    timeout: 30_000,
+  })
+  await portal.getByRole('button', { name: 'Continue to sign in' }).click()
+  await expect(portal, 'the button signs the customer in').toHaveURL(/\/portal\/(?!.*\/auth\/)/, {
     timeout: 30_000,
   })
   const landed = new URL(portal.url())

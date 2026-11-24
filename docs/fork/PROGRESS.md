@@ -90,7 +90,10 @@ ends `provisional` (B1). Plan:
    way: the CLI and scripts never exited after a load (realtime `LISTEN`, `scripts/shopmonkey/exit.ts`), toast waits.
 5. [ ] Reviewer pass 2 (19beb787): needs changes (3 must-fix: runs stay live past the stuck recovery; the B10 portal
    descope unrecorded; re-run DoD and e2e), fixed in a6880c30 with most should-fixes (Decisions log, M8 rows; the rest
-   moved to M9 in the carry-over notes). Now: rebuild and rerun the spec at a6880c30, reviewer pass 3, full DoD, merge.
+   moved to M9 in the carry-over notes); the spec passed at a6880c30 (3/3). Pass 3 (a6880c30): needs changes (3
+   must-fix: DoD at the final HEAD plus a db test of the history SQL; the mapping cache; the portal can be checked in
+   the spec), fixed in 5c3e5a4e with should-fixes 1-6. Now: rebuild, spec at 5c3e5a4e (with the portal step),
+   reviewer pass 4 (running), then the full DoD (tsc, unit suite, test:db, Biome LF), merge.
 Reviewer pass 1 (8574d8ff): needs changes (2 must-fix), fixed in eea4f0f4; the first e2e attempt's `server-only` fix in
 a46fda71.
 
