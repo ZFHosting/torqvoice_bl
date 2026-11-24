@@ -8,7 +8,7 @@
  *   the key's default budget nor changes its window.
  * - Per address, for failed authentication: a caller presenting bad keys is turned away before the
  *   key lookup and the HMAC, the cheap refusal first, as upstream's withApiAuth does. A key that has
- *   authenticated from that address in the last ten minutes still gets through, up to its own count of
+ *   authenticated from that address in the last 10 minutes still gets through, up to its own count of
  *   failures (A6, SECURITY-REVIEW.md item 9): someone who can spoof an integration's address can't lock its
  *   working key out, only keys that address hasn't used yet.
  */

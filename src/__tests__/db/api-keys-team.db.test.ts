@@ -100,6 +100,7 @@ describe('API keys on the Team page', () => {
     const { db } = await import('@/lib/db')
     const key = await db.apiKey.findFirstOrThrow({
       where: { organizationId: shop.org },
+      orderBy: { createdAt: 'asc' },
       select: { serviceUserId: true },
     })
     const { createTechnicianService } = await import(
@@ -129,9 +130,17 @@ describe('API keys on the Team page', () => {
     const assigned = await assignRole({ memberId: member.id, role: 'technician', roleId: null })
     expect(assigned.success).toBe(true)
     expect(assigned.data?.isTechnician).toBe(false)
+    const techRole = await db.role.findFirstOrThrow({
+      where: { organizationId: shop.org, name: 'Technician' },
+      select: { id: true },
+    })
     expect(
       (await db.organizationMember.findUniqueOrThrow({ where: { id: member.id } })).roleId
-    ).not.toBeNull()
+    ).toBe(techRole.id)
+    // As the Team page sends it: the role by its id.
+    const byId = await assignRole({ memberId: member.id, role: 'member', roleId: techRole.id })
+    expect(byId.success).toBe(true)
+    expect(byId.data?.isTechnician).toBe(false)
     expect(
       await db.technician.count({ where: { organizationId: shop.org, userId: key.serviceUserId } })
     ).toBe(0)

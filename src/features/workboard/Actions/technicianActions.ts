@@ -124,7 +124,8 @@ export async function assignTechToUnassignedWorkOrders(technicianId: string) {
 export async function getOrgMembers() {
   return withAuth(async ({ organizationId }) => {
     const members = await db.organizationMember.findMany({
-      where: { organizationId },
+      // fork (A6): an API key's service user is no login a technician can have
+      where: { organizationId, user: { apiKey: null } },
       select: {
         userId: true,
         user: { select: { id: true, name: true, email: true } },
