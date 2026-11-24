@@ -9,8 +9,14 @@ const reportQuery = z
   .object({
     from: dayKey.optional().describe('First day, on the workshop’s calendar (YYYY-MM-DD)'),
     to: dayKey.optional().describe('Last day, included'),
-    group: z.enum(['day', 'week', 'month']).optional().describe('month unless set; a week is named by its Monday'),
-    completedOnly: z.enum(['true', 'false']).optional().describe('Only work orders marked completed'),
+    group: z
+      .enum(['day', 'week', 'month'])
+      .optional()
+      .describe('month unless set; a week is named by its Monday'),
+    completedOnly: z
+      .enum(['true', 'false'])
+      .optional()
+      .describe('Only work orders marked completed'),
   })
   .strict()
 
@@ -78,7 +84,9 @@ export const receivablesReportSchema = z
   .meta({ id: 'ReceivablesReport' })
 
 const technicianTotals = z.object({
-  soldHours: z.number().describe('Labor lines: a line’s own technician, else the job’s people sharing them'),
+  soldHours: z
+    .number()
+    .describe('Labor lines: a line’s own technician, else the job’s people sharing them'),
   clockedMinutes: z.number().int(),
   shiftMinutes: z.number().int(),
   jobsCompleted: z.number().int(),
@@ -113,7 +121,9 @@ export const sourceRecordSchema = z
     source: z.string(),
     table: z.string(),
     remoteId: z.string(),
-    payload: z.unknown().describe('As Shopmonkey sent it; keys starting with _ are the importer’s own'),
+    payload: z
+      .unknown()
+      .describe('As Shopmonkey sent it; keys starting with _ are the importer’s own'),
     remoteUpdatedAt: z.string().nullable(),
     remoteDeletedAt: z.string().nullable(),
     local: z.object({ entity: z.string(), id: z.string() }).nullable(),

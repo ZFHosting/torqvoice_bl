@@ -45,17 +45,27 @@ export const SAMPLE_PAYLOADS: SamplePayload[] = [
   {
     event: 'work_order.issue',
     description: 'An invoice was issued: its lines and totals are now the customer’s document.',
-    data: { id: 'svc_R8c9', number: '1043', status: 'completed', issuedAt: '2026-04-29T09:58:00.000Z' },
+    data: {
+      id: 'svc_R8c9',
+      number: '1043',
+      status: 'completed',
+      issuedAt: '2026-04-29T09:58:00.000Z',
+    },
   },
   {
     event: 'job.update',
     description: 'A job on a work order changed (its lines, its approval).',
-    data: { id: 'job_5Tq1', name: 'Front brakes', authorizationStatus: 'approved', totalAmount: 4200 },
+    data: {
+      id: 'job_5Tq1',
+      name: 'Front brakes',
+      authorizationStatus: 'approved',
+      totalAmount: 4200,
+    },
   },
   {
     event: 'restore.complete',
     description:
-      'A backup was restored: the workshop\'s records were replaced. Fetch everything again; GET /api/v1/deleted has a restore marker.',
+      "A backup was restored: the workshop's records were replaced. Fetch everything again; GET /api/v1/deleted has a restore marker.",
     data: { restoredAt: '2026-05-04T09:30:00.000Z' },
   },
   {
@@ -66,12 +76,22 @@ export const SAMPLE_PAYLOADS: SamplePayload[] = [
   {
     event: 'appointment.create',
     description: 'An appointment was booked.',
-    data: { id: 'apt_3Lm8', title: 'Annual service', startAt: '2026-05-02T08:00:00.000Z', durationMinutes: 90 },
+    data: {
+      id: 'apt_3Lm8',
+      title: 'Annual service',
+      startAt: '2026-05-02T08:00:00.000Z',
+      durationMinutes: 90,
+    },
   },
   {
     event: 'time_entry.stop',
     description: 'A technician’s clock on a job was stopped.',
-    data: { id: 'tme_6Bc4', technicianId: 'tec_1Qa2', workOrderId: 'svc_R8c9', durationMinutes: 47 },
+    data: {
+      id: 'tme_6Bc4',
+      technicianId: 'tec_1Qa2',
+      workOrderId: 'svc_R8c9',
+      durationMinutes: 47,
+    },
   },
   {
     event: 'shift.create',
