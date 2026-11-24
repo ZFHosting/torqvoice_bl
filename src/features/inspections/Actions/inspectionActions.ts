@@ -608,7 +608,7 @@ export async function reopenInspection(id: string) {
 
 export async function deleteInspection(id: string) {
   return withAuth(
-    async ({ organizationId }) => {
+    async ({ organizationId, userId }) => {
       const inspection = await db.inspection.findFirst({
         where: { id, organizationId },
       })
@@ -616,7 +616,13 @@ export async function deleteInspection(id: string) {
 
       // Its items cascade with it, and their photos are let go afterwards.
       const files = await inspectionFileUrls(organizationId, [id])
-      await db.inspection.deleteMany({ where: { id, organizationId } })
+      const removed = await db.inspection.deleteMany({ where: { id, organizationId } })
+      // fork (A5): the tombstone an API client syncing by updatedSince learns the delete from.
+      if (removed.count) {
+        await db.deletedRecord.create({
+          data: { organizationId, entityType: 'inspection', entityId: id, actorUserId: userId },
+        })
+      }
       await releaseFiles(files, { organizationId, reason: 'inspection deleted' })
       revalidatePath('/inspections')
       revalidatePath(`/vehicles/${inspection.vehicleId}`)
