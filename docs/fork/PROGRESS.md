@@ -35,7 +35,7 @@ resolved.
 | M8 | provisional | fork/M8-import-ui | Merged 2dc93789. Built on M5-M7 (synthetic fixtures, the mock server, the e2e stand-in): re-verify with a key (B1). Reviewer: ready for PR after 5 passes. Evidence in the Decisions log (M8 provisional). |
 | A5 | done | fork/A5-events-reports | Merged a1112343. Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (A5 done). |
 | A6 | done | fork/A6-hardening | Merged b36dfadb. Reviewer: ready for PR after 4 passes. Evidence in the Decisions log (A6 done). |
-| M9 | todo | | optional, last |
+| M9 | in_progress | fork/M9-job-grouping | optional, last |
 
 ## Current step
 
@@ -69,8 +69,32 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**Next: M9** (optional, last): job grouping in the UI and on invoices, on `fork/M9-job-grouping` (its plan goes here
-when it starts on that branch).
+**M9 (job grouping in the UI and on invoices), in progress** on `fork/M9-job-grouping` (from `fork/integration` after
+A6; the upstream merge still conflicts, B15). Plan, from the brief (decisions in its "As built"):
+1. [x] Lines name their job in a save: `jobId` on the work order and quote line schemas (marked); kept only when it is
+   a job of that document (`fork-records/Lib/lineJobs.server.ts`): from the page anything else is no job, through the
+   API a 404; unsent, the job is carried over as before. The forms load each line's `jobId`.
+2. [x] Job writes for the screens (`fork-records/Actions`: get, create, update, delete, reorder), on a work order or
+   a quote; the services generalized to a parent (`createJobOn`, ...), the API's work order services wrappers;
+   permissions, locks, `job.*` audit events, tenancy.
+3. [x] `WorkJobsCard` on the work order page (`ModernDetails`) and the quote page: job headers (name, note, status,
+   subtotal), lines, "Other"; add, edit, reorder, delete at once; a line's job menu saved with the form. Only for a
+   workshop with jobs. `workJobs` namespace, 14 locales.
+4. [x] Print: `groupBy` `job`/`none` (items, parts and labor tables); `printJobGroups.ts`; builders key each line's
+   job; unset prints by job when the document has jobs; data through `workJobs` includes (invoice assembly, the
+   public quote select, the quote PDF); the designer offers "By job" to a workshop with jobs, its sample has two jobs.
+5. [x] No change without jobs: `print-without-jobs.test.ts`, hashes of every preset's invoice and quote, flat and by
+   category, taken on pre-M9 print code (A6's tree, identical there); Playwright: a jobless work order and its PDF.
+6. [x] Imported orders print by their services (`shopmonkey-load.db.test.ts`), PROVISIONAL(M0:S5): no Shopmonkey PDF
+   to compare with (B1).
+Written in a worktree while A6's checks ran, then on this branch: e9b1518c (tasks 1-2), 77eac9ea (task 3), 29b31543
+(task 4). Evidence so far: `tsc` exit 0; `next build` exit 0; unit `features/fork-records` + `features/invoice-designer`
+40 files / 364 tests pass (the first run found that a job's subtotal in the parts table added its labor too: each
+table now adds up its own lines); `work-jobs.db.test.ts` + `shopmonkey-load.db.test.ts` 20/20 (imported invoice
+1003 prints each line under its own service, in their order); Playwright `e2e/specs/work-jobs/work-jobs.spec.ts`
+"3 passed (1.0m)" against a production build (a jobless work order and its PDF as before; with jobs, the card, a line
+moved and saved, the PDF by job), the e2e database left clean (0 work orders, jobs, lines). Reviewer pass 1 running;
+the full suites next.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
