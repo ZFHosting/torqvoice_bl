@@ -26,8 +26,16 @@ beforeEach(() => {
 describe('sourcesOf', () => {
   it('reads the links of this workshop’s connections, then the archive, and pairs them by row', async () => {
     mocks.links.mockResolvedValue([
-      { entityId: 'cus-1', remoteId: 'customer:syn_cus_1', connection: { connectorId: 'shopmonkey' } },
-      { entityId: 'cus-2', remoteId: 'customer:syn_cus_2', connection: { connectorId: 'shopmonkey' } },
+      {
+        entityId: 'cus-1',
+        remoteId: 'customer:syn_cus_1',
+        connection: { connectorId: 'shopmonkey' },
+      },
+      {
+        entityId: 'cus-2',
+        remoteId: 'customer:syn_cus_2',
+        connection: { connectorId: 'shopmonkey' },
+      },
     ])
     mocks.records.mockResolvedValue([
       {
@@ -84,7 +92,11 @@ describe('sourcesOf', () => {
   it('keeps a row’s first link when it has two, and skips a link that names no table', async () => {
     mocks.links.mockResolvedValue([
       { entityId: 'tech-1', remoteId: 'user:syn_usr_1', connection: { connectorId: 'shopmonkey' } },
-      { entityId: 'tech-1', remoteId: 'technician:syn_tec_1', connection: { connectorId: 'shopmonkey' } },
+      {
+        entityId: 'tech-1',
+        remoteId: 'technician:syn_tec_1',
+        connection: { connectorId: 'shopmonkey' },
+      },
       { entityId: 'tech-2', remoteId: 'no-table', connection: { connectorId: 'shopmonkey' } },
     ])
     mocks.records.mockResolvedValue([])

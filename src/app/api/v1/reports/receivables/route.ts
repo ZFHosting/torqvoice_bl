@@ -68,7 +68,8 @@ export async function GET(request: Request) {
         if (due <= 0) continue
         const dueDate = r.invoiceDueDate as Date
         // Whole days, as the past-due report counts them.
-        const daysPastDue = dueDate < now ? Math.floor((now.getTime() - dueDate.getTime()) / DAY_MS) : 0
+        const daysPastDue =
+          dueDate < now ? Math.floor((now.getTime() - dueDate.getTime()) / DAY_MS) : 0
         const bucket = dueDate < now && daysPastDue === 0 ? '1-30' : bucketOf(daysPastDue)
         totals[bucket] += due
         invoices.push({

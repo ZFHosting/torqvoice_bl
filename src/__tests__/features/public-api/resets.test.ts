@@ -24,7 +24,12 @@ describe('the markers', () => {
     await recordReset('org-1', 'restore', 'user-1')
     await recordReset('org-1', 'import_undo')
     expect(mocks.create.mock.calls.map((c) => c[0].data)).toEqual([
-      { organizationId: 'org-1', entityType: 'restore', entityId: 'restore', actorUserId: 'user-1' },
+      {
+        organizationId: 'org-1',
+        entityType: 'restore',
+        entityId: 'restore',
+        actorUserId: 'user-1',
+      },
       { organizationId: 'org-1', entityType: 'reset', entityId: 'import_undo', actorUserId: null },
     ])
   })

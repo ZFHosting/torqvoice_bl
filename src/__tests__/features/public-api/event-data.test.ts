@@ -21,8 +21,12 @@ vi.mock('@/features/public-api/Resources/schedule', () => ({
   shiftsResource: { name: 'shifts' },
   timeEntriesResource: { name: 'timeEntries' },
 }))
-vi.mock('@/features/public-api/Resources/staff', () => ({ techniciansResource: { name: 'technicians' } }))
-vi.mock('@/features/public-api/Resources/workOrders', () => ({ workOrdersResource: { name: 'workOrders' } }))
+vi.mock('@/features/public-api/Resources/staff', () => ({
+  techniciansResource: { name: 'technicians' },
+}))
+vi.mock('@/features/public-api/Resources/workOrders', () => ({
+  workOrdersResource: { name: 'workOrders' },
+}))
 
 import { forkEvent } from '@/features/public-api/Lib/eventData.server'
 

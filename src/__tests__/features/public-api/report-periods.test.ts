@@ -34,8 +34,14 @@ describe('periodKey', () => {
 
 describe('the reports’ query', () => {
   it('takes dates, a grouping and finished work only, and refuses anything else', () => {
-    expect(reportQuerySchema.parse({ from: '2026-01-01', to: '2026-01-31', group: 'week', completedOnly: 'true' }))
-      .toEqual({ from: '2026-01-01', to: '2026-01-31', group: 'week', completedOnly: true })
+    expect(
+      reportQuerySchema.parse({
+        from: '2026-01-01',
+        to: '2026-01-31',
+        group: 'week',
+        completedOnly: 'true',
+      })
+    ).toEqual({ from: '2026-01-01', to: '2026-01-31', group: 'week', completedOnly: true })
     expect(reportQuerySchema.parse({})).toEqual({ group: 'month', completedOnly: false })
     expect(() => reportQuerySchema.parse({ group: 'year' })).toThrow()
     expect(() => reportQuerySchema.parse({ from: '1 Jan' })).toThrow()

@@ -1,6 +1,11 @@
 import { z } from 'zod'
 import { publicApiOk } from '@/features/public-api/Lib/errors'
-import { DEFAULT_LIMIT, decodeCursor, encodeCursor, MAX_LIMIT } from '@/features/public-api/Lib/pagination'
+import {
+  DEFAULT_LIMIT,
+  decodeCursor,
+  encodeCursor,
+  MAX_LIMIT,
+} from '@/features/public-api/Lib/pagination'
 import { queryObject } from '@/features/public-api/Lib/readResource'
 import { MARKER_TYPES } from '@/features/public-api/Lib/resets.server'
 import { withPublicApi } from '@/features/public-api/Lib/withPublicApi'
@@ -34,12 +39,17 @@ const READ_TO_SEE: Record<string, PermissionSubject> = {
   technician_shift: PermissionSubject.TIME_TRACKING,
 }
 
-const querySchema = z.object({
-  since: z.iso.datetime({ offset: true }).optional(),
-  entityType: z.string().regex(/^[a-z_]{1,40}$/).optional(),
-  limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT),
-  cursor: z.string().min(1).max(512).optional(),
-}).strict()
+const querySchema = z
+  .object({
+    since: z.iso.datetime({ offset: true }).optional(),
+    entityType: z
+      .string()
+      .regex(/^[a-z_]{1,40}$/)
+      .optional(),
+    limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT),
+    cursor: z.string().min(1).max(512).optional(),
+  })
+  .strict()
 
 /**
  * fork (A5) `GET /api/v1/deleted?since=&entityType=&cursor=&limit=` (docs/fork/API.md §4): the tombstones a delete
@@ -50,8 +60,7 @@ export async function GET(request: Request) {
   return withPublicApi(request, async ({ organizationId, permissions, isAdmin }) => {
     const query = querySchema.parse(queryObject(request))
     const may = (type: string) =>
-      isAdmin ||
-      hasPermission(permissions, read(READ_TO_SEE[type] ?? PermissionSubject.SETTINGS))
+      isAdmin || hasPermission(permissions, read(READ_TO_SEE[type] ?? PermissionSubject.SETTINGS))
     const types = Object.keys(READ_TO_SEE).filter(may)
     const settings = may('__settings__')
     // The kinds this key may see: those listed it may read, and every other kind with `read:settings`. The restore

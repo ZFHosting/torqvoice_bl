@@ -62,7 +62,14 @@ beforeAll(async () => {
     select: { id: true },
   })
   const vehicle = await db.vehicle.create({
-    data: { organizationId: a.org, userId: a.owner, customerId: customer.id, make: 'Volvo', model: 'V70', year: 2010 },
+    data: {
+      organizationId: a.org,
+      userId: a.owner,
+      customerId: customer.id,
+      make: 'Volvo',
+      model: 'V70',
+      year: 2010,
+    },
     select: { id: true },
   })
   // 1 May 01:00 in Auckland is still 30 April in UTC: the API and the screen must both call it May.
@@ -123,14 +130,40 @@ beforeAll(async () => {
   })
   await db.sourceRecord.createMany({
     data: [
-      { organizationId: a.org, connectionId: 'conn-a', table: 'order', remoteId: 'syn_1', payload: { id: 'syn_1' }, payloadHash: 'h1' },
-      { organizationId: b.org, connectionId: 'conn-b', table: 'order', remoteId: 'syn_1', payload: { id: 'syn_1', b: true }, payloadHash: 'h2' },
-      { organizationId: a.org, connectionId: 'conn-a', table: 'customer', remoteId: 'syn_cus_9', payload: { id: 'syn_cus_9', note: 'from Shopmonkey' }, payloadHash: 'h3' },
+      {
+        organizationId: a.org,
+        connectionId: 'conn-a',
+        table: 'order',
+        remoteId: 'syn_1',
+        payload: { id: 'syn_1' },
+        payloadHash: 'h1',
+      },
+      {
+        organizationId: b.org,
+        connectionId: 'conn-b',
+        table: 'order',
+        remoteId: 'syn_1',
+        payload: { id: 'syn_1', b: true },
+        payloadHash: 'h2',
+      },
+      {
+        organizationId: a.org,
+        connectionId: 'conn-a',
+        table: 'customer',
+        remoteId: 'syn_cus_9',
+        payload: { id: 'syn_cus_9', note: 'from Shopmonkey' },
+        payloadHash: 'h3',
+      },
     ],
   })
   // An imported customer: linked through a Shopmonkey connection of workshop A.
   const connection = await db.integrationConnection.create({
-    data: { organizationId: a.org, connectorId: 'shopmonkey', status: 'active', createdById: a.owner },
+    data: {
+      organizationId: a.org,
+      connectorId: 'shopmonkey',
+      status: 'active',
+      createdById: a.owner,
+    },
     select: { id: true },
   })
   a.ids.imported = (
@@ -152,7 +185,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (db) {
-    await db.sourceRecord.deleteMany({ where: { organizationId: { in: [a?.org, b?.org].filter(Boolean) } } })
+    await db.sourceRecord.deleteMany({
+      where: { organizationId: { in: [a?.org, b?.org].filter(Boolean) } },
+    })
   }
   await removeCreated()
 })
@@ -160,7 +195,12 @@ afterAll(async () => {
 describe('the reports', () => {
   it('group sales by the workshop’s month, as the reports screen does', async () => {
     const { GET } = await route('reports/sales')
-    const res = await call(GET, a.key, 'GET', '/reports/sales?from=2026-03-01&to=2026-05-31&group=month')
+    const res = await call(
+      GET,
+      a.key,
+      'GET',
+      '/reports/sales?from=2026-03-01&to=2026-05-31&group=month'
+    )
     expect(res.status).toBe(200)
     const body = (await res.json()).data
     expect(body.timeZone).toBe(ZONE)
@@ -173,12 +213,17 @@ describe('the reports', () => {
     const { getRevenueReport } = await import('@/features/reports/Actions/reportActions')
     const screen = await getRevenueReport({ startDate: '2026-03-01', endDate: '2026-05-31' })
     const screenMonths = Object.fromEntries(
-      (screen.data?.monthly ?? []).map((m: { month: string; revenue: number; collected: number }) => [
-        m.month,
-        { revenue: m.revenue, collected: m.collected },
-      ])
+      (screen.data?.monthly ?? []).map(
+        (m: { month: string; revenue: number; collected: number }) => [
+          m.month,
+          { revenue: m.revenue, collected: m.collected },
+        ]
+      )
     )
-    for (const [month, p] of Object.entries(byMonth) as [string, { revenue: number; collected: number }][]) {
+    for (const [month, p] of Object.entries(byMonth) as [
+      string,
+      { revenue: number; collected: number },
+    ][]) {
       expect(screenMonths[month], month).toEqual({ revenue: p.revenue, collected: p.collected })
     }
   })
@@ -195,9 +240,13 @@ describe('the reports', () => {
   it('give each technician the hours sold and clocked the reports screen gives them', async () => {
     const { GET } = await route('reports/technicians')
     const body = (
-      await (await call(GET, a.key, 'GET', '/reports/technicians?from=2026-05-01&to=2026-05-31')).json()
+      await (
+        await call(GET, a.key, 'GET', '/reports/technicians?from=2026-05-01&to=2026-05-31')
+      ).json()
     ).data
-    const row = body.technicians.find((t: { technicianId: string }) => t.technicianId === a.ids.technician)
+    const row = body.technicians.find(
+      (t: { technicianId: string }) => t.technicianId === a.ids.technician
+    )
     expect(row.total).toMatchObject({ soldHours: 2, clockedMinutes: 90, jobsCompleted: 1 })
     expect(row.periods.map((p: { period: string }) => p.period)).toEqual(['2026-05'])
     ctx.organizationId = a.org
@@ -309,12 +358,17 @@ describe('include=source', () => {
 
   it('lists them on a page, and needs read:settings', async () => {
     const list = await route('customers')
-    const page = (await (await call(list.GET, a.key, 'GET', '/customers?include=source')).json()).data
-    const byId = Object.fromEntries(page.map((c: { id: string; source: unknown }) => [c.id, c.source]))
+    const page = (await (await call(list.GET, a.key, 'GET', '/customers?include=source')).json())
+      .data
+    const byId = Object.fromEntries(
+      page.map((c: { id: string; source: unknown }) => [c.id, c.source])
+    )
     expect(byId[a.ids.imported]).toMatchObject({ remoteId: 'syn_cus_9' })
     expect(byId[a.ids.customer]).toBeNull()
     const customersOnly = await newKey(a.org, a.owner, [{ action: 'read', subject: 'customers' }])
-    expect((await call(list.GET, customersOnly, 'GET', '/customers?include=source')).status).toBe(403)
+    expect((await call(list.GET, customersOnly, 'GET', '/customers?include=source')).status).toBe(
+      403
+    )
     expect((await call(list.GET, customersOnly, 'GET', '/customers')).status).toBe(200)
   })
 
@@ -322,8 +376,11 @@ describe('include=source', () => {
     const { GET } = await route('customers/[id]')
     // B's key can't see A's customer at all; and B's own rows have no link to A's archive.
     expect(
-      (await call(GET, b.key, 'GET', `/customers/${a.ids.imported}?include=source`, { params: { id: a.ids.imported } }))
-        .status
+      (
+        await call(GET, b.key, 'GET', `/customers/${a.ids.imported}?include=source`, {
+          params: { id: a.ids.imported },
+        })
+      ).status
     ).toBe(404)
   })
 })
@@ -339,14 +396,17 @@ describe('restores and bulk deletes', () => {
     // A key that may read only work orders still learns it must resync.
     const servicesOnly = await newKey(a.org, a.owner, [{ action: 'read', subject: 'services' }])
     const seen = (
-      await (await call(GET, servicesOnly, 'GET', `/deleted?since=${encodeURIComponent(since)}`)).json()
+      await (
+        await call(GET, servicesOnly, 'GET', `/deleted?since=${encodeURIComponent(since)}`)
+      ).json()
     ).data
-    expect(seen.map((t: { entityType: string; entityId: string }) => `${t.entityType}:${t.entityId}`)).toEqual([
-      'reset:delete_content',
-      'restore:restore',
-    ])
+    expect(
+      seen.map((t: { entityType: string; entityId: string }) => `${t.entityType}:${t.entityId}`)
+    ).toEqual(['reset:delete_content', 'restore:restore'])
     // Not B's.
-    const other = (await (await call(GET, b.key, 'GET', `/deleted?since=${encodeURIComponent(since)}`)).json()).data
+    const other = (
+      await (await call(GET, b.key, 'GET', `/deleted?since=${encodeURIComponent(since)}`)).json()
+    ).data
     expect(other).toEqual([])
     expect((await eventsOf(a.org, 'restore.complete')).deliveries).toBe(1)
     const sent = await db.webhookDelivery.findFirstOrThrow({
