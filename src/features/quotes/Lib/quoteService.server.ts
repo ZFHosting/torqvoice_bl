@@ -57,10 +57,15 @@ import { quoteFileUrls } from '@/lib/files/collect'
 import type { ServiceCtx } from '@/lib/service-context'
 // fork: no part line of another workshop's inventory (A4)
 import { assertNoForeignInventoryParts } from '@/features/fork-records/Lib/ownInventoryParts.server'
+// fork (M9): the jobs a save's lines may be under
+import { ownLineJobs } from '@/features/fork-records/Lib/lineJobs.server'
 
 export async function createQuoteService(ctx: ServiceCtx, input: unknown) {
   const { userId, organizationId } = ctx
   const data = createQuoteSchema.parse(input)
+  // fork (M9): a new quote has no jobs: no line is under one
+  data.partItems = await ownLineJobs(organizationId, null, data.partItems, ctx.actor === 'api')
+  data.laborItems = await ownLineJobs(organizationId, null, data.laborItems, ctx.actor === 'api')
   const quote = await createQuoteRecord({ organizationId, userId }, data)
   revalidatePath('/quotes')
   return quote
@@ -84,6 +89,19 @@ export async function updateQuoteService(ctx: ServiceCtx, input: unknown) {
   await assertOwnedVehicle(data.vehicleId, organizationId)
   // fork: no part of another workshop's inventory (A4); a part deleted since keeps its id, as before
   await assertNoForeignInventoryParts(data.partItems, organizationId)
+  // fork (M9): a line is under one of this quote's jobs, or none
+  data.partItems = await ownLineJobs(
+    organizationId,
+    { quoteId: existing.id },
+    data.partItems,
+    ctx.actor === 'api'
+  )
+  data.laborItems = await ownLineJobs(
+    organizationId,
+    { quoteId: existing.id },
+    data.laborItems,
+    ctx.actor === 'api'
+  )
 
   const {
     id,

@@ -39,6 +39,7 @@ import { LaborEditor as LaborEditorBase } from '../../service-edit/LaborEditor'
 import { servicePartFromFluid } from '../../labor-guide/guide-lines'
 import { NotesSection as NotesSectionBase } from '../../service-edit/NotesSection'
 import { PartsEditor as PartsEditorBase } from '../../service-edit/PartsEditor'
+import { WorkJobsCard } from '@/features/fork-records/Components/WorkJobsCard' // fork (M9)
 import { ScheduleTimesSection as ScheduleTimesSectionBase } from '../../service-edit/ScheduleTimesSection'
 import { TotalsSection } from '../../service-edit/TotalsSection'
 import { VideoCallSection as VideoCallSectionBase } from '../VideoCallSection'
@@ -480,6 +481,22 @@ export function ModernDetails(props: ModernDetailsProps) {
                       set={tireSet}
                       serviceRecordId={record.id}
                       thresholds={tireThresholds}
+                    />
+                  )}
+
+                  {/* fork (M9): the lines under their jobs, for a workshop that has jobs */}
+                  {formState.initialData.jobsView && (
+                    <WorkJobsCard
+                      parent={{ kind: 'workOrder', id: record.id }}
+                      initialJobs={formState.initialData.jobsView.jobs}
+                      laborItems={formState.laborItems}
+                      partItems={formState.partItems}
+                      onMoveLine={(kind, index, jobId) =>
+                        kind === 'labor'
+                          ? formState.updateLabor(index, 'jobId', jobId ?? '')
+                          : formState.updatePart(index, 'jobId', jobId ?? '')
+                      }
+                      locked={locked}
                     />
                   )}
 

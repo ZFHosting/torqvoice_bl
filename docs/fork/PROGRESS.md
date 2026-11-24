@@ -35,7 +35,7 @@ resolved.
 | M8 | provisional | fork/M8-import-ui | Merged 2dc93789. Built on M5-M7 (synthetic fixtures, the mock server, the e2e stand-in): re-verify with a key (B1). Reviewer: ready for PR after 5 passes. Evidence in the Decisions log (M8 provisional). |
 | A5 | done | fork/A5-events-reports | Merged a1112343. Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (A5 done). |
 | A6 | done | fork/A6-hardening | Merged b36dfadb. Reviewer: ready for PR after 4 passes. Evidence in the Decisions log (A6 done). |
-| M9 | todo | | optional, last |
+| M9 | in_progress | fork/M9-job-grouping | optional, last |
 
 ## Current step
 
@@ -69,8 +69,47 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**Next: M9** (optional, last): job grouping in the UI and on invoices, on `fork/M9-job-grouping` (its plan goes here
-when it starts on that branch).
+**M9 (job grouping in the UI and on invoices), in progress** on `fork/M9-job-grouping` (from `fork/integration` after
+A6; the upstream merge still conflicts, B15). Plan, from the brief (decisions in its "As built"):
+1. [x] Lines name their job in a save: `jobId` on the work order and quote line schemas (marked); kept only when it is
+   a job of that document (`fork-records/Lib/lineJobs.server.ts`): from the page anything else is no job, through the
+   API a 404; unsent, the job is carried over as before. The forms load each line's `jobId`.
+2. [x] Job writes for the screens (`fork-records/Actions`: get, create, update, delete, reorder), on a work order or
+   a quote; the services generalized to a parent (`createJobOn`, ...), the API's work order services wrappers;
+   permissions, locks, `job.*` audit events, tenancy.
+3. [x] `WorkJobsCard` on the work order page (`ModernDetails`) and the quote page: job headers (name, note, status,
+   subtotal), lines, "Other"; add, edit, reorder, delete at once; a line's job menu saved with the form. Only for a
+   workshop with jobs. `workJobs` namespace, 14 locales.
+4. [x] Print: `groupBy` `job`/`none` (items, parts and labor tables); `printJobGroups.ts`; builders key each line's
+   job; unset prints by job when the document has jobs; data through `workJobs` includes (invoice assembly, the
+   public quote select, the quote PDF); the designer offers "By job" to a workshop with jobs, its sample has two jobs.
+5. [x] No change without jobs: `print-without-jobs.test.ts`, hashes of every preset's invoice and quote, flat and by
+   category, taken on pre-M9 print code (A6's tree, identical there); Playwright: a jobless work order and its PDF.
+6. [x] Imported orders print by their services (`shopmonkey-load.db.test.ts`), PROVISIONAL(M0:S5): no Shopmonkey PDF
+   to compare with (B1).
+Written in a worktree while A6's checks ran, then on this branch: e9b1518c (tasks 1-2), 77eac9ea (task 3), 29b31543
+(task 4). Evidence so far: `tsc` exit 0; `next build` exit 0; unit `features/fork-records` + `features/invoice-designer`
+40 files / 364 tests pass (the first run found that a job's subtotal in the parts table added its labor too: each
+table now adds up its own lines); `work-jobs.db.test.ts` + `shopmonkey-load.db.test.ts` 20/20 (imported invoice
+1003 prints each line under its own service, in their order); Playwright `e2e/specs/work-jobs/work-jobs.spec.ts`
+"3 passed (1.0m)" against a production build (a jobless work order and its PDF as before; with jobs, the card, a line
+moved and saved, the PDF by job), the e2e database left clean (0 work orders, jobs, lines).
+Reviewer pass 1: needs changes (the card needed a QueryClient upstream's page tests don't give, so `npm test` would
+fail; a page holding stale job ids would drop jobs; MAPPING stale). Fixed in 1d910758: the pages read `pageJobs` on
+the server and mount the card only for a workshop with jobs; a stale id on the page path goes to the carry; declined
+and deferred jobs marked; the designer groups invoices and quotes only; docs. Snapshot provenance: with
+`fork/integration`'s version of all 40 source files M9 modifies checked out in place, `print-without-jobs.test.ts`
+passed (then restored). DoD at 1d910758: `tsc` 0; `next build` 0; Biome 14 (baseline); `npm test` in chunks
+(`m9dod2`): rest 103/106, lib 139/148, f1 168/169, f2 202/203, f3 228/229, loose 11/11, the failures only the Windows
+baseline files (health, photo-handoff, portal-upload; backup-manifest (CRLF), backup/engine, restic, files/manager,
+only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access; equipment-gates, portal-file-route,
+meters-gates); `test:db` 42 files / 283 tests; Playwright work-jobs "3 passed (59.6s)" on a fresh build, e2e database
+clean.
+Reviewer pass 2: needs changes (MAPPING §10's declined/deferred sentence). Fixed, with the should-fixes: a declined
+or deferred job's subtotal is dropped only when all its lines are excluded (a quote's), by the importer's exact rule;
+the card takes the jobs a refreshed page read; `pageJobs` null for a workshop without jobs tested; the brief notes
+counter sales and last-writer-wins. After: `tsc` 0; unit fork-records, invoice-designer, workboard 56 files / 598
+tests; db work-jobs, shopmonkey-load, public-api-write-orders 3 files / 39 tests.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
@@ -341,3 +380,8 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-24 | A6: an API key's service user stays a member (its role is the key's scope, editable on the Team page) but is labelled a key, not removable there (revoke it in Settings → API keys), not a seat, never a technician (the Technician role gives it the role only), never given the app, not offered by member pickers, and never linked to a technician by a restore. Checked in the actions and services (old tabs, the API), read from the member query each upstream action already makes, so upstream's mocked tests are untouched. | Brief task 7; reviews passes 1–4. SECURITY-REVIEW item 17. |
 | 2026-11-24 | A6: the Playwright spec is `e2e/specs/public-api/public-api.spec.ts` (the suite keeps one folder per area; the brief named `e2e/specs/public-api.spec.ts`). Contract tests use fast-check, now a declared devDependency, with a fixed `CONTRACT_SEED`; a valid-body call per write endpoint is not there yet (successes are checked when a random body succeeds). "Pass in CI": CI runs only on a pull request to `main`, so the evidence is local until that PR. | Brief tasks 1–2; review pass 1 should-fix 9 (in part). |
 | 2026-11-24 | **A6 done.** DoD at 4a65828f (merged b36dfadb): `tsc` exit 0; Biome 14 (the baseline, upstream files); `npm test` in chunks (`a6final`): rest 103/106, lib 139/148, f1 209/211, f2 235/237, f3 149/149, loose 11/11, the failures only the Windows baseline files (health, photo-handoff, portal-upload; backup-manifest (CRLF), backup/engine, restic, files/manager, only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access; equipment-gates, portal-file-route, meters-gates) and `fiken` (5 s timeout under load; 32/32 alone); `test:db` 41 files / 271 tests. Acceptance: Playwright spec "2 passed (41.6s)" against a production build (3f852621); contract tests at 200 runs per endpoint, seed 1, pass (200 s), and found and fixed two 500s; isolation sweep over every route with an id, every method, 404, B's records unchanged; load check 2,400 requests all 200, p95 91 ms (LOAD-CHECK.md); SECURITY-REVIEW.md: no open high finding. Reviewer: needs changes (passes 1–3), ready for PR (pass 4). | Evidence for the definition of done and acceptance (PROGRESS Current step at the merge, and the tests named there). |
+| 2026-11-24 | M9: the upstream labor and parts editors stay flat; a Jobs card above them shows the lines under their jobs (name, note, status, subtotal) and "Other", with job writes at once (server actions, `job.*` events as from the API) and a line's job moved in the form. Only for a workshop with jobs, read in the page's server component. | Rebuilding upstream's editors around jobs would conflict with every upstream merge; a workshop without jobs must see no change (brief task 3). |
+| 2026-11-24 | M9: a line table whose layout sets no grouping prints by job when the document has jobs (not "for workshops that imported from Shopmonkey"); the layout can choose None, Category or By job (the labor table By job too); each table's job subtotal adds up its own lines; declined and deferred jobs print marked, and without a subtotal while the document's totals leave their lines out (a quote's struck lines; an imported invoice, read from its stored subtotal). Issued imported invoices reprint by job (the grouping only). | The same workshops in practice, read from the document (no query of the workshop's history in every print path), and the screen groups the same way. Brief task 2 updated ("As built"). |
+| 2026-11-24 | M9: a page's save keeps a line's `jobId` only when it is a job of that document; an id that isn't is left to M5's carry-over by name (a page open while the sync recreated the jobs keeps each line's new job); through the API it is a 404 (API.md §3). | Tenancy (no line under another workshop's or document's job) without losing jobs to a stale page (M9 review pass 1). |
+| 2026-11-24 | M9: "A workshop with no jobs sees no change (Playwright snapshot)" is shown by a Vitest snapshot of every preset's invoice and quote spec without jobs, flat and by category (SHA-256 per spec), taken on the pre-M9 print code and still equal after, plus the Playwright spec's jobless work order and PDF. | Playwright's pixel snapshots differ between this Windows machine and CI's Linux; the spec hashes are exact and platform-free. |
+| 2026-11-24 | M9: not built, carried on (not blocking): the M5/M8 carry-overs listed for M9 in Current step (the dry run's long transaction, the realtime notify per record, an operator's `'create'` choice for a matched user, the stuck-limit lease for an extract and `sync.load`, `children.retry` in the done summary, the 401/403 file host), a quote's jobs following it into a converted work order, the technician's work order sheet grouping by job, `hidden`/`lumpSum` services on print (PROVISIONAL(M0:S5)). | M9's brief is job grouping; the carry-overs are importer hardening that wants real Shopmonkey data first (B1). Listed in the final summary. |

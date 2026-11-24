@@ -7,7 +7,7 @@
 import 'server-only'
 import { ZodError, z } from 'zod'
 import { db, type TxClient } from '@/lib/db'
-import { assertInvoiceEditable } from '@/lib/document-lock.server'
+import { assertInvoiceEditable, assertQuoteEditable } from '@/lib/document-lock.server'
 import { parseSentFields } from '@/lib/parse-sent-fields'
 import type { ServiceCtx } from '@/lib/service-context'
 import {
@@ -18,6 +18,7 @@ import {
   updateJobSchema,
   updateShiftSchema,
 } from '../Schema/forkRecordSchemas'
+import type { JobParent } from '../Schema/workJobActionSchemas'
 
 /** A delete and its tombstone, in one transaction: a sync never misses a delete, nor hears of one that didn't happen. */
 async function removeWithTombstone(
@@ -109,7 +110,14 @@ export async function deleteContactService(ctx: ServiceCtx, customerId: string, 
   return { id: contactId, customerId }
 }
 
-/* ---------- work order jobs (X2) ---------- */
+/* ---------- jobs on a work order or a quote (X2) ---------- */
+
+/** What a job belongs to: a work order (the API's `/work-orders/{id}/jobs`, the work order page) or a quote (M9). */
+export type { JobParent }
+
+type JobOwner =
+  | { serviceRecordId: string; quoteId: null }
+  | { serviceRecordId: null; quoteId: string }
 
 async function ownWorkOrder(ctx: ServiceCtx, workOrderId: string) {
   const record = await db.serviceRecord.findFirst({
@@ -121,6 +129,26 @@ async function ownWorkOrder(ctx: ServiceCtx, workOrderId: string) {
   await assertInvoiceEditable(record.id, ctx.organizationId)
   return record.id
 }
+
+/** The work order or quote, this workshop's and open to edits, that a job belongs to. */
+async function ownJobParent(ctx: ServiceCtx, parent: JobParent): Promise<JobOwner> {
+  if (parent.kind === 'workOrder') {
+    return { serviceRecordId: await ownWorkOrder(ctx, parent.id), quoteId: null }
+  }
+  const quote = await db.quote.findFirst({
+    where: { id: parent.id, organizationId: ctx.organizationId },
+    select: { id: true },
+  })
+  if (!quote) throw new Error('Quote not found')
+  // A quote sent to the customer is locked like its lines.
+  await assertQuoteEditable(quote.id, ctx.organizationId)
+  return { serviceRecordId: null, quoteId: quote.id }
+}
+
+const ofOwner = (owner: JobOwner) =>
+  owner.serviceRecordId ? { serviceRecordId: owner.serviceRecordId } : { quoteId: owner.quoteId }
+
+const JOB_REF = { id: true, serviceRecordId: true, quoteId: true } as const
 
 function jobData(data: Partial<ReturnType<typeof createJobSchema.parse>>) {
   return {
@@ -141,57 +169,122 @@ function jobData(data: Partial<ReturnType<typeof createJobSchema.parse>>) {
   }
 }
 
-export async function createJobService(ctx: ServiceCtx, workOrderId: string, input: unknown) {
+/** A new job, last in its document unless the input places it. */
+export async function createJobOn(ctx: ServiceCtx, parent: JobParent, input: unknown) {
   const data = createJobSchema.parse(input)
-  const serviceRecordId = await ownWorkOrder(ctx, workOrderId)
+  const owner = await ownJobParent(ctx, parent)
   const last = await db.workJob.findFirst({
-    where: { serviceRecordId, organizationId: ctx.organizationId },
+    where: { ...ofOwner(owner), organizationId: ctx.organizationId },
     orderBy: { ordinal: 'desc' },
     select: { ordinal: true },
   })
   return db.workJob.create({
     data: {
       organizationId: ctx.organizationId,
-      serviceRecordId,
+      ...ofOwner(owner),
       name: data.name,
       ordinal: data.ordinal ?? (last ? last.ordinal + 1 : 0),
       ...jobData({ ...data, ordinal: undefined, name: undefined }),
     },
-    select: { id: true, serviceRecordId: true },
+    select: JOB_REF,
   })
 }
 
-export async function updateJobService(
+export async function updateJobOn(
   ctx: ServiceCtx,
-  workOrderId: string,
+  parent: JobParent,
   jobId: string,
   input: unknown
 ) {
   const data = parseSentFields(updateJobSchema, input)
-  const serviceRecordId = await ownWorkOrder(ctx, workOrderId)
+  const owner = await ownJobParent(ctx, parent)
   const { count } = await db.workJob.updateMany({
-    where: { id: jobId, serviceRecordId, organizationId: ctx.organizationId },
+    where: { id: jobId, ...ofOwner(owner), organizationId: ctx.organizationId },
     data: jobData(data),
   })
   if (count === 0) throw new Error('Job not found')
-  return { id: jobId, serviceRecordId }
+  return { id: jobId, ...owner }
 }
 
-/** The job goes; its lines stay on the work order, ungrouped (the relation is SetNull). */
-export async function deleteJobService(ctx: ServiceCtx, workOrderId: string, jobId: string) {
-  const serviceRecordId = await ownWorkOrder(ctx, workOrderId)
+/** The job goes; its lines stay on the document, ungrouped (the relation is SetNull). */
+export async function deleteJobOn(ctx: ServiceCtx, parent: JobParent, jobId: string) {
+  const owner = await ownJobParent(ctx, parent)
   await removeWithTombstone(
     ctx,
     'work_job',
     jobId,
     (tx) =>
       tx.workJob.deleteMany({
-        where: { id: jobId, serviceRecordId, organizationId: ctx.organizationId },
+        where: { id: jobId, ...ofOwner(owner), organizationId: ctx.organizationId },
       }),
     'Job not found'
   )
-  return { id: jobId, serviceRecordId }
+  return { id: jobId, ...owner }
 }
+
+/**
+ * The document's jobs in this order (M9): `jobIds` must name every one of its jobs, once. Only the jobs whose place
+ * changed are written, and returned, so each is one `job.update`, as a PATCH of its `ordinal` through the API is.
+ */
+export async function reorderJobsOn(ctx: ServiceCtx, parent: JobParent, jobIds: string[]) {
+  const owner = await ownJobParent(ctx, parent)
+  const jobs = await db.workJob.findMany({
+    where: { ...ofOwner(owner), organizationId: ctx.organizationId },
+    select: { id: true, ordinal: true },
+  })
+  const known = new Set(jobs.map((job) => job.id))
+  if (jobIds.length !== jobs.length || new Set(jobIds).size !== jobIds.length) {
+    throw new Error('The jobs have changed: reload and try again')
+  }
+  if (jobIds.some((id) => !known.has(id))) throw new Error('Job not found')
+  const was = new Map(jobs.map((job) => [job.id, job.ordinal]))
+  const moved = jobIds.flatMap((id, ordinal) => (was.get(id) === ordinal ? [] : [{ id, ordinal }]))
+  await db.$transaction(
+    moved.map(({ id, ordinal }) =>
+      db.workJob.updateMany({
+        where: { id, ...ofOwner(owner), organizationId: ctx.organizationId },
+        data: { ordinal },
+      })
+    )
+  )
+  return moved.map(({ id }) => ({ id, ...owner }))
+}
+
+/**
+ * The document's jobs in order, for its screen (M9), and whether the workshop uses jobs at all (has any): a workshop
+ * that has none sees no jobs on its screens. Reading needs no lock: a locked document shows its jobs.
+ */
+export async function jobsOf(ctx: ServiceCtx, parent: JobParent) {
+  const where =
+    parent.kind === 'workOrder'
+      ? { serviceRecordId: parent.id, serviceRecord: { organizationId: ctx.organizationId } }
+      : { quoteId: parent.id, quote: { organizationId: ctx.organizationId } }
+  const jobs = await db.workJob.findMany({
+    where: { ...where, organizationId: ctx.organizationId },
+    orderBy: [{ ordinal: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+    select: { id: true, name: true, note: true, authorizationStatus: true },
+  })
+  const usesJobs =
+    jobs.length > 0 ||
+    (await db.workJob.findFirst({
+      where: { organizationId: ctx.organizationId },
+      select: { id: true },
+    })) !== null
+  return { usesJobs, jobs }
+}
+
+export const createJobService = (ctx: ServiceCtx, workOrderId: string, input: unknown) =>
+  createJobOn(ctx, { kind: 'workOrder', id: workOrderId }, input)
+
+export const updateJobService = (
+  ctx: ServiceCtx,
+  workOrderId: string,
+  jobId: string,
+  input: unknown
+) => updateJobOn(ctx, { kind: 'workOrder', id: workOrderId }, jobId, input)
+
+export const deleteJobService = (ctx: ServiceCtx, workOrderId: string, jobId: string) =>
+  deleteJobOn(ctx, { kind: 'workOrder', id: workOrderId }, jobId)
 
 /* ---------- technician shifts (X6) ---------- */
 

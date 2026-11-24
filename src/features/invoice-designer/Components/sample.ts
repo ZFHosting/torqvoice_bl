@@ -5,6 +5,7 @@ import { calculateTotals } from '@/lib/tax'
 import { taxComponentLabel } from '@/lib/tax-components'
 import type { DocumentData, LineGroup, PaymentPair, TotalLine } from '../Spec/buildSpec'
 import { LABOR_GROUP, OTHER_PARTS_GROUP, partGroupKey } from '../Pdf/lineGroups'
+import { sampleJobs } from '@/features/fork-records/Lib/printJobGroups' // fork (M9)
 import type { DesignerWorkshop, DocumentType } from './types'
 import { conditionMapForPrint } from '@/features/condition-map/Lib/print'
 import type { ConditionMarkData } from '@/features/condition-map/Lib/marks'
@@ -347,6 +348,7 @@ export function buildSampleData(
   const sample = sampleTables(t, labels, format, workshop.unitSystem)
   const values = fieldValues(workshop, t, labels)
   const tax = sampleTax(workshop, sample, labels, format)
+  const jobs = sampleJobs(sample.items, labels, format.money) // fork (M9)
   return {
     fields: {
       ...values,
@@ -377,6 +379,7 @@ export function buildSampleData(
       price: item.price,
       total: item.total,
       group: item.sku ? partGroupKey(item.category) : LABOR_GROUP,
+      job: jobs.keyOf(item), // fork (M9)
     })),
     parts: sample.items
       .filter((item) => item.sku)
@@ -387,10 +390,13 @@ export function buildSampleData(
         price: item.price,
         total: item.total,
         group: partGroupKey(item.category),
+        job: jobs.keyOf(item), // fork (M9)
       })),
     // The groups a table divided by category shows: the brake parts added
     // up on their own, the consumables after them, the labor first.
     lineGroups: sampleLineGroups(sample, labels, format),
+    // fork (M9): and by job, for a workshop that has jobs
+    jobGroups: jobs.groups,
     labor: sample.items
       .filter((item) => !item.sku)
       .map((item) => ({
@@ -398,6 +404,7 @@ export function buildSampleData(
         qty: `${item.qty} ${item.unit}`,
         rate: item.price,
         total: item.total,
+        job: jobs.keyOf(item), // fork (M9)
       })),
     findings: sample.findings,
     totals: [

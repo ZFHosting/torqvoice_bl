@@ -26,6 +26,12 @@ import {
   testDetailsBlock,
 } from './certificateBlocks'
 import { signatureBlock } from './signatureBlock'
+// fork (M9)
+import {
+  groupingOf,
+  type JobGroups,
+  jobGroupsOfTable,
+} from '@/features/fork-records/Lib/printJobGroups'
 import { conditionMapBlock } from './conditionMapBlock'
 import type { EquipmentPrint } from '../Pdf/equipmentPrint'
 import { fadedPhotoInks } from '../Lib/photoContrast'
@@ -67,6 +73,8 @@ export interface LineGroup {
   /** The subtotal row's wording, e.g. "Brakes subtotal". */
   subtotalLabel: string
   subtotal: string
+  /** fork (M9): every line of it is left out of the totals (struck, or a declined or deferred job): no subtotal row. */
+  excluded?: boolean
 }
 
 export interface DocumentData {
@@ -96,6 +104,8 @@ export interface DocumentData {
     excluded?: boolean
     /** The key of the line's group in `lineGroups`, for a table grouping by category. */
     group?: string
+    /** fork (M9): the key of the line's group in `jobGroups`, for a table grouping by job. */
+    job?: string
   }[]
   parts: {
     ref: string
@@ -105,8 +115,16 @@ export interface DocumentData {
     total: string
     excluded?: boolean
     group?: string
+    job?: string // fork (M9)
   }[]
-  labor: { desc: string; qty: string; rate: string; total: string; excluded?: boolean }[]
+  labor: {
+    desc: string
+    qty: string
+    rate: string
+    total: string
+    excluded?: boolean
+    job?: string // fork (M9)
+  }[]
   /**
    * The groups a table divides its lines into when its layout asks to group
    * by category, in print order: one per part category, one for parts without
@@ -115,6 +133,13 @@ export interface DocumentData {
    * table prints flat.
    */
   lineGroups?: LineGroup[]
+  /**
+   * fork (M9): the groups each table divides its lines into when it groups by job (fork-records/Lib/printJobGroups.ts),
+   * in the jobs' order, then the lines of no job. Absent when no line of the table has a job: it prints flat.
+   */
+  jobGroups?: JobGroups
+  /** fork (M9): a table that sets no grouping groups by job (the document has jobs). */
+  groupByJob?: boolean
   findings: { severity: string; color: string; description: string; notes: string }[]
   totals: TotalLine[]
   notes: { html?: string }
@@ -1134,29 +1159,44 @@ const GROUP_SUBTOTAL_KEY = 'groupSubtotal'
  * table on its own. `toRow` gets the line's place in print order, so a
  * numbered list counts the way the reader sees it.
  */
-function groupedRows<L extends { group?: string }>(
+function groupedRows<L extends { group?: string; job?: string }>(
   section: InvoiceSection,
   data: DocumentData,
   lines: L[],
   toRow: (line: L, index: number) => Record<string, string>,
   labelKey: string
 ): { rows: Record<string, string>[]; grouped: boolean } {
-  const groups = data.lineGroups ?? []
-  if (section.groupBy !== 'category' || groups.length === 0) {
+  // fork (M9): by category, or by job (the section's choice, else the workshop's default)
+  const by = groupingOf(section.groupBy, data.groupByJob)
+  const groups =
+    (by === 'job'
+      ? jobGroupsOfTable(data.jobGroups, section.id)
+      : by === 'category'
+        ? data.lineGroups
+        : null) ?? []
+  if (!by || groups.length === 0) {
     return { rows: lines.map(toRow), grouped: false }
   }
+  const keyOf = (line: L) => (by === 'job' ? line.job : line.group)
   const rows: Record<string, string>[] = []
   const placed = new Set<L>()
   let index = 0
   for (const group of groups) {
-    const members = lines.filter((line) => line.group === group.key)
+    const members = lines.filter((line) => keyOf(line) === group.key)
     if (!members.length) continue
     rows.push({ [GROUP_TITLE_KEY]: group.title })
     for (const line of members) {
       rows.push(toRow(line, index++))
       placed.add(line)
     }
-    rows.push({ [labelKey]: group.subtotalLabel, total: group.subtotal, [GROUP_SUBTOTAL_KEY]: '1' })
+    // fork (M9): no subtotal for lines the totals leave out
+    if (!group.excluded) {
+      rows.push({
+        [labelKey]: group.subtotalLabel,
+        total: group.subtotal,
+        [GROUP_SUBTOTAL_KEY]: '1',
+      })
+    }
   }
   for (const line of lines) if (!placed.has(line)) rows.push(toRow(line, index++))
   return { rows, grouped: true }
@@ -1178,7 +1218,8 @@ function itemsTable(
     data,
     data.items,
     (item, index) => ({
-      n: section.groupBy === 'category' ? String(index + 1) : item.n,
+      // fork (M9): any grouping, by job too
+      n: groupingOf(section.groupBy, data.groupByJob) ? String(index + 1) : item.n,
       qty: item.qty,
       unit: item.unit,
       desc: item.desc,
@@ -1309,6 +1350,18 @@ function laborTable(
   if (!data.labor.length) return null
   const look = lookOf(section, theme)
   const size = look.fontSize ?? theme.fontSize
+  // fork (M9): the labor lines under their jobs when the table groups by job (labor has no category)
+  const toRow = (l: DocumentData['labor'][number]) => ({
+    desc: l.desc,
+    qty: l.qty,
+    rate: l.rate,
+    total: l.total,
+    struck: l.excluded ? '1' : '',
+  })
+  const labor =
+    groupingOf(section.groupBy, data.groupByJob) === 'job'
+      ? groupedRows(section, data, data.labor, toRow, 'desc')
+      : { rows: data.labor.map(toRow), grouped: false }
   return titledTable(section, theme, label(data, 'labor', 'Labor'), undefined, {
     kind: 'table',
     rowPadding: theme.rowPadding,
@@ -1330,13 +1383,8 @@ function laborTable(
       { key: 'total', label: label(data, 'total', 'Total'), width: 74, align: 'right' },
     ],
     strikeKey: 'struck',
-    rows: data.labor.map((l) => ({
-      desc: l.desc,
-      qty: l.qty,
-      rate: l.rate,
-      total: l.total,
-      struck: l.excluded ? '1' : '',
-    })),
+    ...(labor.grouped ? { groupKey: GROUP_TITLE_KEY, emphasisKey: GROUP_SUBTOTAL_KEY } : {}),
+    rows: labor.rows,
   })
 }
 

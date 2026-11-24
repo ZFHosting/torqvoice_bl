@@ -1,6 +1,7 @@
 import { workshopTaxOffer } from '@/features/settings/Lib/workshopTaxOffer'
 import { ShopmonkeySyncBanner } from '@/features/shopmonkey-import/Components/ShopmonkeySyncBanner'
 import { shopmonkeySyncNotice } from '@/features/shopmonkey-import/Lib/syncNotice.server'
+import { pageJobs } from '@/features/fork-records/Lib/pageJobs.server' // fork (M9)
 import { jobMeterViews } from '@/features/meters/Lib/meters.server'
 import { jobEquipmentView } from '@/features/equipment/Lib/equipment.server'
 import { resolveCurrencyCode } from '@/lib/currencies'
@@ -144,6 +145,10 @@ export async function ServiceRecordPage({
   const defaultLaborRate = Number(settings[SETTING_KEYS.DEFAULT_LABOR_RATE]) || 0
   const shopFee = readShopFee(settings)
   const lineTax = readLineTaxSettings(settings)
+  // fork (M9): its jobs, for a workshop that has jobs (the Jobs card)
+  const jobsView = authContext?.organizationId
+    ? await pageJobs(authContext.organizationId, { kind: 'workOrder', id: serviceId })
+    : null
   // Whether this job was created under another tax than the workshop charges now.
   const taxOffer = authContext?.organizationId
     ? await workshopTaxOffer(authContext.organizationId, 'workOrder', serviceId)
@@ -349,6 +354,8 @@ export async function ServiceRecordPage({
       // would send the line back without it and the server would put the
       // workshop's default over whatever had been chosen.
       taxable: p.taxable,
+      // fork (M9): the line's job, so a save keeps it, or moves it (WorkJobsCard)
+      jobId: p.jobId ?? null,
     })),
     laborItems: shopFeeLinesLast(record.laborItems).map((l) => ({
       description: l.description,
@@ -357,6 +364,8 @@ export async function ServiceRecordPage({
       total: l.total,
       pricingType: (l.pricingType as 'hourly' | 'service' | 'shopFee') || 'hourly',
       taxable: l.taxable,
+      // fork (M9): the line's job, so a save keeps it, or moves it (WorkJobsCard)
+      jobId: l.jobId ?? null,
     })),
     attachments: [],
     subtotal: record.subtotal,
@@ -372,6 +381,7 @@ export async function ServiceRecordPage({
     warrantyMonths: record.warrantyMonths ?? null,
     warrantyMileage: record.warrantyMileage ?? null,
     warrantyNotes: record.warrantyNotes ?? null,
+    jobsView, // fork (M9)
   }
 
   // Prepare media attachments for managers

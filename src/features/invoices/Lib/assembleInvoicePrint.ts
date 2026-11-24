@@ -25,6 +25,7 @@ import { findingLine } from '@/features/fault-codes/Lib/codes'
 import { resolveCurrencyCode, resolveCurrencyFormat } from '@/lib/currencies'
 import { readFile } from 'fs/promises'
 import { db } from '@/lib/db'
+import { PRINT_JOBS } from '@/features/fork-records/Lib/printJobGroups' // fork (M9)
 import { SETTING_KEYS } from '@/features/settings/Schema/settingsSchema'
 import { resolveUploadPath } from '@/lib/resolve-upload-path'
 import { isOwnUploadUrl } from '@/lib/upload-url'
@@ -109,6 +110,7 @@ const PARTY_SELECT = {
 const RECORD_INCLUDE = {
   partItems: true,
   laborItems: true,
+  workJobs: PRINT_JOBS, // fork (M9): for a layout that groups lines by job
   attachments: true,
   payments: { orderBy: { date: 'desc' as const } },
   // The linked technician's current name is the source of truth; the stored

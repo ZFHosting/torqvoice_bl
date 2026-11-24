@@ -111,6 +111,7 @@ export function InvoiceDesigner({
   customFields: serviceCustomFields,
   quoteCustomFields = [],
   telegramBotLink,
+  workshopUsesJobs = false, // fork (M9)
 }: {
   initialDocumentType: DocumentType
   initialView: 'gallery' | 'designer'
@@ -136,6 +137,8 @@ export function InvoiceDesigner({
   quoteCustomFields?: DesignerFieldDef[]
   /** The connected Telegram bot's t.me link, or nothing when no bot is set up. */
   telegramBotLink?: string
+  /** fork (M9): the workshop has jobs, so the line tables offer grouping by job. */
+  workshopUsesJobs?: boolean
 }) {
   const router = useRouter()
   const t = useTranslations('settings.designer')
@@ -166,6 +169,8 @@ export function InvoiceDesigner({
   const arrivedWith = initialDesign ?? initialPreset
   const [view, setView] = useState<'gallery' | 'designer'>(arrivedWith ? 'designer' : initialView)
   const [docType, setDocType] = useState<DocumentType>(initialDocumentType)
+  // fork (M9): invoices and quotes print by job; the technician's work order sheet doesn't (M9's brief)
+  const jobGrouping = workshopUsesJobs && (docType === 'invoice' || docType === 'quote')
   // Each document places its own entity's fields: quotes carry quote fields.
   // A certificate has no workshop-defined fields of its own.
   const customFields =
@@ -393,6 +398,8 @@ export function InvoiceDesigner({
         telegramOn && telegramQrDataUri
           ? { dataUri: telegramQrDataUri, label: L('telegramConnect', 'Chat with us on Telegram') }
           : undefined,
+      // fork (M9): the sample has jobs, as this workshop's documents do, so unset previews by job
+      groupByJob: jobGrouping,
     }),
     [
       workshop,
@@ -409,6 +416,7 @@ export function InvoiceDesigner({
       telegramOn,
       telegramQrDataUri,
       L,
+      jobGrouping,
     ]
   )
 
@@ -1339,6 +1347,7 @@ export function InvoiceDesigner({
           onOrgNumberLabel={setOrgNumberLabel}
           telegramBotLink={telegramBotLink}
           signatureSet={Boolean(companyWorkshop.signatureUrl)}
+          workshopUsesJobs={jobGrouping} // fork (M9)
           found={found}
           onLogo={(url) => setTemplate({ logoUrl: url })}
         />

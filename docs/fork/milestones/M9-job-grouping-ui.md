@@ -19,5 +19,41 @@ screens and on the printed documents, so the shop sees its work the way it did i
 - [ ] Imported fixture orders print grouped and match the original Shopmonkey PDF's structure.
 - [ ] A workshop with no jobs sees no change (Playwright snapshot of an existing invoice).
 
+## As built (decisions, see PROGRESS.md's Decisions log)
+- **Editors:** upstream's labor and parts editors stay flat (rebuilding them around jobs would conflict with every
+  upstream merge). A **Jobs card** above them (`fork-records/Components/WorkJobsCard.tsx`) shows the lines under
+  their jobs and "Other", with add, edit, reorder and delete (saved at once, audited as `job.*`) and a per-line job
+  menu (saved with the form). The forms send each line's `jobId`; a save keeps only a job of that document.
+- **Who sees it:** a workshop with any job (an import or the API made them), read in the page's server component
+  with the document's jobs (`pageJobs.server.ts`); every other workshop's pages, designer and prints are as upstream
+  draws them, and its pages ask nothing more.
+- **A line's job in a save:** only a job of that document. From the page, an id that isn't (the Shopmonkey sync
+  recreated the job while the page was open) is left to the save's carry-over by name, so the line keeps its new job;
+  through the API it is a 404, as every foreign id is.
+- **Default:** a line table whose layout sets no grouping prints by job when the document has jobs, rather than "for
+  workshops that imported from Shopmonkey": the same workshops in practice, read from the document itself (no query
+  for the workshop's history in every print path), and the screen shows the same grouping. A layout can choose
+  "None", "Category" or "By job" (the labor table offers "By job" too).
+- **"Playwright snapshot of an existing invoice":** the no-change evidence is a Vitest snapshot of every preset's
+  invoice and quote spec without jobs, taken before M9 changed print code (pixel snapshots differ between the Windows
+  machine and CI's Linux), plus a Playwright check that a work order and its invoice PDF without jobs show no jobs.
+- **The Shopmonkey PDF:** no recorded PDF exists until a key is available (B1); the structure is checked against the
+  fixtures' services (provisional).
+- **Issued invoices:** the import issues the invoices it loads, and those reprint by job too (the grouping changes,
+  never a line or a total), as they printed in Shopmonkey. A workshop that wants them flat sets "None" in its design
+  and re-applies it.
+- **Declined and deferred services** (MAPPING §6.3) print under their name marked "(declined)" or "(deferred)", by
+  the importer's own rule (`Declined` exactly, or a `deferredDate`), with no subtotal while the document's totals
+  leave their lines out: a quote's lines are `excluded` (struck); a work order's carry no flag, so the print reads
+  it from the work order (its stored subtotal is the other lines' sum, as an imported one's is). Once an edit in the
+  app counts them again, the print shows their subtotal with the rest. Any group whose every line is struck prints
+  no subtotal either. PROVISIONAL(M0:S5): `hidden` and `lumpSum`
+  services print as any other until real data shows what Shopmonkey's PDF does with them.
+- **Counter sales** (`/sales/[id]`) are work orders: they show the Jobs card too.
+- **Last writer wins** for a line's job, as for its other fields: a page sends each line's job as it loaded it (or as
+  moved), so a job the sync or the API put a line under while the page was open is replaced by the page's save.
+- **The designer** offers "By job" for invoices and quotes only (the work order sheet doesn't group).
+
 ## Out of scope
-Per-job authorization by the customer from the share page (later).
+Per-job authorization by the customer from the share page (later). A quote's jobs following it when converted to a
+work order (conversion copies lines field by field, without their job). The technician's work order sheet.

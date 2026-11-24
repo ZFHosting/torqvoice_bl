@@ -21,6 +21,7 @@ import { printableEquipment } from '@/features/equipment/Lib/equipmentPrint.serv
 import { resolveCurrencyCode, resolveCurrencyFormat } from '@/lib/currencies'
 import { readFile } from 'node:fs/promises'
 import { renderToBuffer } from '@react-pdf/renderer'
+import { PRINT_JOBS } from '@/features/fork-records/Lib/printJobGroups' // fork (M9)
 import { pdfFontsReady } from '@/features/vehicles/Components/invoice-pdf/fonts'
 import { PDFDocument } from 'pdf-lib'
 import React from 'react'
@@ -55,6 +56,7 @@ const QUOTE_INCLUDE = {
   // The sheet lists the lines in the order the workshop arranged them.
   partItems: { orderBy: { sortOrder: 'asc' as const } },
   laborItems: { orderBy: { sortOrder: 'asc' as const } },
+  workJobs: PRINT_JOBS, // fork (M9): for a layout that groups lines by job
   attachments: true,
   customer: {
     select: { name: true, email: true, phone: true, address: true, company: true, taxId: true },

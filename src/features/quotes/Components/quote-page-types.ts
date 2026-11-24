@@ -53,6 +53,8 @@ export interface QuoteRecord {
   inspectionId: string | null
   createdAt: Date
   updatedAt: Date
+  /** fork (M9): the quote's jobs, for its Jobs card; null or absent for a workshop without jobs. */
+  jobsView?: import('@/features/fork-records/Schema/workJobActionSchemas').PageJobs | null
   partItems: {
     id: string
     partNumber: string | null
@@ -67,6 +69,8 @@ export interface QuoteRecord {
     excluded?: boolean
     taxable?: boolean
     inventoryPartId?: string | null
+    /** fork (M9): the job the line is under. */
+    jobId?: string | null
   }[]
   laborItems: {
     id: string
@@ -77,6 +81,8 @@ export interface QuoteRecord {
     pricingType?: string
     excluded?: boolean
     taxable?: boolean
+    /** fork (M9): the job the line is under. */
+    jobId?: string | null
   }[]
   customer: {
     id: string

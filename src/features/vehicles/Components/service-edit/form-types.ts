@@ -66,6 +66,8 @@ export interface InitialData {
   warrantyMonths?: number | null
   warrantyMileage?: number | null
   warrantyNotes?: string | null
+  /** fork (M9): the work order's jobs, for its Jobs card; null or absent for a workshop without jobs. */
+  jobsView?: import('@/features/fork-records/Schema/workJobActionSchemas').PageJobs | null
 }
 
 export interface VehicleOption {
