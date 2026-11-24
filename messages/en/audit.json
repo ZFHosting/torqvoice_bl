@@ -238,6 +238,7 @@
     "shopmonkey_import": "Imported from Shopmonkey",
     "shopmonkey_import_undo": "Shopmonkey import undone",
     "shopmonkey_cutover": "Cut over from Shopmonkey",
+    "shopmonkey_sync_delete": "Deleted by the Shopmonkey sync",
     "contact_create": "Contact added",
     "contact_update": "Contact changed",
     "contact_delete": "Contact removed",
@@ -446,6 +447,7 @@
     "shopmonkey_import": "Imported {records} new or changed records from Shopmonkey",
     "shopmonkey_import_undo": "Undid a Shopmonkey import: removed {records} records",
     "shopmonkey_cutover": "Cut over from Shopmonkey: Torqvoice no longer follows it",
+    "shopmonkey_sync_delete": "Deleted {records} records Shopmonkey deleted (the sync window)",
     "platform_revokeSuperAdmin": "Removed super admin from {name} ({email})"
   }
 }

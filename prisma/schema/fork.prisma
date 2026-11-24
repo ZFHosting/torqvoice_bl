@@ -230,11 +230,12 @@ model DeletedRecord {
 }
 
 /// M7. An inbound webhook delivery, by its id, so one delivered again (a retry, a replay) is acted on once. The job
-/// queue can't remember it: it clears a job's `idempotencyKey` when it claims the job. Kept a week. The connection by
-/// id only, like `SourceRecord`: a delivery outlives nothing it needs.
+/// queue can't remember it: it clears a job's `idempotencyKey` when it claims the job. Kept a week, and removed with
+/// its connection.
 model InboundWebhookDelivery {
-  id           String   @id @default(cuid())
+  id           String                @id @default(cuid())
   connectionId String
+  connection   IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   /// The `webhook-id` header (Standard Webhooks).
   deliveryId   String
   receivedAt   DateTime @default(now())

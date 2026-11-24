@@ -33,6 +33,9 @@ export async function startShopmonkeyExtract(input: StartExtractInput): Promise<
   })
   if (!connection) throw new Error('Shopmonkey connection not found')
   const state = (connection.state as Record<string, unknown> | null) ?? {}
+  // M7: after cutover nothing more is read from Shopmonkey.
+  if (state.cutover)
+    throw new Error('The import is cut over: nothing more is read from Shopmonkey.')
   const runId = randomUUID()
   const extract: ExtractState = startState(state.extract as Partial<ExtractState> | undefined, {
     runId,

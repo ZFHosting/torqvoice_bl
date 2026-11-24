@@ -1160,7 +1160,7 @@
         "apiKey": "Shopmonkey API anahtarı",
         "apiKeyHelp": "Bir Shopmonkey yöneticisi bunu Settings, Integration, API Keys altında oluşturur. O kişinin yetkileriyle çalışır; bu yüzden içe aktarılan her konuma erişimi olmalıdır.",
         "webhookSecret": "Webhook imzalama sırrı",
-        "webhookSecretHelp": "İsteğe bağlı. Shopmonkey, Settings, Integration, Webhooks altında bu bağlantı için bir webhook eklediğinizde gösterir; whsec_ ile başlar. O olmadan da Torqvoice, Shopmonkey'deki değişiklikleri her 10 dakikada bir kontrol eder."
+        "webhookSecretHelp": "İsteğe bağlı. Shopmonkey, Settings, Integration, Webhooks altında bu bağlantı için bir webhook eklediğinizde gösterir; whsec_ ile başlar. O olmadan da Torqvoice, Shopmonkey'deki değişiklikleri her 10 dakikada bir kontrol eder, ancak silmeleri yalnızca webhook bildirir."
       },
       "settings": {
         "locationId": "Konum",

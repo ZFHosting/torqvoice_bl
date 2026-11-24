@@ -1160,7 +1160,7 @@
         "apiKey": "Shopmonkey-API-sleutel",
         "apiKeyHelp": "Een Shopmonkey-beheerder maakt hem aan onder Settings, Integration, API Keys. Hij werkt met de rechten van die persoon, die dus toegang nodig heeft tot elke locatie die je importeert.",
         "webhookSecret": "Ondertekeningsgeheim van de webhook",
-        "webhookSecretHelp": "Optioneel. Shopmonkey toont het wanneer je onder Settings, Integration, Webhooks een webhook voor deze koppeling toevoegt; het begint met whsec_. Zonder controleert Torqvoice Shopmonkey nog steeds elke 10 minuten op wijzigingen."
+        "webhookSecretHelp": "Optioneel. Shopmonkey toont het wanneer je onder Settings, Integration, Webhooks een webhook voor deze koppeling toevoegt; het begint met whsec_. Zonder controleert Torqvoice Shopmonkey nog steeds elke 10 minuten op wijzigingen, maar alleen de webhook meldt verwijderingen."
       },
       "settings": {
         "locationId": "Locatie",

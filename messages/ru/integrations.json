@@ -1160,7 +1160,7 @@
         "apiKey": "API-ключ Shopmonkey",
         "apiKeyHelp": "Его создаёт администратор Shopmonkey в разделе Settings, Integration, API Keys. Ключ действует с правами этого человека, поэтому у него должен быть доступ ко всем импортируемым точкам.",
         "webhookSecret": "Секрет подписи вебхука",
-        "webhookSecretHelp": "Необязательно. Shopmonkey показывает его, когда вы добавляете вебхук для этого подключения в Settings, Integration, Webhooks; он начинается с whsec_. Без него Torqvoice всё равно проверяет изменения в Shopmonkey каждые 10 минут."
+        "webhookSecretHelp": "Необязательно. Shopmonkey показывает его, когда вы добавляете вебхук для этого подключения в Settings, Integration, Webhooks; он начинается с whsec_. Без него Torqvoice всё равно проверяет изменения в Shopmonkey каждые 10 минут, но об удалениях сообщает только вебхук."
       },
       "settings": {
         "locationId": "Точка",

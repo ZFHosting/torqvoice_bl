@@ -612,49 +612,61 @@ written to Shopmonkey. Code: `src/integrations/shopmonkey/webhook.ts`, `sync/`, 
 `webhook-timestamp`, `webhook-signature` `v1,<base64>`, HMAC-SHA256 of `id.timestamp.body` with the `whsec_` secret,
 several signatures allowed while a secret rotates, five minutes' tolerance either way). The secret is the
 connection's `webhookSecret` credential; the endpoint is `/api/integrations/shopmonkey/<connection id>/webhook`. A
-delivery is acted on once (its id in `InboundWebhookDelivery`, kept a week) and only says which record to read
-again: its `table` and `data.id`, a payment's `data.orderId` (payments are staged from their order). It queues a
-`refetch` job per record (`refetch:<table>:<id>`) and answers at once. A table that isn't read by id, or a body
-without an id, is logged and answered 200.
+delivery is acted on once (its id in `InboundWebhookDelivery`, kept a week, removed with its connection) and only says
+which record to read again: its `table` and `data.id`, a payment's `data.orderId` (payments are staged from their
+order). It queues a `refetch` job per record (`refetch:<table>:<id>`; a second delivery about the record joins the one
+waiting) and answers at once. A table that isn't read by id, or a body without an id, is logged and answered 200.
 
 **Refetch**: the record by id (`/v3/<table>/:id`) and its children, read again whatever its own hash says (a webhook
 may be about a service alone); children that no longer come back are marked deleted. A 404 marks the record deleted
-(`remoteDeletedAt`). Another location's record is left out. The last refetch of a burst loads (one load for many
-deliveries).
+(`remoteDeletedAt`) **[provisional: S1]**. Another location's record is left out. The last refetch of a burst loads (one
+load for many deliveries).
 
-**Polling** (`sync.delta`, every ten minutes): a delta extract from each table's watermark less five minutes (a table
-without one: the last run's start less five minutes). Searches filter by `updatedDate`; the large GET lists (orders,
-appointments, inspections, messages, purchase orders, scans: `recentFirst` in `extract/tables.ts`) are read newest
-first and stop at the first page that reaches the delta's start, and read whole, with a warning, if a page doesn't
-come back newest first **[provisional: S2]**. Other GET lists are small and read whole. A change to a child alone
-(a vehicle's mileage, a payment's note) isn't seen by polling until its parent changes; webhooks cover those. A load
-follows when the delta changed anything, or when a refetch staged something no load has taken yet
-(`state.syncPending`).
+**Polling** (`sync.delta`, every ten minutes): a delta extract from each table's watermark (the newest `updatedDate`
+read, every location's) less five minutes (a table without one: the last run's start less five minutes). Searches
+filter by `updatedDate`; the large GET lists (orders, appointments, inspections, messages, purchase orders, scans:
+`recentFirst` in `extract/tables.ts`) are read newest first, each page starting ten records back from the last (so up to
+ten deletes between two pages skip nothing), and stop at the first page that reaches the delta's start; if a page, or
+one page after another, isn't newest first, the list is read whole, with a warning **[provisional: S2]**. Other GET lists
+are small and read whole. A load follows when the delta changed anything, or when a refetch staged something no load
+has taken yet (`state.syncPending`, kept through a failed load).
+
+**What polling can't see**: a change to a child alone (a vehicle's colour, a payment's note) until its parent changes,
+and a record **deleted** in Shopmonkey (a deleted record isn't listed; one Shopmonkey only marks `deleted` is seen when
+it is listed again). The webhook covers both, so a workshop that relies on polling alone keeps, after cutover, records
+Shopmonkey deleted during the sync window.
 
 **When the sync loads**: only after the operator's first load (`state.lastLoad`), never while another extract runs,
-never after cutover. As the member who made the connection (while still a member). Every load holds the connection's
-load lock (a PostgreSQL advisory lock): a second load is refused (`LoadBusy`), and the sync tries again a minute later
-(`sync.load`). While a connection that hears invoices is on (accounting), the sync stages but doesn't load (M5's
-guard), and says so in the log. The sync's loads are full loads: unchanged records are skipped by their hash.
+never after cutover. As the member who made the connection (while still a member), with the mapping saved on the
+import screen (M8). Every load holds the connection's load lock (a PostgreSQL session advisory lock on a connection of
+its own): a second load is refused (`LoadBusy`), and the sync tries again a minute later (`sync.load`). While a
+connection that hears invoices is on (accounting), the sync stages but doesn't load (M5's guard), and says so in the
+log. The sync's loads are full loads (unchanged records skipped by their hash); one that wrote nothing records no
+audit event. An undo takes the same lock and clears `state.lastLoad`, so the sync stops loading until the operator
+loads again (otherwise its next load would create what the undo removed).
 
 **Conflicts**: Shopmonkey wins until cutover. A row is edited in Torqvoice when its `updatedAt` is later than its
-link's `lastSyncedAt`; after each load every link whose row the load changed is synced as of the load's end
-(`stampSynced`), so a load's own writes, in passing too, never count. A changed record overwriting an edited row
-warns `local_edit_overwritten` (in `state.lastLoad.warnings`). An edit made while a load runs counts as the load's.
+link's `lastSyncedAt`. A load syncs the links of exactly the rows it wrote, at the end of the transaction that wrote them
+(the rows it touched in passing included: an appointment setting its work order's start, an inspection pointing its
+work order at it, an estimate converted), and the invoices it issued; so an edit made in Torqvoice, even while a load
+runs, stays an edit. A changed record overwriting an edited row warns `local_edit_overwritten` (in
+`state.lastLoad.warnings`).
 
 **Deletes** (after each sync load, `state.lastSync`):
 
 | Shopmonkey deletes | Torqvoice |
 | --- | --- |
 | A record only in the archive (never loaded, or left out) | Nothing; the archive keeps it, marked deleted. |
-| A loaded work order, quote or appointment, unchanged in Torqvoice since its last sync | Deleted through the app's own delete, with its `DeletedRecord` tombstone; its link and mapping go. |
-| The same, edited since (the row, or a payment, attachment or time entry added to a work order) | Kept; listed (`keptDeletes`, reason `edited`). |
+| A loaded work order, quote or appointment, unchanged in Torqvoice since its last sync | Deleted, with its `DeletedRecord` tombstone (named after the member the sync loads as), its custom field values and files, and one `shopmonkey.sync_delete` audit event per run; its link and mapping go. A work order puts no stock back: its imported lines never took any (part counts come from Shopmonkey). |
+| The same, edited since: the row, or anything added to a work order (a payment, an attachment, time, a status report, equipment, a helper, a concern, a job) | Kept; listed (`keptDeletes`, reason `edited`). |
 | An invoice that is locked | Kept; listed (`locked`). |
-| Any other loaded record (customer, vehicle, part, technician, attachment) | Kept; listed (`policy`): removing it would take the history hanging off it. |
+| Any other loaded record (customer, vehicle, part, technician, attachment) | Kept; listed (`policy`): removing it would take the history hanging off it (B16). |
 
 **Cutover** (`run.ts cutover --connection <id> --shop-stopped [--dry-run]`, `docs/fork/CUTOVER.md`): the operator's word
-that the shop has stopped; a final delta for every table, a load and the delete policy; the reconciliation (§12),
-stopping at any failing gate; the numbering proposal (§9) applied; `state.cutover` set; the sync's queued jobs
-cancelled (the schedule and the webhook do nothing from then on); a reminder to delete the webhook in Shopmonkey and
-revoke the API key. A dry run goes through every step and changes nothing in the workshop (its delta stages, as the
-sync would).
+that the shop has stopped; the webhook refetches still waiting, a sync run under way finished, then a fresh delta for
+every table from where it ended, a load and the delete policy; the reconciliation (§12), stopping at any failing gate;
+the numbering proposal (§9) applied; `state.cutover` set; the sync's queued jobs cancelled and its schedule put off for
+good (`state.scheduleRuns['sync.delta']` set as late as a date can be); a reminder to delete the webhook in Shopmonkey
+and revoke the API key. After cutover a load, an extract (CLI or screen) and the webhook refuse. A dry run goes through
+every step and changes nothing in the workshop (its refetches and delta stage, as the sync would, and leave the load
+to it).
