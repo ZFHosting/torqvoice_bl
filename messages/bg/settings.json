@@ -2246,7 +2246,12 @@
       "payments": "Плащания",
       "inspections": "Инспекции",
       "inventory": "Склад",
-      "findings": "Констатации"
+      "findings": "Констатации",
+      "workOrders": "Работни поръчки и задачи",
+      "contacts": "Контакти на клиенти",
+      "appointments": "Срещи",
+      "time": "Време и смени",
+      "technicians": "Техници"
     },
     "save": "Запази",
     "cancel": "Отказ",

@@ -46,6 +46,29 @@ export const WEBHOOK_EVENTS = [
   'finding.delete',
   // Diagnostic
   'ping.test',
+  // fork: the public API's events (docs/fork/API.md §5): `data` is the API's serialized resource
+  // (features/public-api/Lib/eventData.server.ts).
+  'appointment.create',
+  'appointment.update',
+  'appointment.delete',
+  'time_entry.start',
+  'time_entry.stop',
+  'time_entry.create',
+  'time_entry.update',
+  'time_entry.delete',
+  'shift.create',
+  'shift.update',
+  'shift.delete',
+  'technician.create',
+  'technician.update',
+  'technician.delete',
+  'work_order.issue',
+  'job.create',
+  'job.update',
+  'job.delete',
+  'contact.create',
+  'contact.update',
+  'contact.delete',
 ] as const
 
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number] | '*'
@@ -105,5 +128,29 @@ export const WEBHOOK_EVENT_GROUPS: Array<{ key: string; events: readonly Webhook
   {
     key: 'findings',
     events: ['finding.create', 'finding.update', 'finding.resolve', 'finding.delete'],
+  },
+  // fork: the public API's events (docs/fork/API.md §5).
+  { key: 'workOrders', events: ['work_order.issue', 'job.create', 'job.update', 'job.delete'] },
+  { key: 'contacts', events: ['contact.create', 'contact.update', 'contact.delete'] },
+  {
+    key: 'appointments',
+    events: ['appointment.create', 'appointment.update', 'appointment.delete'],
+  },
+  {
+    key: 'time',
+    events: [
+      'time_entry.start',
+      'time_entry.stop',
+      'time_entry.create',
+      'time_entry.update',
+      'time_entry.delete',
+      'shift.create',
+      'shift.update',
+      'shift.delete',
+    ],
+  },
+  {
+    key: 'technicians',
+    events: ['technician.create', 'technician.update', 'technician.delete'],
   },
 ]

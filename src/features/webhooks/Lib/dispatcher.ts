@@ -24,11 +24,17 @@ export type DispatchInput = {
  * No-op for unknown events so we don't generate deliveries for noise like
  * `auth.permissionDenied` or future audit-only actions.
  */
-export async function dispatchWebhookEvent(input: DispatchInput): Promise<void> {
+export async function dispatchWebhookEvent(original: DispatchInput): Promise<void> {
+  let input = original
   if (!input.event || !input.organizationId) return
   // A downgrade turns the endpoints off, not just the settings page.
   const features = await getFeatures(input.organizationId)
   if (!features.api) return
+  // fork: the public API's events (docs/fork/API.md §5) go out under the API's names, with the API's resource.
+  const fork = await import('@/features/public-api/Lib/eventData.server').then((m) =>
+    m.forkEvent(input)
+  )
+  if (fork) input = { ...input, event: fork.event, data: fork.data }
   if (!KNOWN.has(input.event)) return
 
   let webhooks: { id: string; events: string }[] = []

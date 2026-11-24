@@ -2246,7 +2246,12 @@
       "payments": "Zahlungen",
       "inspections": "Inspektionen",
       "inventory": "Lagerbestand",
-      "findings": "Befunde"
+      "findings": "Befunde",
+      "workOrders": "Aufträge und Arbeiten",
+      "contacts": "Kundenkontakte",
+      "appointments": "Termine",
+      "time": "Zeit und Schichten",
+      "technicians": "Mechaniker"
     },
     "save": "Speichern",
     "cancel": "Abbrechen",

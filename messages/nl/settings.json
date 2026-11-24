@@ -2246,7 +2246,12 @@
       "payments": "Betalingen",
       "inspections": "Inspecties",
       "inventory": "Voorraad",
-      "findings": "Bevindingen"
+      "findings": "Bevindingen",
+      "workOrders": "Werkorders en taken",
+      "contacts": "Klantcontacten",
+      "appointments": "Afspraken",
+      "time": "Tijd en diensten",
+      "technicians": "Monteurs"
     },
     "save": "Opslaan",
     "cancel": "Annuleren",

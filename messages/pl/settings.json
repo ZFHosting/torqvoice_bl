@@ -2246,7 +2246,12 @@
       "payments": "Płatności",
       "inspections": "Inspekcje",
       "inventory": "Magazyn",
-      "findings": "Uwagi"
+      "findings": "Uwagi",
+      "workOrders": "Zlecenia i prace",
+      "contacts": "Kontakty klientów",
+      "appointments": "Wizyty",
+      "time": "Czas i zmiany",
+      "technicians": "Mechanicy"
     },
     "save": "Zapisz",
     "cancel": "Anuluj",

@@ -2246,7 +2246,12 @@
       "payments": "Pagamentos",
       "inspections": "Inspeções",
       "inventory": "Stock",
-      "findings": "Observações"
+      "findings": "Observações",
+      "workOrders": "Ordens de reparação e trabalhos",
+      "contacts": "Contactos de clientes",
+      "appointments": "Marcações",
+      "time": "Tempo e turnos",
+      "technicians": "Técnicos"
     },
     "save": "Guardar",
     "cancel": "Cancelar",

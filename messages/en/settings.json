@@ -2246,7 +2246,12 @@
       "payments": "Payments",
       "inspections": "Inspections",
       "inventory": "Inventory",
-      "findings": "Findings"
+      "findings": "Findings",
+      "workOrders": "Work orders and jobs",
+      "contacts": "Customer contacts",
+      "appointments": "Appointments",
+      "time": "Time and shifts",
+      "technicians": "Technicians"
     },
     "save": "Save",
     "cancel": "Cancel",

@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { auditDetails, logAudit } from '@/lib/audit'
 import type { Prisma } from '@/generated/prisma/client'
 import {
   ensureAssetSnapshot,
@@ -183,7 +184,21 @@ export async function issueInvoice(
   // A backfilled invoice is dated to when it was sent, which is the
   // nearest thing to when it was issued that the record knows.
   const issuedAt = reason === 'backfill' ? (record.sentAt ?? new Date()) : new Date()
-  return captureIssue(recordId, organizationId, issuedAt)
+  const captured = await captureIssue(recordId, organizationId, issuedAt)
+  // fork: the public API's `work_order.issue` (docs/fork/API.md §5), through the audit log as every event goes.
+  // Not for a backfill: a workshop freezing (or importing) its history at once isn't news to a subscriber.
+  if (captured && reason !== 'backfill') {
+    await logAudit(
+      { userId: '', organizationId },
+      {
+        action: 'work_order.issue',
+        entity: 'work_order',
+        entityId: recordId,
+        details: auditDetails('work_order_issue'),
+      }
+    )
+  }
+  return captured
 }
 
 /**
