@@ -32,8 +32,8 @@ resolved.
 | A4 | done | fork/A4-write-endpoints | Merged c28b98d4. Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (A4 done). |
 | M6 | provisional | fork/M6-reconcile | Merged fae66342. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M6 provisional). |
 | M7 | provisional | fork/M7-delta-and-cutover | Merged 4ca6b295. Built on the synthetic fixtures and the mock server: re-verify the webhook and list facts with a key (B1). Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (M7 provisional). |
-| M8 | in_progress | fork/M8-import-ui | |
-| A5 | todo | | |
+| M8 | provisional | fork/M8-import-ui | Merged 2dc93789. Built on M5-M7 (synthetic fixtures, the mock server, the e2e stand-in): re-verify with a key (B1). Reviewer: ready for PR after 5 passes. Evidence in the Decisions log (M8 provisional). |
+| A5 | in_progress | fork/A5-events-reports | |
 | A6 | todo | | |
 | M9 | todo | | optional, last |
 
@@ -69,35 +69,22 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**M8 (import UI), in progress** on `fork/M8-import-ui` (drafted in `scratchpad/lf2` from M7's head, `fork/integration`
-merged in at 20e3dd32 after M7's merge; the upstream merge still conflicts, B15). Built on M5-M7 (provisional), so it
-ends `provisional` (B1). Plan:
-1. [x] Server: actions in `features/shopmonkey-import/Actions/` (one per file, `withImportAuth`: owner or admin plus the
-   settings permission, `forbidden` otherwise): read the import and the mapping, save the mapping (`state.mapping`, read
-   by every load), extract / stop / resume, queue a load or dry run (`load.run`), reconcile, queue the cutover
-   (`cutover.run`), undo a load. `SHOPMONKEY_API_BASE_URL` (environment only) for the e2e stand-in.
-2. [x] Screen: `ShopmonkeyImportPanel` under the connection on the connector page (mapping, run and progress, report,
-   sync and cutover, loads with undo), polling while something runs; the "Synced from Shopmonkey" banner on imported
-   work orders, customers and vehicles until cutover (moved here from M7). Strings in `messages/*/shopmonkeyImport.json`
-   (English in every locale until translated).
-3. [x] Typecheck (exit 0), Biome (changed files clean; the connector page keeps upstream's lines, 8574d8ff), unit tests
-   (`import-actions` and `import-view`: 24; the Shopmonkey folder with the extract stop test; `registry` 3/3 alone) and
-   the db test (`shopmonkey-import-screen`: 3).
-4. [x] Playwright: `e2e/specs/shopmonkey/import.spec.ts` against `e2e/shopmonkey-standin.ts`, run with
-   `scratchpad/e2e-m8.sh` (own database `torqvoice_fork_e2e` migrated with `migrate dev` and seeded, own server,
-   `E2E_SKIP_SEED=1`: the suite's reset is `prisma migrate reset`, which an agent may not run without consent), Edge
-   (`scratchpad/pw-edge.config.ts`): 3 passed at ff8838e7 (setup, the import flow, dark mode + nb). Found and fixed on the
-   way: the CLI and scripts never exited after a load (realtime `LISTEN`, `scripts/shopmonkey/exit.ts`), toast waits.
-5. [ ] Reviewer pass 2 (19beb787): needs changes (3 must-fix: runs stay live past the stuck recovery; the B10 portal
-   descope unrecorded; re-run DoD and e2e), fixed in a6880c30 with most should-fixes (Decisions log, M8 rows; the rest
-   moved to M9 in the carry-over notes); the spec passed at a6880c30 (3/3). Pass 3 (a6880c30): needs changes (3
-   must-fix: DoD at the final HEAD plus a db test of the history SQL; the mapping cache; the portal can be checked in
-   the spec), fixed in 5c3e5a4e with should-fixes 1-6; the portal step needed the confirm button (10fce8e3), then the
-   spec passed 3/3 and `tsc` exited 0 at 10fce8e3. Pass 4 (5c3e5a4e): needs changes (1 must-fix: the DoD at the final
-   HEAD), should-fixes 1-9 fixed in edda89d8 (unit 42, db `shopmonkey-import-screen` 13 pass). Now: rebuild and spec
-   at edda89d8, reviewer pass 5 (running), full DoD (tsc, unit suite, test:db, Biome LF), merge.
-Reviewer pass 1 (8574d8ff): needs changes (2 must-fix), fixed in eea4f0f4; the first e2e attempt's `server-only` fix in
-a46fda71.
+**A5 (events, reports, source records), in progress** on `fork/A5-events-reports` (drafted in `scratchpad/lf3` from
+`fork/integration`; the upstream merge still conflicts, B15). Plan:
+1. [x] Events: the fork's events (API.md §5) in `WEBHOOK_EVENTS` with groups and labels (14 locales), sent with the
+   API's serialized resource through the dispatcher's fork hook (`public-api/Lib/eventData.server.ts`); time entry
+   names; `work_order.issue` (not for backfill); sample payloads; `restore.complete`.
+2. [x] Reports: `/reports/sales` (the reports screen's records and figures, moved to
+   `features/reports/Lib/revenueRecords.server.ts`), `/reports/receivables` (aging, the past-due report's rule),
+   `/reports/technicians` (sold, clocked, shift minutes, jobs completed), periods on the workshop's clock.
+3. [x] `/source-records` (read:settings) and `include=source` on the 13 importable resources (`sourceModel` on each
+   spec, `Lib/sources.server.ts`, read:settings).
+4. [x] `/deleted` (per-kind permission) with tombstones for the deletes A2 missed (an inspection, a pulled payment, a
+   booking's placeholder) and `restore` / `reset` markers for restores and bulk deletes (settings wipe, sample data,
+   spreadsheet import undo, Shopmonkey undo), written after commit (`Lib/resets.server.ts`). No migration.
+5. [ ] Tests: unit (`report-periods`, `event-data`); db (`public-api-a5.db.test.ts`: reports against the screen in
+   Pacific/Auckland, tenant isolation and permissions of `/deleted` and `/source-records`, `include=source`, markers,
+   `restore.complete`, an event from the app's booking action and from the API). Then DoD, reviewer, merge.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
@@ -359,3 +346,4 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | M8: the Shopmonkey CLI and the e2e job scripts load the app's server modules outside Next.js through `scripts/shopmonkey/register.mjs` (a `module.registerHooks` hook resolving `server-only` to an empty module; Node 22.15 or later, which it checks), not `--conditions=react-server` (that breaks `use-intl`). They end their own process (`scripts/shopmonkey/exit.ts`): once a run publishes anything, the realtime bus keeps a `LISTEN` connection open for the life of the process, so a load or undo from a script never exited. The M3 brief's "Decisions log" note about `--conditions` refers to this row. | The first e2e runs: the CLI never started (`server-only`), then hung after a load. |
 | 2026-11-23 | M8: the import screen's loads don't apply the numbering or settings proposals (S10); a dry run saves them (`state.lastDryRun.proposals`) and the CLI's `--apply-numbering` and the cutover's step 4 apply them, as MAPPING §9 says. Showing them on the screen is carried to M9. | Applying numbering changes what every new invoice is called; the cutover is where that belongs, with the operator's checklist (CUTOVER.md). |
 | 2026-11-23 | M8: a load or cutover queued from the screen is one at a time: a token per run, refused while the queue has one queued or running, the dry run under the load lock, and a heartbeat every minute that renews its job's lock (so the queue's ten-minute stuck recovery never starts it again and the screen keeps seeing it) and stamps `beatAt`. A copy of a run that started never runs it: a live one (a beat in the last three minutes) is left alone, one whose worker stopped (no beat for three minutes, or none at all: a copy only exists once the job's lock went ten minutes unrenewed) is marked failed, a finished one stays as it is; a job that names no run is not run. The heartbeat names its run's token in both writes. A run whose job the queue no longer has shows as interrupted, 30 seconds after it was queued at the earliest. Loads wait for a finished extract; an undo waits for a load or the cutover under way. The import screen lists the operator's loads apart from the sync's (a sync load's audit carries `sync: true`). | Reviewer passes 1 and 2 (must-fix 1 both times). |
+| 2026-11-23 | **M8 provisional.** DoD at ef8a859f: `tsc` exit 0; Biome 14 (the baseline, LF checkout); `npm test` in chunks (`m8dod2`): failures only on the Windows/CRLF baseline (api/health, photo-handoff, portal-upload, lib/backup engine and restic, files/manager, only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access, equipment-gates, portal-file-route, meters-gates), the two CRLF-only files pass with LF schema files (`backup-manifest`, `workshop-columns`: 26 tests), and `registry` (3) and `fiken` (32) pass alone (they time out under load); `test:db` 36 files / 237 tests (at edda89d8; `shopmonkey-import-screen` 13/13 again at ef8a859f); Playwright `e2e/specs/shopmonkey/import.spec.ts` 3/3 at ef8a859f with Edge against its own database (`scratchpad/e2e-m8.sh`, `pw-edge.config.ts`; the portal's sign-in mail went to the suite's mail sink only). Reviewer: needs changes (pass 1: 2 must-fix; pass 2: 3; pass 3: 3; pass 4: 1, the reruns), ready for PR (pass 5). Provisional: everything it shows rests on M5-M7, built on the synthetic fixtures (B1). | Acceptance evidence: (1) the spec connects to the stand-in, extracts, saves the mapping, dry-runs, loads, sees all four gates pass and undoes (`import.spec.ts` "connects, extracts, maps, dry-runs, loads, reconciles and undoes"); (2) dark mode and Norwegian with English fallbacks ("shows the import, in English where the language has no words for it yet"); (3) the vehicle with no year, make or model shows "Unknown Unknown" and no stray "0", and the job billed to the previous owner names them on the work order and is listed in the current owner's portal (same spec; db test "lists a job billed to a vehicle’s previous owner in the current owner’s portal (B10’s default)"); (4) every action refuses a member with `forbidden` (`import-actions.test.ts`, 11 actions). |
