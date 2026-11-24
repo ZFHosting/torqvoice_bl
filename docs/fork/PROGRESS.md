@@ -33,8 +33,8 @@ resolved.
 | M6 | provisional | fork/M6-reconcile | Merged fae66342. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M6 provisional). |
 | M7 | provisional | fork/M7-delta-and-cutover | Merged 4ca6b295. Built on the synthetic fixtures and the mock server: re-verify the webhook and list facts with a key (B1). Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (M7 provisional). |
 | M8 | provisional | fork/M8-import-ui | Merged 2dc93789. Built on M5-M7 (synthetic fixtures, the mock server, the e2e stand-in): re-verify with a key (B1). Reviewer: ready for PR after 5 passes. Evidence in the Decisions log (M8 provisional). |
-| A5 | in_progress | fork/A5-events-reports | |
-| A6 | todo | | |
+| A5 | done | fork/A5-events-reports | Merged a1112343. Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (A5 done). |
+| A6 | in_progress | fork/A6-hardening | |
 | M9 | todo | | optional, last |
 
 ## Current step
@@ -69,32 +69,20 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**A5 (events, reports, source records), in progress** on `fork/A5-events-reports` (drafted in `scratchpad/lf3` from
-`fork/integration`; the upstream merge still conflicts, B15). Plan:
-1. [x] Events: the fork's events (API.md §5) in `WEBHOOK_EVENTS` with groups and labels (14 locales), sent with the
-   API's serialized resource through the dispatcher's fork hook (`public-api/Lib/eventData.server.ts`); time entry
-   names; `work_order.issue` (not for backfill); sample payloads; `restore.complete`.
-2. [x] Reports: `/reports/sales` (the reports screen's records and figures, moved to
-   `features/reports/Lib/revenueRecords.server.ts`), `/reports/receivables` (aging, the past-due report's rule),
-   `/reports/technicians` (sold, clocked, shift minutes, jobs completed), periods on the workshop's clock.
-3. [x] `/source-records` (read:settings) and `include=source` on the 13 importable resources (`sourceModel` on each
-   spec, `Lib/sources.server.ts`, read:settings).
-4. [x] `/deleted` (per-kind permission) with tombstones for the deletes A2 missed (an inspection, a pulled payment, a
-   booking's placeholder) and `restore` / `reset` markers for restores and bulk deletes (settings wipe, sample data,
-   spreadsheet import undo, Shopmonkey undo), written after commit (`Lib/resets.server.ts`). No migration.
-5. [x] Tests: unit (`report-periods`, `event-data`, `sources`, `resets`: the public-api folder 15 files / 106 tests
-   pass); db (`public-api-a5.db.test.ts` 12/12 at c82a0cde: reports against the screen in Pacific/Auckland, tenant
-   isolation and permissions of `/deleted` and `/source-records`, `include=source`, markers, `restore.complete`, an
-   event from the app's booking action and from the API); `tsc` exit 0; Biome 14 (baseline) in the LF worktree.
-6. [ ] Reviewer pass 1 (c82a0cde): needs changes (5 must-fix: parent ids on contact/job events; the app's and the
-   technician app's clocks sent no events; `?entityType=` hid the markers; an appointment turned into a work order
-   left no tombstone; upstream edits untested) and 11 should-fixes, fixed in 4977b6ff/d48bf10b (the dispatcher reads
-   only for subscribers and never drops a delivery, `include=source` reads the archive by local row as `sourceRecord`,
-   samples for all 22 events, audit sentences, stricter report queries, `public-api-a5-hooks.db.test.ts`). The
-   restore marker made the round-trip and tenancy tests see one new row: they now set the restore's own rows aside and
-   assert them (c2e26b32). At d48bf10b: `tsc` 0, Biome 14 (baseline); the affected unit folders 128 files / 1940
-   tests; the A5 and restore db files 4 / 28. Now: full unit suite and `test:db` (running), reviewer pass 2
-   (running), merge.
+**A6 (hardening), in progress** on `fork/A6-hardening` (from `fork/integration` after A5; the upstream merge still
+conflicts, B15). Plan, from the brief:
+1. [ ] Playwright `e2e/specs/public-api.spec.ts`: a key made in Settings, then customer → work order → lines → payment
+   over HTTP; the UI shows them, and the webhook delivery log has the events.
+2. [ ] Contract tests from `openapi.json` (fast-check, in `node_modules` already): generated requests for every
+   endpoint, responses validate, nothing 500s.
+3. [ ] Isolation sweep: every route with workshop A's key and workshop B's ids is a 404 (B seeded through the API, as
+   A4's write tests do).
+4. [ ] Load check on the local test database only: 20 rps on the list endpoints over 50,000 work orders for two minutes,
+   p95 under 500 ms; indexes where needed (a `fork_` migration if any).
+5. [ ] `docs/fork/SECURITY-REVIEW.md` (notes in `scratchpad/a6-draft/security-notes.md`; the A1 items; `npm audit`).
+6. [ ] `docs/fork/API-GUIDE.md` (draft in `scratchpad/a6-draft/API-GUIDE.md`; idempotency's limits).
+7. [ ] API keys' service users on the Team page: labelled as API keys, left out of the seat count (`// fork:` filters
+   on `user: { apiKey: null }`).
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
@@ -357,3 +345,6 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | M8: the import screen's loads don't apply the numbering or settings proposals (S10); a dry run saves them (`state.lastDryRun.proposals`) and the CLI's `--apply-numbering` and the cutover's step 4 apply them, as MAPPING §9 says. Showing them on the screen is carried to M9. | Applying numbering changes what every new invoice is called; the cutover is where that belongs, with the operator's checklist (CUTOVER.md). |
 | 2026-11-23 | M8: a load or cutover queued from the screen is one at a time: a token per run, refused while the queue has one queued or running, the dry run under the load lock, and a heartbeat every minute that renews its job's lock (so the queue's ten-minute stuck recovery never starts it again and the screen keeps seeing it) and stamps `beatAt`. A copy of a run that started never runs it: a live one (a beat in the last three minutes) is left alone, one whose worker stopped (no beat for three minutes, or none at all: a copy only exists once the job's lock went ten minutes unrenewed) is marked failed, a finished one stays as it is; a job that names no run is not run. The heartbeat names its run's token in both writes. A run whose job the queue no longer has shows as interrupted, 30 seconds after it was queued at the earliest. Loads wait for a finished extract; an undo waits for a load or the cutover under way. The import screen lists the operator's loads apart from the sync's (a sync load's audit carries `sync: true`). | Reviewer passes 1 and 2 (must-fix 1 both times). |
 | 2026-11-23 | **M8 provisional.** DoD at ef8a859f: `tsc` exit 0; Biome 14 (the baseline, LF checkout); `npm test` in chunks (`m8dod2`): failures only on the Windows/CRLF baseline (api/health, photo-handoff, portal-upload, lib/backup engine and restic, files/manager, only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access, equipment-gates, portal-file-route, meters-gates), the two CRLF-only files pass with LF schema files (`backup-manifest`, `workshop-columns`: 26 tests), and `registry` (3) and `fiken` (32) pass alone (they time out under load); `test:db` 36 files / 237 tests (at edda89d8; `shopmonkey-import-screen` 13/13 again at ef8a859f); Playwright `e2e/specs/shopmonkey/import.spec.ts` 3/3 at ef8a859f with Edge against its own database (`scratchpad/e2e-m8.sh`, `pw-edge.config.ts`; the portal's sign-in mail went to the suite's mail sink only). Reviewer: needs changes (pass 1: 2 must-fix; pass 2: 3; pass 3: 3; pass 4: 1, the reruns), ready for PR (pass 5). Provisional: everything it shows rests on M5-M7, built on the synthetic fixtures (B1). | Acceptance evidence: (1) the spec connects to the stand-in, extracts, saves the mapping, dry-runs, loads, sees all four gates pass and undoes (`import.spec.ts` "connects, extracts, maps, dry-runs, loads, reconciles and undoes"); (2) dark mode and Norwegian with English fallbacks ("shows the import, in English where the language has no words for it yet"); (3) the vehicle with no year, make or model shows "Unknown Unknown" and no stray "0", and the job billed to the previous owner names them on the work order and is listed in the current owner's portal (same spec; db test "lists a job billed to a vehicle’s previous owner in the current owner’s portal (B10’s default)"); (4) every action refuses a member with `forbidden` (`import-actions.test.ts`, 11 actions). |
+| 2026-11-24 | A5: restores and bulk deletes are marked in `DeletedRecord` itself (`entityType` `restore` or `reset`, `entityId` the reason), written after the change commits, served at `/deleted` to every key and through any `?entityType=` filter: no new table, no migration. The reset is for deletes that remove many rows and what cascades with them (the settings wipe, the sample data, a spreadsheet import's undo, a Shopmonkey undo); one-at-a-time deletes all leave tombstones. A restore's own marker and `restore.complete` delivery are set aside (and asserted) in the restore round-trip and tenancy tests. | Brief tasks 6 and 7: the brief allows "list them at `/deleted` as not covered"; per-row tombstones for cascades would miss children. |
+| 2026-11-24 | A5: the fork's events go out through the dispatcher's hook (`public-api/Lib/eventHook.ts`, three marked lines in `dispatcher.ts`): the API's name and kind first without a read, the record only once a webhook subscribes, its id (and the ids that find it) if it can't be read. Every clock sends `time_entry.start`/`stop` (the app's My clock, the technician app's start, stop and finish-a-job, the API's start and the clock it closed; marked calls to `clockEvents.server.ts`); `startEntry` returns `fresh` (two marked lines). `include=source` is `sourceRecord` (a time entry and a shift already have `source`), read by the archive's local row. | Reviewer passes 1-2. |
+| 2026-11-24 | **A5 done.** DoD at 02aa97a2 (a1112343 merged): `tsc` exit 0; Biome 14 (the baseline, LF checkout); `npm test` in chunks (`a5dod3`): failures only on the Windows baseline (api/health, photo-handoff, portal-upload, lib/backup engine and restic, files/manager, only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access, equipment-gates, portal-file-route, meters-gates); `test:db` 38 files / 260 tests at b10d4c91 (`public-api-a5-hooks` 9/9 again at 02aa97a2). Reviewer: needs changes (pass 1: 5 must-fix; pass 2: 2), ready for PR (pass 3). | Acceptance evidence: (1) each event once from the UI and the API with the serialized `data`: `public-api-a5.db.test.ts` "goes out once from the app’s own booking dialog…" and "goes out with the API’s resource…", `public-api-a5-hooks.db.test.ts` (the app's and the technician app's clocks, `work_order.issue`, `appointment.delete`), `dispatcher-fork.test.ts`, `event-data.test.ts`; (2) the reports match the reports screen in Pacific/Auckland: "group sales by the workshop’s month…" (every shared figure and the summary), "age what is owed…", "give each technician the hours sold and clocked…", "name a day and a week…across its midnight", with workshop B's data kept out; (3) `/source-records` tenant-isolated and needing `read:settings`: "serve the Shopmonkey archive to its own workshop only, with read:settings", and `include=source` the same ("lists them on a page, and needs read:settings"). |
