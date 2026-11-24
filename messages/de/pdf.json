@@ -23,6 +23,8 @@
     "otherParts": "Sonstige Teile",
     "groupSubtotal": "Zwischensumme {group}",
     "otherJobLines": "Sonstiges",
+    "jobDeclined": "{job} (abgelehnt)",
+    "jobDeferred": "{job} (zurückgestellt)",
     "partNumber": "Teilenr.",
     "description": "Beschreibung",
     "qty": "Menge",

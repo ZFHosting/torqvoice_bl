@@ -1,6 +1,6 @@
 {
   "title": "Jobber",
-  "description": "Linjene under jobben de hører til. Flytt en linje med menyen, og lagre arbeidsordren.",
+  "description": "Linjene under jobben de hører til. Flytt en linje med menyen, og lagre.",
   "addJob": "Legg til jobb",
   "addTitle": "Legg til en jobb",
   "editTitle": "Rediger jobben",

@@ -1,6 +1,6 @@
 {
   "title": "Lavori",
-  "description": "Le righe sotto il lavoro a cui appartengono. Sposta una riga dal suo menu, poi salva l’ordine di lavoro.",
+  "description": "Le righe sotto il lavoro a cui appartengono. Sposta una riga dal suo menu, poi salva.",
   "addJob": "Aggiungi lavoro",
   "addTitle": "Aggiungi un lavoro",
   "editTitle": "Modifica il lavoro",

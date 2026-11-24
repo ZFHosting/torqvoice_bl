@@ -23,6 +23,8 @@
     "otherParts": "Other parts",
     "groupSubtotal": "{group} subtotal",
     "otherJobLines": "Other",
+    "jobDeclined": "{job} (declined)",
+    "jobDeferred": "{job} (deferred)",
     "partNumber": "Part #",
     "description": "Description",
     "qty": "Qty",

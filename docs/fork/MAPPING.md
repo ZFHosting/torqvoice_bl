@@ -470,13 +470,17 @@ differs from the workshop's, never applied: renaming the workshop is the operato
   The matched line keeps its job, kind, technician, completion, cost, discount, note and source fields. A line
   that matches nothing (new, a renamed labor line, a part renamed and renumbered) gets none: a removed line
   plus an added one looks like a rename, and a technician or job moved onto the wrong line is worse than one
-  lost. What it came from stays in the archive.
+  lost. What it came from stays in the archive. Since M9 the pages send each line's **job** (`jobId`), so a
+  line keeps or changes its job by what the page says, renamed or not; a job id the page holds that isn't the
+  document's any more (the sync recreated the job) falls back to the match above.
 
 ## 10. Known non-1:1 points (tell the client)
 
 - One Shopmonkey location per Torqvoice install, unless you have the white-label license.
-- Invoices print lines flat until the job grouping (X2) is drawn on the invoice (milestone M9, optional).
-  The grouping is stored and served by the API from day one.
+- Invoices and quotes print a document's lines under its jobs (X2, milestone M9): each Shopmonkey service's
+  name, its lines and their subtotal, then the lines of no job. The layout can say otherwise (Settings →
+  designer, "Group lines"). Shopmonkey's own PDF hasn't been compared yet (B1); declined, deferred, hidden and
+  lump-sum services print as their lines do (see M9's brief).
 - Vendors, purchase orders, statements, pricing matrices and message history are archive only in this
   phase. They're readable through `/api/v1/source-records` but not shown in the app.
 - Login accounts aren't migrated. Staff get invited.
@@ -489,8 +493,9 @@ differs from the workshop's, never applied: renaming the workshop is the operato
 - Customer and vehicle details on imported invoices are frozen as they are in Shopmonkey at import time,
   not as they were on the invoice date.
 - **Renaming a labor line, or renaming and renumbering a part, on an imported work order or quote** drops
-  that line's job, technician, cost and source fields (§9.2): the page sends no line ids, so a renamed line
-  can't be told from a new one. Every other edit keeps them; the originals stay in the archive.
+  that line's technician, cost and source fields (§9.2): the page sends no line ids, so a renamed line can't be
+  told from a new one. Its job is kept (the page sends it since M9). Every other edit keeps them; the originals
+  stay in the archive.
 
 ---
 

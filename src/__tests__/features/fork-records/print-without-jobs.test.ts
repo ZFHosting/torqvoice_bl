@@ -41,6 +41,7 @@ const invoiceData = {
       category: 'Brakes',
       unitPrice: 75,
       total: 150,
+      jobId: null,
     },
     {
       partNumber: 'BP-2',
@@ -50,6 +51,7 @@ const invoiceData = {
       category: 'Brakes',
       unitPrice: 96,
       total: 96,
+      jobId: null,
     },
     {
       partNumber: 'OF-3',
@@ -59,12 +61,22 @@ const invoiceData = {
       category: null,
       unitPrice: 15,
       total: 15,
+      jobId: null,
     },
   ],
   laborItems: [
-    { description: 'Replace discs and pads', hours: 2.5, rate: 100, total: 250 },
-    { description: 'Oil change', hours: 1, rate: 70, total: 70, pricingType: 'service' },
+    { description: 'Replace discs and pads', hours: 2.5, rate: 100, total: 250, jobId: null },
+    {
+      description: 'Oil change',
+      hours: 1,
+      rate: 70,
+      total: 70,
+      pricingType: 'service',
+      jobId: null,
+    },
   ],
+  // As the database returns a document without jobs.
+  workJobs: [],
   customer: {
     name: 'Alex Carter',
     email: 'alex@example.com',

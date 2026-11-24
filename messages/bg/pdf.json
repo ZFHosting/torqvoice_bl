@@ -23,6 +23,8 @@
     "otherParts": "Други резервни части",
     "groupSubtotal": "Междинна сума за {group}",
     "otherJobLines": "Други",
+    "jobDeclined": "{job} (отказана)",
+    "jobDeferred": "{job} (отложена)",
     "partNumber": "Артикулен номер",
     "description": "Описание",
     "qty": "Кол.",

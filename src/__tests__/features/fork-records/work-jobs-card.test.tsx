@@ -1,7 +1,8 @@
 /**
  * fork (M9, docs/fork/milestones/M9-job-grouping-ui.md task 1): the Jobs card on the work order and quote pages. It
- * shows the lines under their jobs and "Other", saves job changes at once and moves lines in the form; a workshop
- * without jobs doesn't see it. SYNTHETIC data.
+ * shows the lines under their jobs and "Other", saves job changes at once and moves lines in the form. (A workshop
+ * without jobs never mounts it: its page reads that on the server; the work-jobs Playwright spec shows it.) SYNTHETIC
+ * data.
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -66,6 +67,7 @@ function renderCard(onMoveLine = vi.fn(), locked = false) {
     wrap(
       <WorkJobsCard
         parent={parent}
+        initialJobs={JOBS}
         laborItems={labor}
         partItems={parts}
         onMoveLine={onMoveLine}
@@ -90,11 +92,10 @@ beforeEach(() => {
 })
 
 describe('the Jobs card', () => {
-  it('is not there for a workshop without jobs', async () => {
-    actions.getWorkJobs.mockResolvedValue({ success: true, data: { usesJobs: false, jobs: [] } })
+  it('shows the jobs the page read on the server, without asking again', async () => {
     renderCard()
-    await waitFor(() => expect(actions.getWorkJobs).toHaveBeenCalledWith({ parent }))
-    expect(screen.queryByText('Jobs')).toBeNull()
+    expect(screen.getByRole('region', { name: 'Front brakes' })).toBeInTheDocument()
+    expect(actions.getWorkJobs).not.toHaveBeenCalled()
   })
 
   it('shows each job with its note, status, subtotal and lines, and the lines of no job under Other', async () => {

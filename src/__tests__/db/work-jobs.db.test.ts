@@ -207,6 +207,18 @@ describe('another workshop’s documents and jobs', () => {
     const removed = await a.deleteWorkJob({ parent: mine, jobId: ids.bJob })
     expect(removed).toMatchObject({ success: false, error: 'Job not found' })
     expect((await a.getWorkJobs({ parent: theirs })).data?.jobs).toEqual([])
+    const theirQuote = (
+      await db.quote.create({
+        data: { organizationId: B.org, userId: B.owner, title: 'Their quote' },
+      })
+    ).id
+    expect(
+      await a.createWorkJob({ parent: { kind: 'quote', id: theirQuote }, name: 'Sneaky' })
+    ).toMatchObject({
+      success: false,
+      error: 'Quote not found',
+    })
+    expect(await db.workJob.count({ where: { quoteId: theirQuote } })).toBe(0)
     expect(await db.workJob.findUniqueOrThrow({ where: { id: ids.bJob } })).toMatchObject({
       name: 'Their job',
       serviceRecordId: ids.bOrder,
@@ -349,5 +361,74 @@ describe('saving a work order’s lines', () => {
     expect(
       (await db.serviceLabor.findFirstOrThrow({ where: { serviceRecordId: ids.aOrder } })).jobId
     ).toBeNull()
+  })
+
+  it('keeps a line’s job when the page holds a job id the sync has since recreated', async () => {
+    const was = await db.workJob.create({
+      data: { organizationId: A.org, serviceRecordId: ids.aOther, name: 'Synced' },
+    })
+    await db.serviceLabor.create({
+      data: {
+        serviceRecordId: ids.aOther,
+        description: 'Synced line',
+        hours: 1,
+        rate: 1,
+        total: 1,
+        jobId: was.id,
+      },
+    })
+    // The Shopmonkey sync replaces the job (a new id) and points the line at it, while the page is open.
+    const now = await db.workJob.create({
+      data: { organizationId: A.org, serviceRecordId: ids.aOther, name: 'Synced' },
+    })
+    await db.serviceLabor.updateMany({
+      where: { serviceRecordId: ids.aOther },
+      data: { jobId: now.id },
+    })
+    await db.workJob.delete({ where: { id: was.id } })
+    const { updateServiceRecordService } = await import(
+      '@/features/vehicles/Lib/serviceRecordService.server'
+    )
+    await updateServiceRecordService(
+      { organizationId: A.org, userId: A.owner, actor: 'user' },
+      {
+        id: ids.aOther,
+        laborItems: [{ description: 'Synced line', hours: 1, rate: 1, total: 1, jobId: was.id }],
+      }
+    )
+    expect(
+      (await db.serviceLabor.findFirstOrThrow({ where: { serviceRecordId: ids.aOther } })).jobId
+    ).toBe(now.id)
+  })
+
+  it('refuses, through the API, a job on a new work order, or one that isn’t the quote’s (404)', async () => {
+    const { resetKeyBudgets } = await import('@/features/public-api/Lib/rateLimit')
+    resetKeyBudgets()
+    const own = await db.workJob.findFirstOrThrow({ where: { serviceRecordId: ids.aOrder } })
+    const vehicle = await db.vehicle.findFirstOrThrow({ where: { organizationId: A.org } })
+    const before = await db.serviceRecord.count({ where: { organizationId: A.org } })
+    const { POST } = await route('work-orders')
+    const created = await call(POST, A.key, 'POST', '/work-orders', {
+      body: {
+        vehicleId: vehicle.id,
+        title: 'New with a job',
+        type: 'repair',
+        laborItems: [{ description: 'L', hours: 1, rate: 1, total: 1, jobId: own.id }],
+      },
+    })
+    expect(created.status).toBe(404)
+    expect(await db.serviceRecord.count({ where: { organizationId: A.org } })).toBe(before)
+
+    const { PATCH } = await route('quotes/[id]')
+    const patched = await call(PATCH, A.key, 'PATCH', `/quotes/${ids.aQuote}`, {
+      params: { id: ids.aQuote },
+      body: { partItems: [{ name: 'Belt', quantity: 1, unitPrice: 50, total: 50, jobId: own.id }] },
+    })
+    expect(patched.status).toBe(404)
+    expect(
+      (await db.quotePart.findMany({ where: { quoteId: ids.aQuote }, select: { name: true } }))
+        .map((p) => p.name)
+        .sort()
+    ).toEqual(['Belt', 'Pump'])
   })
 })

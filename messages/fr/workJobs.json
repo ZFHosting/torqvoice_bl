@@ -1,6 +1,6 @@
 {
   "title": "Travaux",
-  "description": "Les lignes sous le travail auquel elles appartiennent. Déplacez une ligne avec son menu, puis enregistrez l’ordre de travail.",
+  "description": "Les lignes sous le travail auquel elles appartiennent. Déplacez une ligne avec son menu, puis enregistrez.",
   "addJob": "Ajouter un travail",
   "addTitle": "Ajouter un travail",
   "editTitle": "Modifier le travail",

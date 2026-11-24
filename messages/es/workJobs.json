@@ -1,6 +1,6 @@
 {
   "title": "Trabajos",
-  "description": "Las líneas bajo el trabajo al que pertenecen. Mueve una línea con su menú y guarda la orden de trabajo.",
+  "description": "Las líneas bajo el trabajo al que pertenecen. Mueve una línea con su menú y guarda.",
   "addJob": "Añadir trabajo",
   "addTitle": "Añadir un trabajo",
   "editTitle": "Editar el trabajo",

@@ -169,6 +169,8 @@ export function InvoiceDesigner({
   const arrivedWith = initialDesign ?? initialPreset
   const [view, setView] = useState<'gallery' | 'designer'>(arrivedWith ? 'designer' : initialView)
   const [docType, setDocType] = useState<DocumentType>(initialDocumentType)
+  // fork (M9): invoices and quotes print by job; the technician's work order sheet doesn't (M9's brief)
+  const jobGrouping = workshopUsesJobs && (docType === 'invoice' || docType === 'quote')
   // Each document places its own entity's fields: quotes carry quote fields.
   // A certificate has no workshop-defined fields of its own.
   const customFields =
@@ -397,7 +399,7 @@ export function InvoiceDesigner({
           ? { dataUri: telegramQrDataUri, label: L('telegramConnect', 'Chat with us on Telegram') }
           : undefined,
       // fork (M9): the sample has jobs, as this workshop's documents do, so unset previews by job
-      groupByJob: workshopUsesJobs,
+      groupByJob: jobGrouping,
     }),
     [
       workshop,
@@ -414,7 +416,7 @@ export function InvoiceDesigner({
       telegramOn,
       telegramQrDataUri,
       L,
-      workshopUsesJobs,
+      jobGrouping,
     ]
   )
 
@@ -1345,7 +1347,7 @@ export function InvoiceDesigner({
           onOrgNumberLabel={setOrgNumberLabel}
           telegramBotLink={telegramBotLink}
           signatureSet={Boolean(companyWorkshop.signatureUrl)}
-          workshopUsesJobs={workshopUsesJobs} // fork (M9)
+          workshopUsesJobs={jobGrouping} // fork (M9)
           found={found}
           onLogo={(url) => setTemplate({ logoUrl: url })}
         />

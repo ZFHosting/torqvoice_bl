@@ -98,7 +98,7 @@ export interface InvoiceData {
    * fork (M9): the document's jobs, for a layout that groups lines by job, as `PRINT_JOBS` reads them
    * (fork-records/Lib/printJobGroups.ts). A table that sets no grouping groups by job when there are any.
    */
-  workJobs?: { id: string; name: string; ordinal: number }[]
+  workJobs?: import('@/features/fork-records/Lib/printJobGroups').PrintJob[]
   /** fork (M9): false prints a table that sets no grouping flat, jobs or not (the designer's sample sets it). */
   groupByJob?: boolean
   customFields?: PrintableCustomField[]

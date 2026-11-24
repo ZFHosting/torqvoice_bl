@@ -23,6 +23,8 @@
     "otherParts": "Altri ricambi",
     "groupSubtotal": "Subtotale {group}",
     "otherJobLines": "Altro",
+    "jobDeclined": "{job} (rifiutato)",
+    "jobDeferred": "{job} (rimandato)",
     "partNumber": "N. pezzo",
     "description": "Descrizione",
     "qty": "Qtà",

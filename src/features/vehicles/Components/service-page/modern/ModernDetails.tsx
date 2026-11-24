@@ -485,17 +485,20 @@ export function ModernDetails(props: ModernDetailsProps) {
                   )}
 
                   {/* fork (M9): the lines under their jobs, for a workshop that has jobs */}
-                  <WorkJobsCard
-                    parent={{ kind: 'workOrder', id: record.id }}
-                    laborItems={formState.laborItems}
-                    partItems={formState.partItems}
-                    onMoveLine={(kind, index, jobId) =>
-                      kind === 'labor'
-                        ? formState.updateLabor(index, 'jobId', jobId ?? '')
-                        : formState.updatePart(index, 'jobId', jobId ?? '')
-                    }
-                    locked={locked}
-                  />
+                  {formState.initialData.jobsView && (
+                    <WorkJobsCard
+                      parent={{ kind: 'workOrder', id: record.id }}
+                      initialJobs={formState.initialData.jobsView.jobs}
+                      laborItems={formState.laborItems}
+                      partItems={formState.partItems}
+                      onMoveLine={(kind, index, jobId) =>
+                        kind === 'labor'
+                          ? formState.updateLabor(index, 'jobId', jobId ?? '')
+                          : formState.updatePart(index, 'jobId', jobId ?? '')
+                      }
+                      locked={locked}
+                    />
+                  )}
 
                   <LaborEditor
                     laborItems={formState.laborItems}

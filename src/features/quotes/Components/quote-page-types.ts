@@ -53,6 +53,8 @@ export interface QuoteRecord {
   inspectionId: string | null
   createdAt: Date
   updatedAt: Date
+  /** fork (M9): the quote's jobs, for its Jobs card; null or absent for a workshop without jobs. */
+  jobsView?: import('@/features/fork-records/Schema/workJobActionSchemas').PageJobs | null
   partItems: {
     id: string
     partNumber: string | null

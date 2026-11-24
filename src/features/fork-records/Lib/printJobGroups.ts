@@ -16,6 +16,19 @@ export interface PrintJob {
   id: string
   name: string
   ordinal: number
+  /** Shopmonkey's, as it was (`Declined` leaves the service out of the totals, MAPPING §6.3). */
+  authorizationStatus?: string | null
+  /** A deferred service is left out of the totals too. */
+  deferredDate?: Date | string | null
+}
+
+/**
+ * A job whose lines don't count toward the document's totals (MAPPING §6.3): declined, or deferred. It prints its
+ * lines under its name, marked, with no subtotal to add up. PROVISIONAL(M0:S5): the rule is the importer's.
+ */
+function notCounted(job: PrintJob): 'declined' | 'deferred' | null {
+  if (job.authorizationStatus?.trim().toLowerCase() === 'declined') return 'declined'
+  return job.deferredDate ? 'deferred' : null
 }
 
 /**
@@ -24,7 +37,7 @@ export interface PrintJob {
  */
 export const PRINT_JOBS = {
   orderBy: [{ ordinal: 'asc' as const }, { createdAt: 'asc' as const }, { id: 'asc' as const }],
-  select: { id: true, name: true, ordinal: true },
+  select: { id: true, name: true, ordinal: true, authorizationStatus: true, deferredDate: true },
 }
 
 /**
@@ -61,9 +74,10 @@ export function jobGroupKey(jobs: readonly PrintJob[], jobId: string | null | un
 /**
  * The grouping a table prints with. `groupBy` set on the section wins (`none` is the choice to print flat). Unset, a
  * document with jobs groups by job, as a Shopmonkey order printed there (`groupByJobByDefault`, which the builders set
- * from the document's jobs), and every other document prints flat, as upstream's do. An issued invoice too: its jobs
- * are locked with it, and none was issued with jobs before job grouping existed (jobs come from the fork's import and
- * API).
+ * from the document's jobs), and every other document prints flat, as upstream's do. An issued invoice too: the
+ * Shopmonkey import issues the invoices it loads, and those reprint by job, as they printed in Shopmonkey; only the
+ * grouping changes, never a line or a total. A workshop that wants them flat sets "None" in its design and re-applies
+ * it. The import's sync can still rename an issued imported invoice's jobs, as it rewrites its lines.
  */
 export function groupingOf(
   groupBy: 'category' | 'job' | 'none' | undefined,
@@ -121,7 +135,16 @@ export function jobGroupsFor(input: JobGroupInput): LineGroup[] | undefined {
   }
 
   const ordered = [...jobs].sort((a, b) => a.ordinal - b.ordinal)
-  const groups = ordered.map((job) => group(`job:${job.id}`, job.name))
+  const groups = ordered.map((job) => {
+    const out = notCounted(job)
+    if (!out) return group(`job:${job.id}`, job.name)
+    const label =
+      out === 'declined'
+        ? L('jobDeclined', '{job} (declined)')
+        : L('jobDeferred', '{job} (deferred)')
+    const marked = group(`job:${job.id}`, fill(label, { job: job.name }))
+    return marked && { ...marked, excluded: true }
+  })
   groups.push(group(NO_JOB_GROUP, L('otherJobLines', 'Other')))
   return groups.filter((g): g is LineGroup => g !== null)
 }

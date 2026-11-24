@@ -23,6 +23,8 @@
     "otherParts": "Inne części",
     "groupSubtotal": "Suma częściowa: {group}",
     "otherJobLines": "Inne",
+    "jobDeclined": "{job} (odrzucone)",
+    "jobDeferred": "{job} (odłożone)",
     "partNumber": "Nr części",
     "description": "Opis",
     "qty": "Ilość",

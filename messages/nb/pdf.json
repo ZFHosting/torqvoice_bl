@@ -23,6 +23,8 @@
     "otherParts": "Andre deler",
     "groupSubtotal": "Delsum {group}",
     "otherJobLines": "Annet",
+    "jobDeclined": "{job} (avslått)",
+    "jobDeferred": "{job} (utsatt)",
     "partNumber": "Del #",
     "description": "Beskrivelse",
     "qty": "Ant.",

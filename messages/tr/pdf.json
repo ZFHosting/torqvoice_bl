@@ -23,6 +23,8 @@
     "otherParts": "Diğer parçalar",
     "groupSubtotal": "{group} ara toplamı",
     "otherJobLines": "Diğer",
+    "jobDeclined": "{job} (reddedildi)",
+    "jobDeferred": "{job} (ertelendi)",
     "partNumber": "Parça #",
     "description": "Açıklama",
     "qty": "Adet",

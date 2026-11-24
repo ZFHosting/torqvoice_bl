@@ -1,6 +1,6 @@
 {
   "title": "Jobs",
-  "description": "The lines under the jobs they belong to. Move a line with its menu, then save the work order.",
+  "description": "The lines under the jobs they belong to. Move a line with its menu, then save.",
   "addJob": "Add job",
   "addTitle": "Add a job",
   "editTitle": "Edit the job",

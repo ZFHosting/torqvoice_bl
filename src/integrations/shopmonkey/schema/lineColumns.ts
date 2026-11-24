@@ -2,8 +2,9 @@
  * fork: keeping the fork's line columns (X2, X3) through an edit in the app (M5 task 12).
  *
  * The work order and quote pages save their lines by deleting them and writing the list the form sends, and the form
- * knows nothing of a line's job, kind, technician, cost or source fields, nor its id. So the save matches each line it
- * writes to a line it is about to delete and carries those columns over:
+ * knows nothing of a line's kind, technician, cost or source fields, nor its id (its job it sends since M9, checked by
+ * fork-records/Lib/lineJobs.server.ts). So the save matches each line it writes to a line it is about to delete and
+ * carries those columns over, and the job when the form sent none of this document's:
  * 1. a line with the same name (parts: name and part number; labor: description and pricing) takes the first such
  *    line not yet taken, in order, so reordering, adding and removing lines, and changing quantities and prices,
  *    keep them;

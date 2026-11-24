@@ -17,6 +17,7 @@ import { getFeatures } from '@/lib/features'
 import { PageHeader } from '@/components/page-header'
 import { readLineTaxSettings, TAX_APPLIES_SETTING_KEYS } from '@/features/settings/Lib/workshopTax'
 import { QuotePageClient } from '@/features/quotes/Components/QuotePageClient'
+import { pageJobs } from '@/features/fork-records/Lib/pageJobs.server' // fork (M9)
 import { quoteEquipmentView } from '@/features/equipment/Lib/equipment.server'
 import { pageTitle } from '@/lib/page-title'
 
@@ -81,11 +82,13 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
   const equipment = orgId
     ? await quoteEquipmentView(orgId, { id, vehicleId: result.data.vehicleId ?? null })
     : null
+  // fork (M9): its jobs, for a workshop that has jobs (the Jobs card)
+  const jobsView = orgId ? await pageJobs(orgId, { kind: 'quote', id }) : null
   return (
     <div className="flex h-svh flex-col overflow-hidden">
       <PageHeader />
       <QuotePageClient
-        quote={{ ...result.data, equipment }}
+        quote={{ ...result.data, equipment, jobsView }}
         organizationId={organizationId}
         lockState={lockState}
         canUnlock={authContext?.isAdmin ?? false}

@@ -11,6 +11,11 @@ export const jobParentSchema = z.object({
 })
 export type JobParent = z.infer<typeof jobParentSchema>
 
+/** A document's jobs as its page shows them (`pageJobs.server.ts`). */
+export interface PageJobs {
+  jobs: { id: string; name: string; note: string | null; authorizationStatus: string | null }[]
+}
+
 const jobId = z.string().min(1).max(64)
 const name = z.string().trim().min(1).max(200)
 const note = z.string().trim().max(2000).nullable()

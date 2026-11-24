@@ -23,6 +23,8 @@
     "otherParts": "Otras piezas",
     "groupSubtotal": "Subtotal {group}",
     "otherJobLines": "Otros",
+    "jobDeclined": "{job} (rechazado)",
+    "jobDeferred": "{job} (aplazado)",
     "partNumber": "N.º de pieza",
     "description": "Descripción",
     "qty": "Cant.",

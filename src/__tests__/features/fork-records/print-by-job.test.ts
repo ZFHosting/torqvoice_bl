@@ -165,6 +165,26 @@ describe('an invoice with jobs', () => {
   })
 })
 
+describe('an invoice with a declined job', () => {
+  it('prints its lines under the job, marked, with no subtotal (the totals leave them out)', () => {
+    const data = {
+      ...invoiceData,
+      workJobs: [
+        { id: 'j-brakes', name: 'Front brakes', ordinal: 0, authorizationStatus: 'Declined' },
+        { id: 'j-oil', name: 'Oil change', ordinal: 1 },
+      ],
+    } as unknown as InvoiceData
+    const rows = read(tableWith(invoiceSpec(preset('itemized'), data), 'n'))
+    expect(rows.slice(0, 3)).toEqual([
+      '# Front brakes (declined)',
+      '- Replace discs',
+      '- Brake disc',
+    ])
+    expect(rows).not.toContain('= Front brakes subtotal $400.00')
+    expect(rows).toContain('= Oil change subtotal $85.00')
+  })
+})
+
 describe('a quote with jobs', () => {
   it('prints by job, a declined line struck and out of its job’s subtotal', () => {
     const quote = {

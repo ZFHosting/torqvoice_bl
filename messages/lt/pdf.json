@@ -23,6 +23,8 @@
     "otherParts": "Kitos dalys",
     "groupSubtotal": "{group} – tarpinė suma",
     "otherJobLines": "Kita",
+    "jobDeclined": "{job} (atmesta)",
+    "jobDeferred": "{job} (atidėta)",
     "partNumber": "Dalies Nr.",
     "description": "Aprašymas",
     "qty": "Kiekis",

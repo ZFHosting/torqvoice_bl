@@ -1,6 +1,6 @@
 {
   "title": "İşler",
-  "description": "Satırlar ait oldukları işin altında. Bir satırı menüsüyle taşıyın, ardından iş emrini kaydedin.",
+  "description": "Satırlar ait oldukları işin altında. Bir satırı menüsüyle taşıyın, ardından kaydedin.",
   "addJob": "İş ekle",
   "addTitle": "İş ekle",
   "editTitle": "İşi düzenle",

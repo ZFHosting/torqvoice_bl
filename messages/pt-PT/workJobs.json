@@ -1,6 +1,6 @@
 {
   "title": "Serviços",
-  "description": "As linhas sob o serviço a que pertencem. Mova uma linha pelo respetivo menu e guarde a ordem de trabalho.",
+  "description": "As linhas sob o serviço a que pertencem. Mova uma linha pelo respetivo menu e guarde.",
   "addJob": "Adicionar serviço",
   "addTitle": "Adicionar um serviço",
   "editTitle": "Editar o serviço",

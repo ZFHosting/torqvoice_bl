@@ -73,6 +73,8 @@ export interface LineGroup {
   /** The subtotal row's wording, e.g. "Brakes subtotal". */
   subtotalLabel: string
   subtotal: string
+  /** fork (M9): its lines don't count toward the totals (a declined or deferred job): no subtotal row. */
+  excluded?: boolean
 }
 
 export interface DocumentData {
@@ -1187,7 +1189,14 @@ function groupedRows<L extends { group?: string; job?: string }>(
       rows.push(toRow(line, index++))
       placed.add(line)
     }
-    rows.push({ [labelKey]: group.subtotalLabel, total: group.subtotal, [GROUP_SUBTOTAL_KEY]: '1' })
+    // fork (M9): no subtotal for lines the totals leave out
+    if (!group.excluded) {
+      rows.push({
+        [labelKey]: group.subtotalLabel,
+        total: group.subtotal,
+        [GROUP_SUBTOTAL_KEY]: '1',
+      })
+    }
   }
   for (const line of lines) if (!placed.has(line)) rows.push(toRow(line, index++))
   return { rows, grouped: true }

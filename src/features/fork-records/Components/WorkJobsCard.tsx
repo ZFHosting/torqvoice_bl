@@ -74,17 +74,21 @@ interface Line {
 /**
  * fork (M9, docs/fork/milestones/M9-job-grouping-ui.md task 1): the lines of a work order or a quote under their jobs
  * (a Shopmonkey order's services), with the lines of no job under "Other". Jobs are added, edited, reordered and
- * deleted at once; a line moves between jobs in the form, saved with the rest of it. Shown only to a workshop that
- * has jobs (an import or the API made them): every other workshop's page is as upstream draws it.
+ * deleted at once; a line moves between jobs in the form, saved with the rest of it. Mounted only for a workshop that
+ * has jobs (an import or the API made them), with the jobs its page read on the server (`pageJobs.server.ts`): every
+ * other workshop's page is as upstream draws it, and asks nothing more.
  */
 export function WorkJobsCard({
   parent,
+  initialJobs,
   laborItems,
   partItems,
   onMoveLine,
   locked,
 }: {
   parent: JobParent
+  /** The document's jobs as the page read them on the server. */
+  initialJobs: Job[]
   laborItems: FormLine[]
   partItems: FormLine[]
   onMoveLine: (kind: 'labor' | 'part', index: number, jobId: string | null) => void
@@ -95,6 +99,7 @@ export function WorkJobsCard({
   const confirm = useConfirm()
   const queryClient = useQueryClient()
   const queryKey = ['work-jobs', parent.kind, parent.id]
+  const [mountedAt] = useState(() => Date.now())
   const query = useQuery<JobsView, Error>({
     queryKey,
     queryFn: async () => {
@@ -102,6 +107,10 @@ export function WorkJobsCard({
       if (!res.success) throw new Error(res.error ?? t('loadFailed'))
       return jobsViewSchema.parse(res.data)
     },
+    // What the page read on the server, fresh for a minute: no second read on arrival.
+    initialData: { usesJobs: true, jobs: initialJobs },
+    initialDataUpdatedAt: mountedAt,
+    staleTime: 60_000,
   })
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState<{ job: Job | null } | null>(null)
@@ -129,8 +138,6 @@ export function WorkJobsCard({
       })),
     ]
   }, [jobs, laborItems, partItems])
-
-  if (!query.data?.usesJobs) return null
 
   const refresh = () => queryClient.invalidateQueries({ queryKey })
   const run = async (write: () => Promise<{ success: boolean; error?: string }>) => {

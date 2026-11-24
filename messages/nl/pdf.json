@@ -23,6 +23,8 @@
     "otherParts": "Overige onderdelen",
     "groupSubtotal": "Subtotaal {group}",
     "otherJobLines": "Overig",
+    "jobDeclined": "{job} (afgewezen)",
+    "jobDeferred": "{job} (uitgesteld)",
     "partNumber": "Onderdeelnr.",
     "description": "Omschrijving",
     "qty": "Aantal",

@@ -66,6 +66,29 @@ describe('jobGroupsFor', () => {
     ])
   })
 
+  it('marks a declined or deferred job, whose lines the totals leave out, and gives it no subtotal', () => {
+    const groups = jobGroupsFor({
+      jobs: [
+        { id: 'j1', name: 'Brakes', ordinal: 0, authorizationStatus: 'Declined' },
+        { id: 'j2', name: 'Tyres', ordinal: 1, deferredDate: new Date('2026-10-01T00:00:00Z') },
+        { id: 'j3', name: 'Oil', ordinal: 2, authorizationStatus: 'Authorized' },
+      ],
+      lines: [
+        { jobId: 'j1', total: 250 },
+        { jobId: 'j2', total: 400 },
+        { jobId: 'j3', total: 70 },
+      ],
+      labels: {},
+      shown,
+      money,
+    })
+    expect(groups?.map((g) => [g.title, g.excluded ?? false])).toEqual([
+      ['Brakes (declined)', true],
+      ['Tyres (deferred)', true],
+      ['Oil', false],
+    ])
+  })
+
   it('is nothing when no line has a job, so the sheet prints flat', () => {
     expect(
       jobGroupsFor({

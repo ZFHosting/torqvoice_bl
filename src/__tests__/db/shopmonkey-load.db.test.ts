@@ -353,7 +353,8 @@ describe('around the records', () => {
       const headings: string[] = []
       for (const row of table.rows) {
         if (row.groupTitle) {
-          heading = row.groupTitle
+          // A declined or deferred service is marked after its name (its lines don't count toward the total).
+          heading = row.groupTitle.replace(/ \((declined|deferred)\)$/, '')
           headings.push(heading)
         } else if (!row.groupSubtotal && row.desc && jobOfLine.has(row.desc)) {
           const jobId = jobOfLine.get(row.desc) as string
