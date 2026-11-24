@@ -1,6 +1,7 @@
 import type {
   ConnectorContext,
   ConnectorServer,
+  JobHandler,
   SettingOption,
 } from '@/features/integrations/Lib/types'
 import { saveExtractState } from '@/features/shopmonkey-import/Lib/extractState.server'
@@ -18,9 +19,6 @@ import { createFileStager } from './extract/files'
 import type { ExtractState } from './extract/plan'
 import { prismaSourceStore } from './extract/stage'
 import { manifest } from './manifest'
-import { createSyncJobs } from './sync/jobs'
-import { createRunJobs } from './sync/runs'
-import { receive } from './webhook'
 
 /** How long one job run keeps extracting before it hands back to the queue (the cron runs each minute). */
 const EXTRACT_BUDGET_MS = 45_000
@@ -159,6 +157,24 @@ async function stopRequested(
   return stop?.runId === runId
 }
 
+/** M8: a job the import screen queues, its module loaded on its first run. */
+function runJob(kind: 'load.run' | 'cutover.run'): JobHandler {
+  return async (ctx, payload) => {
+    const { createRunJobs } = await import('./sync/runs')
+    return createRunJobs({ depsFor: extractDepsFor })[kind](ctx, payload)
+  }
+}
+
+/** M7: a sync job, its module loaded on its first run (the registry loads every connector's server). */
+function syncJob(kind: 'refetch' | 'sync.delta' | 'sync.load'): JobHandler {
+  return async (ctx, payload) => {
+    const { createSyncJobs } = await import('./sync/jobs')
+    return createSyncJobs({ depsFor: extractDepsFor, extractFinished: recordExtractFinished })[
+      kind
+    ](ctx, payload)
+  }
+}
+
 export const connector: ConnectorServer = {
   manifest,
 
@@ -206,9 +222,15 @@ export const connector: ConnectorServer = {
   jobs: {
     'extract.step': extractStepJob,
     // M7: the sync window (webhook refetches, the ten-minute delta, a load put off).
-    ...createSyncJobs({ depsFor: extractDepsFor, extractFinished: recordExtractFinished }),
+    refetch: syncJob('refetch'),
+    'sync.delta': syncJob('sync.delta'),
+    'sync.load': syncJob('sync.load'),
     // M8: what the import screen queues (a load, a dry run, the cutover).
-    ...createRunJobs({ depsFor: extractDepsFor }),
+    'load.run': runJob('load.run'),
+    'cutover.run': runJob('cutover.run'),
   },
-  webhook: { receive },
+  // Loaded when a delivery comes: the registry loads every connector's server, so this one stays light.
+  webhook: {
+    receive: async (request, ctx) => (await import('./webhook')).receive(request, ctx),
+  },
 }

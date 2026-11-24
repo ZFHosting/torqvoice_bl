@@ -30,13 +30,10 @@ import { reconcile } from '../reconcile/engine'
 import type { ReconciliationReport } from '../reconcile/types'
 import { applyRemoteDeletes } from './deletes'
 import { changedRecords, deltaStart, driveDelta } from './delta'
-import type { CutoverState } from './jobs'
+import { type CutoverState, stopSyncSchedule } from './jobs'
 
 /** The sync's own jobs: cancelled at cutover. */
 export const SYNC_JOBS = ['refetch', 'sync.delta', 'sync.load']
-
-/** The latest time a Date can hold (ms): a schedule's last run set to it is never due again. */
-const NEVER_AGAIN = 8_640_000_000_000_000
 
 export const CUTOVER_STEPS = [
   'The shop has stopped editing Shopmonkey',
@@ -195,8 +192,9 @@ export async function runCutover(options: {
     return finish()
   }
   changed += changedRecords(extracted.state)
-  // A dry run's load keeps nothing: what this staged is still to load, by the sync or the real cutover.
-  if (dry && changed) await mergeState(scope, { syncPending: true })
+  // What this staged is still to load until a load takes it: a dry run's keeps nothing, and a real one that fails
+  // leaves it for the sync (the refetch jobs it read are marked done already).
+  if (changed) await mergeState(scope, { syncPending: true })
   let loadDetail: string
   try {
     const summary = await runLoad({ ...scope, runUserId: options.userId, dryRun: dry })
@@ -258,11 +256,7 @@ export async function runCutover(options: {
           },
         })
       ).count
-  if (!dry) {
-    const runs = (connection.state as { scheduleRuns?: Record<string, number> } | null)
-      ?.scheduleRuns
-    await mergeState(scope, { scheduleRuns: { ...(runs ?? {}), 'sync.delta': NEVER_AGAIN } })
-  }
+  if (!dry) await stopSyncSchedule(scope)
   record(
     done,
     `${cancelled} queued sync jobs ${dry ? 'would be ' : ''}cancelled, and the sync's schedule ${dry ? 'would be ' : ''}stopped.`

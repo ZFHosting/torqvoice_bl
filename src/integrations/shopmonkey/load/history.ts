@@ -9,7 +9,7 @@ import type { Row } from '../transform/types'
 import { type LoadContext, loadOne, skipReason, skipRecord } from './context'
 import { placeFile, stagedFile } from './files'
 import { stagedAll } from './people'
-import { foreignKeys, linkedRow, markLoaded, noteWritten, unlink } from './links'
+import { editedBeforeWrite, foreignKeys, linkedRow, markLoaded, noteWritten, unlink } from './links'
 import { upsertLinked } from './upsert'
 
 export async function loadAppointments(lc: LoadContext): Promise<void> {
@@ -57,11 +57,12 @@ export async function loadAppointments(lc: LoadContext): Promise<void> {
       )
       // §3: the work order the appointment was booked for starts when it does.
       if (orderId && outcome !== 'unchanged') {
+        const edited = await editedBeforeWrite(tx, lc.scope, 'ServiceRecord', orderId)
         const moved = await tx.serviceRecord.updateMany({
           where: { id: orderId, organizationId: lc.scope.organizationId },
           data: { startDateTime: rows.appointment.startAt },
         })
-        if (moved.count) noteWritten(lc.scope, 'ServiceRecord', orderId)
+        if (moved.count && !edited) noteWritten(lc.scope, 'ServiceRecord', orderId)
       }
       lc.resolver.set('appointment', record.remoteId, localId)
       return outcome
@@ -232,11 +233,12 @@ export async function loadInspections(lc: LoadContext): Promise<number> {
       })
       // The work order it was done on points at it, unless the workshop has linked another since.
       if (orderId) {
+        const edited = await editedBeforeWrite(tx, lc.scope, 'ServiceRecord', orderId)
         const pointed = await tx.serviceRecord.updateMany({
           where: { id: orderId, organizationId: lc.scope.organizationId, inspectionId: null },
           data: { inspectionId: localId },
         })
-        if (pointed.count) noteWritten(lc.scope, 'ServiceRecord', orderId)
+        if (pointed.count && !edited) noteWritten(lc.scope, 'ServiceRecord', orderId)
       }
       if (incomplete) {
         await markLoaded(tx, lc.scope, {

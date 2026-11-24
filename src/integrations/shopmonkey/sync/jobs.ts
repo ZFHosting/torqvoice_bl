@@ -69,6 +69,25 @@ async function currentState(scope: Scope) {
   }
 }
 
+/** The latest time a Date can hold (ms): a schedule whose last run is this is never due again. */
+export const NEVER_AGAIN = 8_640_000_000_000_000
+
+/**
+ * Puts the ten-minute sync off for good (cutover): its last run in `state.scheduleRuns` set as late as a date can be,
+ * which `scheduleDueSyncs` never finds due. That one key, in one statement, beside whatever else the scheduler keeps.
+ */
+export async function stopSyncSchedule(scope: Scope): Promise<void> {
+  await db.$executeRaw`
+    UPDATE "public"."integration_connections"
+    SET "state" = jsonb_set(
+          COALESCE("state", '{}'::jsonb),
+          '{scheduleRuns}',
+          COALESCE("state"->'scheduleRuns', '{}'::jsonb) || jsonb_build_object('sync.delta', ${NEVER_AGAIN}::bigint)
+        ),
+        "updatedAt" = now()
+    WHERE "id" = ${scope.connectionId} AND "organizationId" = ${scope.organizationId}`
+}
+
 /** Why the sync won't load now, or null when it may. */
 export function loadBlocker(state: {
   extract?: ExtractState
@@ -202,7 +221,11 @@ export function createSyncJobs(deps: SyncJobDeps) {
   async function delta(ctx: ConnectorContext): Promise<JobOutcome> {
     const scope = scopeOf(ctx)
     const { state } = await currentState(scope)
-    if (state.cutover) return { summary: 'Cut over: no sync' }
+    if (state.cutover) {
+      // A scheduler that read the state before the cutover put its stop may have written `now` back over it.
+      await stopSyncSchedule(scope)
+      return { summary: 'Cut over: no sync' }
+    }
     const previous = state.extract
     if (!previous) return { summary: 'No extract yet: nothing to sync from' }
     let run: ExtractState

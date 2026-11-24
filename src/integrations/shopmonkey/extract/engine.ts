@@ -366,7 +366,8 @@ async function listOnePage(
       })
     } else {
       reachedStart = timeOf(rows[rows.length - 1].updatedDate) < timeOf(since)
-      cp.recentFloor = rows[rows.length - 1].updatedDate as string
+      // The next page starts a few records back inside this one, so its first record is no newer than this first.
+      cp.recentFloor = rows[0].updatedDate as string
       // Paged by skip, a record deleted meanwhile moves the rest up a place: the next page starts a few records
       // back, so up to that many deletes between two pages skip nothing (the repeats are staged unchanged).
       if (page.more && !reachedStart) cp.skip -= Math.min(RECENT_REREAD, page.rows.length - 1)

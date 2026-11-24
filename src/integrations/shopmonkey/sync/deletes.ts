@@ -51,23 +51,69 @@ const DELETED_BY_SYNC: Record<string, LocalModel[]> = {
   appointment: ['Appointment'],
 }
 
-/** Anything added to a work order in Torqvoice after its last sync. The load writes its own before the sync stamp. */
-async function addedTo(id: string, since: Date): Promise<boolean> {
-  const where = { serviceRecordId: id, createdAt: { gt: since } }
-  const counts = await Promise.all([
-    db.payment.count({ where }),
-    db.serviceAttachment.count({ where }),
-    db.timeEntry.count({ where }),
-    db.statusReport.count({ where }),
-    db.serviceRecordEquipment.count({ where }),
-    db.serviceRecordHelper.count({ where }),
-    db.serviceConcern.count({ where }),
-    db.workJob.count({ where }),
+/**
+ * Whether the workshop added anything to an imported work order, told by what each thing is, never by when (a later
+ * load re-syncs the order, and a time comparison would forget the addition): a status report or equipment (never
+ * imported); a payment that isn't Shopmonkey's (`provider`); an attachment or a time entry no import link names; a
+ * concern beside the one the complaint became; more jobs than Shopmonkey has services (the load rewrites its own on
+ * every change). Helpers aren't counted: the work order editor saves them with the order, which moves its `updatedAt`.
+ */
+async function addedInTorqvoice(
+  scope: { organizationId: string; connectionId: string },
+  id: string,
+  orderRemoteId: string
+): Promise<boolean> {
+  const { organizationId, connectionId } = scope
+  const own = { serviceRecordId: id, serviceRecord: { organizationId } }
+  const [reports, equipment, payments] = await Promise.all([
+    db.statusReport.count({ where: own }),
+    db.serviceRecordEquipment.count({ where: own }),
+    db.payment.count({
+      where: { ...own, OR: [{ provider: null }, { provider: { not: 'shopmonkey' } }] },
+    }),
   ])
-  return counts.some((n) => n > 0)
+  if (reports + equipment + payments > 0) return true
+  const unlinked = async (model: 'ServiceAttachment' | 'TimeEntry', ids: { id: string }[]) => {
+    if (!ids.length) return false
+    const linked = await db.integrationLink.count({
+      where: { connectionId, entityType: model, entityId: { in: ids.map((r) => r.id) } },
+    })
+    return linked < ids.length
+  }
+  const [attachments, time] = await Promise.all([
+    db.serviceAttachment.findMany({ where: own, select: { id: true } }),
+    db.timeEntry.findMany({ where: own, select: { id: true } }),
+  ])
+  if ((await unlinked('ServiceAttachment', attachments)) || (await unlinked('TimeEntry', time))) {
+    return true
+  }
+  const order = await db.sourceRecord.findFirst({
+    where: { organizationId, source: SOURCE, table: 'order', remoteId: orderRemoteId },
+    select: { payload: true },
+  })
+  const complaint = (order?.payload as { complaint?: unknown } | null)?.complaint
+  const [concerns, jobs, services] = await Promise.all([
+    db.serviceConcern.count({ where: own }),
+    db.workJob.count({ where: { serviceRecordId: id, organizationId } }),
+    db.sourceRecord.count({
+      where: {
+        organizationId,
+        source: SOURCE,
+        table: 'order_service',
+        remoteDeletedAt: null,
+        payload: { path: ['orderId'], equals: orderRemoteId },
+      },
+    }),
+  ])
+  const importedConcerns = typeof complaint === 'string' && complaint.trim() ? 1 : 0
+  return concerns > importedConcerns || jobs > services
 }
 
-/** A work order imported from Shopmonkey, as the app deletes one, but leaving stock alone. */
+/**
+ * A work order imported from Shopmonkey, as the app deletes one (`deleteServiceRecordService` in
+ * `features/vehicles/Lib/serviceRecordService.server.ts`: keep the two in step when upstream changes it), but leaving
+ * stock alone.
+ */
 async function deleteImportedWorkOrder(organizationId: string, userId: string, id: string) {
   await assertInvoiceEditable(id, organizationId)
   const files = await serviceRecordFileUrls(organizationId, [id])
@@ -150,7 +196,7 @@ export async function applyRemoteDeletes(scope: Scope, userId: string): Promise<
     const edited =
       !link ||
       updatedAt.getTime() > link.lastSyncedAt.getTime() ||
-      (model === 'ServiceRecord' && (await addedTo(id, link.lastSyncedAt)))
+      (model === 'ServiceRecord' && (await addedInTorqvoice(scope, id, record.remoteId)))
     if (edited) {
       out.kept.push({ ...named, reason: 'edited' })
       continue

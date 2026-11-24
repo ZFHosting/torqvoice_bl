@@ -86,7 +86,7 @@ export interface StepCheckpoint {
    * stopping at the first record older than the delta's start.
    */
   unordered?: boolean
-  /** M7: the `updatedDate` of the last record of the newest-first page before, which the next must not pass. */
+  /** M7: the `updatedDate` of the first record of the newest-first page before, which the next must not pass. */
   recentFloor?: string
 }
 

@@ -359,9 +359,8 @@ describe('a record deleted in Shopmonkey', () => {
     })
   })
 
-  it('keeps a work order the workshop added a status report to since its last sync', async () => {
+  it('keeps a work order the workshop added a status report to, even after Shopmonkey changed it since', async () => {
     const id = await localOf('ServiceRecord', 'order', 'syn_ord_1003')
-    await new Promise((resolve) => setTimeout(resolve, 50))
     await db.statusReport.create({
       data: {
         organizationId: shop.organizationId,
@@ -370,6 +369,13 @@ describe('a record deleted in Shopmonkey', () => {
         title: 'Brake video',
       },
     })
+    // Shopmonkey changes the order, and the load syncs it again: the report is still the workshop's.
+    mock.changeAt('order', 'syn_ord_1003', '2026-02-20T00:00:00.000Z', { name: 'Brakes, revised' })
+    await webhook.receive(
+      delivery({ operation: 'UPDATE', table: 'order', data: { id: 'syn_ord_1003' } })(),
+      await ctx()
+    )
+    await runQueued('refetch')
     mock.remove('order', 'syn_ord_1003')
     await webhook.receive(
       delivery({ operation: 'DELETE', table: 'order', data: { id: 'syn_ord_1003' } })(),
@@ -381,6 +387,31 @@ describe('a record deleted in Shopmonkey', () => {
     expect((await state()).lastSync).toMatchObject({
       keptDeletes: expect.arrayContaining([
         { table: 'order', remoteId: 'syn_ord_1003', model: 'ServiceRecord', reason: 'edited' },
+      ]),
+    })
+  })
+
+  it('keeps a work order the workshop took a payment on, even after Shopmonkey changed it since', async () => {
+    const id = await localOf('ServiceRecord', 'order', 'syn_ord_1004')
+    await db.payment.create({ data: { serviceRecordId: id, amount: 10, method: 'cash' } })
+    mock.changeAt('order', 'syn_ord_1004', '2026-02-21T00:00:00.000Z', {
+      name: 'Check engine, revised',
+    })
+    await webhook.receive(
+      delivery({ operation: 'UPDATE', table: 'order', data: { id: 'syn_ord_1004' } })(),
+      await ctx()
+    )
+    await runQueued('refetch')
+    mock.remove('order', 'syn_ord_1004')
+    await webhook.receive(
+      delivery({ operation: 'DELETE', table: 'order', data: { id: 'syn_ord_1004' } })(),
+      await ctx()
+    )
+    await runQueued('refetch')
+    expect(await db.serviceRecord.count({ where: { id } })).toBe(1)
+    expect((await state()).lastSync).toMatchObject({
+      keptDeletes: expect.arrayContaining([
+        { table: 'order', remoteId: 'syn_ord_1004', model: 'ServiceRecord', reason: 'edited' },
       ]),
     })
   })

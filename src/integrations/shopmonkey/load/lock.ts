@@ -17,6 +17,12 @@ export class LoadBusy extends Error {
 /** Runs `fn` holding the connection's load lock; throws `LoadBusy` at once when another load holds it. */
 export async function withLoadLock<T>(connectionId: string, fn: () => Promise<T>): Promise<T> {
   const client = new Client({ connectionString: process.env.DATABASE_URL })
+  // A dropped connection (a restart, a terminated backend) is an 'error' event on the client: without a listener it
+  // would end the process. The lock went with the connection; the load carries on, and says so when it's done.
+  let lost: Error | null = null
+  client.on('error', (err) => {
+    lost = err
+  })
   await client.connect()
   try {
     const { rows } = await client.query<{ locked: boolean }>(
@@ -25,7 +31,9 @@ export async function withLoadLock<T>(connectionId: string, fn: () => Promise<T>
     )
     if (!rows[0]?.locked) throw new LoadBusy()
     try {
-      return await fn()
+      const out = await fn()
+      if (lost) console.warn('[shopmonkey] the load lock was lost while the load ran')
+      return out
     } finally {
       await client
         .query(`SELECT pg_advisory_unlock(hashtext('shopmonkey_load'), hashtext($1))`, [
