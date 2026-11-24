@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
 import { apiError, apiOk, withApiAuth } from '@/lib/with-api-auth'
 import { stopEntry, TimeEntryError } from '@/features/time-tracking/Lib/timeEntries'
+import { logClockStop } from '@/features/fork-records/Lib/clockEvents.server' // fork (A5)
 
 const bodySchema = z.object({
   note: z.string().max(500).optional(),
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
           technicianIds: ctx.technicianIds,
           note,
         })
+        await logClockStop(ctx, entry.id) // fork (A5): the clock's webhook event
         return apiOk({ entry })
       } catch (err) {
         if (err instanceof TimeEntryError && err.code === 'not_running') {

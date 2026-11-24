@@ -8,7 +8,7 @@ import { createWebhookSchema, updateWebhookSchema } from '@/features/webhooks/Sc
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
 import { patchBody, writeEndpoints } from '../Lib/writeSpec'
-import { rangeFilters } from './common'
+import { rangeFilters, sourceSchema } from './common'
 
 export const paymentSchema = z
   .object({
@@ -40,6 +40,8 @@ export const findingSchema = z
     imageCount: z.number().int(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'Finding' })
 
@@ -80,6 +82,8 @@ export const findingsSpec: ReadSpec<FindingOut> = {
     vehicleId: z.string().min(1).optional(),
     status: z.string().trim().min(1).max(50).optional(),
   }),
+  // fork (A5): `include=source`
+  sourceModel: 'VehicleFinding',
   response: findingSchema,
 }
 

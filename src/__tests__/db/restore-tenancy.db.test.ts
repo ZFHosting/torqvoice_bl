@@ -134,6 +134,52 @@ function rowsOf(dump: Dump, organizationId: string): Dump {
   return out
 }
 
+/**
+ * fork (A5): what a restore writes by design once the workshop's records are back, set aside before comparing: its
+ * one `restore` marker at `/api/v1/deleted` (public-api/Lib/resets.server.ts) and one `restore.complete` delivery to
+ * each of the workshop's webhooks (only theirs: one to another workshop's would show in its comparison). Each is
+ * asserted present, for this workshop.
+ */
+function withoutRestoreOwn(dump: Dump, organizationId: string): Dump {
+  const markers = (dump.get('deleted_records') ?? []).filter((r) => r.entityType === 'restore')
+  expect(markers.map((r) => [r.organizationId, r.entityId])).toEqual([[organizationId, 'restore']])
+  // One restore.complete to each of this workshop's webhooks that takes it; one sent anywhere else stays, for the
+  // comparison.
+  const ownWebhooks = (dump.get('webhooks') ?? []).filter(
+    (w) => w.organizationId === organizationId
+  )
+  const own = new Set(ownWebhooks.map((w) => w.id))
+  // As the dispatcher reads a webhook's events: what isn't a JSON list subscribes to nothing.
+  const eventsOf = (w: Row): string[] => {
+    try {
+      const parsed = JSON.parse(String(w.events ?? '[]'))
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  const takesIt = ownWebhooks.filter(
+    (w) =>
+      w.isActive === true && (eventsOf(w).includes('*') || eventsOf(w).includes('restore.complete'))
+  )
+  const sent = (dump.get('webhook_deliveries') ?? []).filter(
+    (d) => d.event === 'restore.complete' && own.has(d.webhookId)
+  )
+  expect(sent.map((d) => d.webhookId).sort()).toEqual(takesIt.map((w) => w.id).sort())
+  const out: Dump = new Map()
+  for (const [table, rows] of dump) {
+    const kept = rows.filter((r) =>
+      table === 'deleted_records'
+        ? r.entityType !== 'restore'
+        : table === 'webhook_deliveries'
+          ? !(r.event === 'restore.complete' && own.has(r.webhookId))
+          : true
+    )
+    if (kept.length || dump.get(table)?.length === 0) out.set(table, kept)
+  }
+  return out
+}
+
 function idsOf(rows: Dump): Set<string> {
   const out = new Set<string>()
   for (const list of rows.values())
@@ -462,7 +508,8 @@ describeDb('a restore never touches another workshop', () => {
     )
 
     expect(result.redactedSettings).toEqual([])
-    const after = await dumpAll()
+    // fork (A5): A's restore marker and its restore.complete delivery set aside (and checked)
+    const after = withoutRestoreOwn(await dumpAll(), a.organizationId)
     expect(rowsOf(after, b.organizationId)).toEqual(bBefore)
     // A came back whole, with the ids it had, and points at nothing of B's.
     const aAfter = rowsOf(after, a.organizationId)

@@ -170,6 +170,7 @@
     "settings_setCustomFieldPlacement": "Plaatsing van aangepast veld bijgewerkt",
     "import_commit": "Spreadsheet geïmporteerd",
     "import_undo": "Import ongedaan gemaakt",
+    "work_order_issue": "Factuur uitgegeven",
     "integration_connect": "Integratie gekoppeld",
     "integration_disconnect": "Integratie losgekoppeld",
     "service_setInvoiceDesign": "Factuurontwerp gewijzigd",
@@ -390,6 +391,7 @@
     "settings_setCustomFieldPlacement": "Wijzigde waar een aangepast veld wordt afgedrukt",
     "import_commit": "Spreadsheet geïmporteerd: {created} records aangemaakt",
     "import_undo": "Spreadsheetimport ongedaan gemaakt: {records} records verwijderd",
+    "work_order_issue": "Factuur uitgegeven voor een werkorder",
     "integration_connect": "{name} gekoppeld",
     "integration_disconnect": "{name} losgekoppeld",
     "service_setInvoiceDesign": "Wijzigde met welk ontwerp een factuur wordt afgedrukt",
@@ -448,6 +450,16 @@
     "shopmonkey_import_undo": "Shopmonkey-import ongedaan gemaakt: {records} records verwijderd",
     "shopmonkey_cutover": "Overgestapt van Shopmonkey: Torqvoice volgt het niet meer",
     "shopmonkey_sync_delete": "{records} records verwijderd die in Shopmonkey zijn verwijderd (synchronisatieperiode)",
-    "platform_revokeSuperAdmin": "Superbeheerder ingetrokken voor {name} ({email})"
+    "platform_revokeSuperAdmin": "Superbeheerder ingetrokken voor {name} ({email})",
+    "contact_create": "Klantcontact toegevoegd",
+    "contact_update": "Klantcontact gewijzigd",
+    "contact_delete": "Klantcontact verwijderd",
+    "job_create": "Werkzaamheid toegevoegd",
+    "job_update": "Werkzaamheid gewijzigd",
+    "job_delete": "Werkzaamheid verwijderd",
+    "shift_create": "Dienst geregistreerd",
+    "shift_update": "Dienst gewijzigd",
+    "shift_delete": "Dienst verwijderd",
+    "time_entry_start": "Klok gestart op een opdracht"
   }
 }

@@ -26,7 +26,7 @@ import {
   deleteShiftService,
   updateShiftService,
 } from '@/features/fork-records/Lib/forkRecordServices.server'
-import { getOpenEntry, startEntry } from '@/features/time-tracking/Lib/timeEntries'
+import { startEntry } from '@/features/time-tracking/Lib/timeEntries'
 import {
   createTimeEntryEvent,
   deleteTimeEntryEvent,
@@ -53,6 +53,7 @@ import {
   updateTimeEntrySchema,
 } from '../Schema/schedule'
 import { answerWith, deleted, withId } from './common'
+import { logClockStop } from '@/features/fork-records/Lib/clockEvents.server'
 
 /* ---------- appointments ---------- */
 
@@ -209,7 +210,6 @@ export const startTimeEntryPOST = writeRoute('POST', {
       where: { id: technicianId, organizationId: svc.organizationId },
     })
     if (!technician) throw new Error('Technician not found')
-    const open = await getOpenEntry(svc.organizationId, [technicianId])
     const started = await startEntry({
       organizationId: svc.organizationId,
       technicianId,
@@ -217,12 +217,16 @@ export const startTimeEntryPOST = writeRoute('POST', {
       serviceRecordId: workOrderId,
       source: 'api',
     })
+    // A5: the clock this start closed sends its stop (the start itself is logged below).
+    if (started.closed) await logClockStop(svc, started.closed.id)
     return {
       id: started.entry.id,
       technicianId,
       serviceRecordId: workOrderId,
       closedEntryId: started.closed?.id ?? null,
-      running: open?.serviceRecordId === workOrderId,
+      // A5: from what startEntry did, not from a read of its own: one start event for each entry it created, none
+      // for a tap on the clock already running.
+      running: started.fresh === false,
     }
   },
   audit: (result) => (result.running ? null : timeEntryStartEvent(result)),

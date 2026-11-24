@@ -1,8 +1,8 @@
 /**
- * fork: the audit events of the fork's own records (docs/fork/API.md §5 names them). A5 adds them to the webhook
- * events; until then they're recorded in the audit log and send nothing.
+ * fork: the audit events of the fork's own records (docs/fork/API.md §5 names them), recorded in the audit log and sent
+ * as webhook events (A5).
  */
-import type { AuditEvent } from '@/lib/audit'
+import { type AuditEvent, auditDetails } from '@/lib/audit'
 
 type Change = 'create' | 'update' | 'delete'
 
@@ -12,19 +12,19 @@ type Change = 'create' | 'update' | 'delete'
  */
 const ACTIONS = {
   contact: {
-    create: { action: 'contact.create' },
-    update: { action: 'contact.update' },
-    delete: { action: 'contact.delete' },
+    create: { action: 'contact.create', details: auditDetails('contact_create') },
+    update: { action: 'contact.update', details: auditDetails('contact_update') },
+    delete: { action: 'contact.delete', details: auditDetails('contact_delete') },
   },
   job: {
-    create: { action: 'job.create' },
-    update: { action: 'job.update' },
-    delete: { action: 'job.delete' },
+    create: { action: 'job.create', details: auditDetails('job_create') },
+    update: { action: 'job.update', details: auditDetails('job_update') },
+    delete: { action: 'job.delete', details: auditDetails('job_delete') },
   },
   shift: {
-    create: { action: 'shift.create' },
-    update: { action: 'shift.update' },
-    delete: { action: 'shift.delete' },
+    create: { action: 'shift.create', details: auditDetails('shift_create') },
+    update: { action: 'shift.update', details: auditDetails('shift_update') },
+    delete: { action: 'shift.delete', details: auditDetails('shift_delete') },
   },
 } as const
 
@@ -42,13 +42,17 @@ export function contactEvent(
 
 export function jobEvent(
   change: Change,
-  job: { id: string; serviceRecordId: string | null }
+  job: { id: string; serviceRecordId: string | null; quoteId?: string | null }
 ): AuditEvent {
   return {
     ...ACTIONS.job[change],
     entity: 'WorkJob',
     entityId: job.id,
-    metadata: { workOrderId: job.serviceRecordId },
+    // A5: what finds the job (it has no endpoint of its own), in its webhook event's data.
+    metadata: {
+      workOrderId: job.serviceRecordId,
+      ...(job.quoteId ? { quoteId: job.quoteId } : {}),
+    },
   }
 }
 
@@ -65,8 +69,8 @@ export function shiftEvent(
 }
 
 /**
- * A clock started through the API (`POST /time-entries/start`). The technician app's own start logs nothing; the
- * name is API.md §5's, which A5 turns into a webhook event.
+ * A clock started (the API's `POST /time-entries/start`, and since A5 the app's and the technician app's clocks,
+ * `clockEvents.server.ts`): API.md §5's `time_entry.start`.
  */
 export function timeEntryStartEvent(started: {
   id: string
@@ -76,6 +80,7 @@ export function timeEntryStartEvent(started: {
 }): AuditEvent {
   return {
     action: 'time_entry.start',
+    details: auditDetails('time_entry_start'),
     entity: 'timeEntry',
     entityId: started.id,
     metadata: {

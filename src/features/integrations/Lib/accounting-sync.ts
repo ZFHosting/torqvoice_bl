@@ -432,6 +432,12 @@ export async function removePulledPayment(
   const r = await db.payment.deleteMany({
     where: { id: paymentId, provider, serviceRecord: { organizationId } },
   })
+  // fork (A5): the tombstone an API client syncing payments learns the delete from.
+  if (r.count > 0) {
+    await db.deletedRecord.create({
+      data: { organizationId, entityType: 'payment', entityId: paymentId },
+    })
+  }
   return r.count > 0
 }
 

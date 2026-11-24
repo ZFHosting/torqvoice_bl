@@ -170,6 +170,7 @@
     "settings_setCustomFieldPlacement": "Zaktualizowano miejsce pola niestandardowego",
     "import_commit": "Zaimportowano arkusz",
     "import_undo": "Cofnięto import",
+    "work_order_issue": "Wystawiono fakturę",
     "integration_connect": "Połączono integrację",
     "integration_disconnect": "Rozłączono integrację",
     "service_setInvoiceDesign": "Zmieniono projekt faktury",
@@ -390,6 +391,7 @@
     "settings_setCustomFieldPlacement": "Zmieniono miejsce drukowania pola niestandardowego",
     "import_commit": "Zaimportowano arkusz: utworzono {created} rekordów",
     "import_undo": "Cofnięto import arkusza: usunięto {records} rekordów",
+    "work_order_issue": "Wystawiono fakturę do zlecenia",
     "integration_connect": "Połączono {name}",
     "integration_disconnect": "Rozłączono {name}",
     "service_setInvoiceDesign": "Zmienił projekt, z którym drukowana jest faktura",
@@ -448,6 +450,16 @@
     "shopmonkey_import_undo": "Cofnięto import z Shopmonkey: usunięto rekordy: {records}",
     "shopmonkey_cutover": "Przejście z Shopmonkey: Torqvoice już go nie śledzi",
     "shopmonkey_sync_delete": "Usunięto {records} rekordów usuniętych w Shopmonkey (okres synchronizacji)",
-    "platform_revokeSuperAdmin": "Odebrano uprawnienia superadmina: {name} ({email})"
+    "platform_revokeSuperAdmin": "Odebrano uprawnienia superadmina: {name} ({email})",
+    "contact_create": "Dodano kontakt klienta",
+    "contact_update": "Zmieniono kontakt klienta",
+    "contact_delete": "Usunięto kontakt klienta",
+    "job_create": "Dodano zadanie",
+    "job_update": "Zmieniono zadanie",
+    "job_delete": "Usunięto zadanie",
+    "shift_create": "Zarejestrowano zmianę",
+    "shift_update": "Zmieniono zmianę",
+    "shift_delete": "Usunięto zmianę",
+    "time_entry_start": "Uruchomiono zegar dla zadania"
   }
 }

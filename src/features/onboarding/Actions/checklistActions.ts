@@ -19,6 +19,7 @@ import {
   serviceRecordFileUrls,
   vehicleFileUrls,
 } from '@/lib/files/collect'
+import { recordReset } from '@/features/public-api/Lib/resets.server' // fork (A5)
 
 export interface OnboardingChecklistData {
   steps: {
@@ -138,7 +139,8 @@ export async function dismissOnboardingChecklist() {
  */
 export async function removeSampleData() {
   return withAuth(
-    async ({ organizationId }) => {
+    // fork (A5): userId, the reset marker's actor
+    async ({ organizationId, userId }) => {
       const row = await db.appSetting.findFirst({
         where: { organizationId, key: SAMPLE_DATA_IDS_KEY },
         select: { id: true, value: true },
@@ -223,6 +225,8 @@ export async function removeSampleData() {
       revalidatePath('/work-orders')
       revalidatePath('/quotes')
       revalidatePath('/inspections')
+      // fork (A5): no tombstone per row; API clients resync in full (public-api/Lib/resets.server.ts)
+      await recordReset(organizationId, 'sample_data', userId)
       return { removed: true }
     },
     {

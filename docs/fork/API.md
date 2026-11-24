@@ -124,11 +124,11 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
 | `/payments` | R | Across all work orders, for accounting sync: `?from=&to=` (by `date`), `?method=`. |
 | `/webhooks` | R W | Manage webhook subscriptions (the existing `Webhook` model) from code. The URL is checked as the settings page checks it (no private or loopback addresses). A create answers with the signing `secret`, the only time it's shown. Needs `update:settings`, as in the app. |
 | `/settings` | R | Currency, time zone, tax setup, default labor rate, numbering format. Needs `read:settings` (the numbering format isn't member-readable). |
-| `/reports/sales` | R | Totals by day, week or month: invoiced, collected, tax, parts, labor, fees. |
-| `/reports/receivables` | R | Open invoices with aging buckets. |
-| `/reports/technicians` | R | Per technician: hours sold (labor lines with `technicianId`), hours clocked (time entries), shift hours, and jobs completed in a period. This is the input BlueLabel's pay calculation needs. |
-| `/source-records` | R | Shopmonkey payloads as fetched (X1): `?table=`, `?remoteId=`, `?updatedSince=`. Read-only. Two kinds of record are the importer's own: files (`order_file`, `inspection_file`: the entry as Shopmonkey sent it plus `_parent` and `_staged`) and `invoice_pdf` (made by the importer). Keys starting with `_` are never Shopmonkey's; `_staged.path` is relative to the server's data folder (MAPPING §1). |
-| `/deleted` | R | Tombstones: `?since=`, `?entityType=`. |
+| `/reports/sales` | R | Needs `read:reports`, as do the other reports. Totals by period: invoiced (`revenue`), collected, outstanding, tax, discounts, parts (cost and revenue), labor, shop fees, and the reports screen's profit. The same work orders and figures as the reports screen's revenue report: every work order started in the window, invoiced or not (`?completedOnly=true` keeps the completed ones), in the period its start falls in. On the workshop's clock: `?from=&to=` are the workshop's dates, both included (default: 1 January of the workshop's year to now); `?group=day\|week\|month` (default `month`), a week named by its Monday. A day the calendar doesn't have, or `from` after `to`, is a 400. |
+| `/reports/receivables` | R | What is still owed, as of now: every work order with a due date that isn't cancelled and isn't paid in full (one without a due date isn't an invoice here; a draft with one is), aged by days past due into `current`, `1-30`, `31-60`, `61-90`, `over90`, with the due dates on the workshop's clock. The overdue total is the reports screen's past-due total. Takes no parameters. |
+| `/reports/technicians` | R | Per technician and period: hours sold (labor lines with `technicianId`), minutes clocked (time entries), shift minutes, and jobs completed. This is the input BlueLabel's pay calculation needs. Hours sold and jobs completed fall in the period the work order started in; clocked and shift minutes in the period they started in, clipped to the window. Hours sold follow the reports screen (the job's technician and helpers share a job's hours by the time each clocked on it) except where a line names its own technician (imported lines, the API's lines): that line's hours are that technician's. The screen doesn't read a line's technician, so the two differ only there. |
+| `/source-records` | R | Shopmonkey payloads as fetched (X1): `?table=`, `?remoteId=`, `?updatedSince=`. Read-only; needs `read:settings`. Two kinds of record are the importer's own: files (`order_file`, `inspection_file`: the entry as Shopmonkey sent it plus `_parent` and `_staged`) and `invoice_pdf` (made by the importer). Keys starting with `_` are never Shopmonkey's; `_staged.path` is relative to the server's data folder (MAPPING §1). The same record is on each imported row with `include=source` (customers, vehicles, work orders, quotes, inspections, findings, appointments, time entries, shifts, technicians, work order statuses, labor presets, inventory parts), also with `read:settings` (a key without it gets 403): the row's `sourceRecord` is `{ source, table, remoteId, payload, remoteUpdatedAt, remoteDeletedAt }` (not `source`, which a time entry and a shift already have: where they came from), the archived record the row was loaded as (it stays after the connection is removed, and goes when the load is undone), or `null` for a row made in Torqvoice. A record's `ETag` doesn't cover its source: read the source again with `include=source` or from here. |
+| `/deleted` | R | Tombstones: `?since=`, `?entityType=`, oldest first, paged by `(deletedAt, id)`; each kind only to a key that may read it (`read:settings` for the rest). Two kinds name no record and go to every key: **`restore`** (a backup was restored: rows were replaced, tombstones with them, and came back with their old `updatedAt`) and **`reset`** (a bulk delete without a tombstone per row; `entityId` says which: `delete_content`, `sample_data`, `import_undo`, `shopmonkey_undo`). After either, sync everything again from scratch. Each is written once the change has committed, and comes through an `?entityType=` filter too. The content wipe writes one only when it was asked to remove records the API serves (not for notifications or messages alone), and only once it has finished: a wipe that fails partway writes none, and running it again (which finishes it) writes it then. Deletes the app makes one at a time all leave tombstones (A2, and A5 for an inspection, a payment pulled back from the accounting system, a booking's placeholder work order, and an appointment that became a work order). The kinds: `customer`, `customer_contact`, `vehicle`, `note`, `finding`, `work_order`, `work_order_line`, `work_job`, `attachment`, `payment`, `quote`, `appointment`, `inspection`, `inventory_part`, `labor_preset`, `time_entry`, `technician_shift`, `webhook` (needs `read:settings`), and the markers `restore` and `reset`. Three differ from the fork's own events' `entity` (§5): a `customer_contact` is a `contact` event, a `work_job` a `job` event, a `technician_shift` a `shift` event. Upstream's events keep their own names and send the model's name as `entity` (`service.update` with `ServiceRecord`, `inventory.*` with `InventoryPart`, `customer.*` with `Customer`), and some kinds have no event at all (`note`, `attachment`, `work_order_line`, `labor_preset`, `webhook`): map a tombstone by its kind, not by an event's name. |
 | `/openapi.json` | R | Unauthenticated. |
 
 ## 5. Webhook events added by the fork
@@ -138,18 +138,31 @@ these (listed in that file under a `// fork:` comment, and sent from the matchin
 `logAudit`):
 
 `appointment.create`, `appointment.update`, `appointment.delete`, `time_entry.start`, `time_entry.stop`,
-`time_entry.update`, `shift.create`, `shift.update`, `technician.create`, `technician.update`,
-`work_order.issue`, `job.create`, `job.update`, `job.delete`, `contact.create`, `contact.update`,
-`contact.delete`.
+`time_entry.create`, `time_entry.update`, `time_entry.delete`, `shift.create`, `shift.update`, `shift.delete`,
+`technician.create`, `technician.update`, `technician.delete`, `work_order.issue`, `job.create`, `job.update`,
+`job.delete`, `contact.create`, `contact.update`, `contact.delete` (A5 added the three deletes and
+`time_entry.create`/`delete` beside the list first planned: a subscriber syncing those lists needs them), and
+`restore.complete` (a backup's records were restored, once its files were copied, or failed to be: `data` is
+`{ restoredAt }`; sync everything again, and `/deleted` has a `restore` marker).
 
-Payloads keep the existing shape (`event`, `entity`, `entityId`, `data`). `data` is the same serialized
-resource the API returns for that entity, so a subscriber never has to call back for basics.
+Payloads keep the existing shape (`event`, `entity`, `entityId`, `data`); `entity` is the API's kind (`job`,
+`contact`, `time_entry`, …). `data` is the same serialized resource the API returns for that entity, read when the
+event is sent and scoped by the workshop, so a subscriber never has to call back for basics
+(`features/public-api/Lib/eventData.server.ts`); a delete's `data` is `{ id }`. A record with no endpoint of its own
+carries the ids that find it, on a delete too: a contact its `customerId`, a job its `workOrderId` (or `quoteId`). A
+`time_entry.start` that closed another running clock names it (`closedEntryId`), and that clock sends its own
+`time_entry.stop`. Deliveries come in no set order (each is sent on its own, and retried on its own): order by the
+record, not by arrival; a start's `closedEntryId` says which clock it ended. The record is read only once a webhook subscribes to the event; one that can't be read goes out as
+its id and those ids.
 
-Already in the audit log since A4, and sent once A5 lists them: `appointment.*` and `technician.*` (the app's
-own audit actions), `contact.*`, `job.*` and `shift.*` (the fork's records), and `time_entry.start` (the API's
-clock start). The app logs time entries as `timeEntry.create`, `timeEntry.update` (a stop too) and
-`timeEntry.delete`; A5 decides whether `time_entry.stop` and `time_entry.update` are those under new names or
-events beside them.
+Time entries (A5's decision): the app logs `timeEntry.create`, `timeEntry.update` (a stop too) and `timeEntry.delete`;
+they go out as `time_entry.create`, `time_entry.stop` (a clock stopped: the app's stop button, the technician app's
+stop, or its moving the job to completed or waiting for parts, which stops every clock on it), `time_entry.update` (any other edit, an end time typed into a running entry included)
+and `time_entry.delete`. Every clock sends `time_entry.start` and `time_entry.stop`: the app's own My clock, the
+technician app, and the API's `/time-entries/start` (a tap on the clock already running on that job changes nothing
+and sends nothing). `work_order.issue` is sent when an invoice is sent or paid, never for a backfill (the Shopmonkey
+import's, or the settings' freeze of older invoices); its actor is the system, not a person. Reissuing an invoice
+sends nothing new. Each fork event is in the webhook settings under its own group, with a sample payload.
 
 ## 6. Code layout
 

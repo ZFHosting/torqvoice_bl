@@ -170,6 +170,7 @@
     "settings_setCustomFieldPlacement": "Обновено разположение на персонализирано поле",
     "import_commit": "Импортирана електронна таблица",
     "import_undo": "Отменено импортиране",
+    "work_order_issue": "Издадена фактура",
     "integration_connect": "Свързана интеграция",
     "integration_disconnect": "Прекъсната връзка с интеграция",
     "service_setInvoiceDesign": "Променен дизайн на фактурата",
@@ -390,6 +391,7 @@
     "settings_setCustomFieldPlacement": "Променено мястото за отпечатване на персонализирано поле",
     "import_commit": "Импортирана е електронна таблица: създадени са {created} записа",
     "import_undo": "Отменено импортиране на електронна таблица: премахнати са {records} записа",
+    "work_order_issue": "Издадена фактура за работна поръчка",
     "integration_connect": "Свързана интеграция {name}",
     "integration_disconnect": "Прекъсната връзката с интеграция {name}",
     "service_setInvoiceDesign": "Променен дизайнът, с който се отпечатва фактурата",
@@ -448,6 +450,16 @@
     "shopmonkey_import_undo": "Отменен импорт от Shopmonkey: премахнати записи: {records}",
     "shopmonkey_cutover": "Преминаване от Shopmonkey: Torqvoice вече не го следва",
     "shopmonkey_sync_delete": "Изтрити {records} записа, изтрити в Shopmonkey (периодът на синхронизация)",
-    "platform_revokeSuperAdmin": "Премахнати правата на супер администратор на {name} ({email})"
+    "platform_revokeSuperAdmin": "Премахнати правата на супер администратор на {name} ({email})",
+    "contact_create": "Добавен контакт на клиент",
+    "contact_update": "Променен контакт на клиент",
+    "contact_delete": "Премахнат контакт на клиент",
+    "job_create": "Добавена задача",
+    "job_update": "Променена задача",
+    "job_delete": "Премахната задача",
+    "shift_create": "Записана смяна",
+    "shift_update": "Променена смяна",
+    "shift_delete": "Премахната смяна",
+    "time_entry_start": "Пуснат часовник по задача"
   }
 }

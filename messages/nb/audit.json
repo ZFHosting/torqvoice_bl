@@ -170,6 +170,7 @@
     "settings_setCustomFieldPlacement": "Oppdaterte plassering av egendefinert felt",
     "import_commit": "Importerte regneark",
     "import_undo": "Angret import",
+    "work_order_issue": "Faktura utstedt",
     "integration_connect": "Koblet til en integrasjon",
     "integration_disconnect": "Koblet fra en integrasjon",
     "service_setInvoiceDesign": "Endret fakturadesign",
@@ -390,6 +391,7 @@
     "settings_setCustomFieldPlacement": "Endret hvor et egendefinert felt skrives ut",
     "import_commit": "Importerte et regneark: {created} poster opprettet",
     "import_undo": "Angret en regnearkimport: {records} poster fjernet",
+    "work_order_issue": "Utstedte fakturaen for en arbeidsordre",
     "integration_connect": "Koblet til {name}",
     "integration_disconnect": "Koblet fra {name}",
     "service_setInvoiceDesign": "Endret hvilket design en faktura skrives ut med",
@@ -448,6 +450,16 @@
     "shopmonkey_import_undo": "Angret en import fra Shopmonkey: fjernet {records} poster",
     "shopmonkey_cutover": "Byttet over fra Shopmonkey: Torqvoice følger den ikke lenger",
     "shopmonkey_sync_delete": "Slettet {records} poster som ble slettet i Shopmonkey (synkroniseringsperioden)",
-    "platform_revokeSuperAdmin": "Fjernet superadmin fra {name} ({email})"
+    "platform_revokeSuperAdmin": "Fjernet superadmin fra {name} ({email})",
+    "contact_create": "La til en kundekontakt",
+    "contact_update": "Endret en kundekontakt",
+    "contact_delete": "Fjernet en kundekontakt",
+    "job_create": "La til en jobb",
+    "job_update": "Endret en jobb",
+    "job_delete": "Fjernet en jobb",
+    "shift_create": "Registrerte et skift",
+    "shift_update": "Endret et skift",
+    "shift_delete": "Fjernet et skift",
+    "time_entry_start": "Startet en klokke på en jobb"
   }
 }

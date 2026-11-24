@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
 import { apiError, apiOk, withApiAuth } from '@/lib/with-api-auth'
 import { stopJobClocks } from '@/features/time-tracking/Lib/timeEntries'
+import { logClockStop } from '@/features/fork-records/Lib/clockEvents.server' // fork (A5)
 import { notify } from '@/lib/notify'
 import { SETTING_KEYS } from '@/features/settings/Schema/settingsSchema'
 import { jobScopeFor } from '@/features/workboard/Lib/jobTeam'
@@ -87,6 +88,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           organizationId: ctx.organizationId,
           serviceRecordId: job.id,
         })
+        // fork (A5): each clock it stopped sends its time_entry.stop
+        for (const entry of stopped) await logClockStop(ctx, entry.id)
         // The app shows the caller how long their own stretch was.
         stoppedMinutes =
           stopped.find((e) => ctx.technicianIds.includes(e.technicianId))?.durationMinutes ?? null

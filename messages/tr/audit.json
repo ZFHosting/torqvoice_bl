@@ -170,6 +170,7 @@
     "settings_setCustomFieldPlacement": "Özel alan konumu güncellendi",
     "import_commit": "Hesap Tablosu İçe Aktarıldı",
     "import_undo": "İçe Aktarma Geri Alındı",
+    "work_order_issue": "Fatura kesildi",
     "integration_connect": "Entegrasyon bağlandı",
     "integration_disconnect": "Entegrasyon bağlantısı kesildi",
     "service_setInvoiceDesign": "Fatura tasarımı değiştirildi",
@@ -390,6 +391,7 @@
     "settings_setCustomFieldPlacement": "Bir özel alanın yazdırıldığı yer değiştirildi",
     "import_commit": "Bir hesap tablosu içe aktarıldı: {created} kayıt oluşturuldu",
     "import_undo": "Bir hesap tablosu içe aktarması geri alındı: {records} kayıt kaldırıldı",
+    "work_order_issue": "Bir iş emrinin faturası kesildi",
     "integration_connect": "{name} bağlandı",
     "integration_disconnect": "{name} bağlantısı kesildi",
     "service_setInvoiceDesign": "Bir faturanın hangi tasarımla yazdırılacağını değiştirdi",
@@ -448,6 +450,16 @@
     "shopmonkey_import_undo": "Shopmonkey içe aktarımı geri alındı: {records} kayıt kaldırıldı",
     "shopmonkey_cutover": "Shopmonkey'den geçiş: Torqvoice artık onu takip etmiyor",
     "shopmonkey_sync_delete": "Shopmonkey'de silinen {records} kayıt silindi (senkronizasyon dönemi)",
-    "platform_revokeSuperAdmin": "{name} ({email}) kullanıcısının süper yöneticiliği kaldırıldı"
+    "platform_revokeSuperAdmin": "{name} ({email}) kullanıcısının süper yöneticiliği kaldırıldı",
+    "contact_create": "Müşteri iletişim bilgisi eklendi",
+    "contact_update": "Müşteri iletişim bilgisi değiştirildi",
+    "contact_delete": "Müşteri iletişim bilgisi kaldırıldı",
+    "job_create": "İş eklendi",
+    "job_update": "İş değiştirildi",
+    "job_delete": "İş kaldırıldı",
+    "shift_create": "Vardiya kaydedildi",
+    "shift_update": "Vardiya değiştirildi",
+    "shift_delete": "Vardiya kaldırıldı",
+    "time_entry_start": "Bir işte saat başlatıldı"
   }
 }

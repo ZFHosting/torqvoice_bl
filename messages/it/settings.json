@@ -2246,7 +2246,13 @@
       "payments": "Pagamenti",
       "inspections": "Ispezioni",
       "inventory": "Magazzino",
-      "findings": "Anomalie"
+      "findings": "Anomalie",
+      "workOrders": "Ordini di lavoro e lavori",
+      "contacts": "Contatti dei clienti",
+      "appointments": "Appuntamenti",
+      "time": "Tempo e turni",
+      "technicians": "Tecnici",
+      "restores": "Ripristini"
     },
     "save": "Salva",
     "cancel": "Annulla",

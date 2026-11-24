@@ -2246,7 +2246,13 @@
       "payments": "Ödemeler",
       "inspections": "Muayeneler",
       "inventory": "Envanter",
-      "findings": "Bulgular"
+      "findings": "Bulgular",
+      "workOrders": "İş emirleri ve işler",
+      "contacts": "Müşteri iletişim bilgileri",
+      "appointments": "Randevular",
+      "time": "Zaman ve vardiyalar",
+      "technicians": "Teknisyenler",
+      "restores": "Geri yüklemeler"
     },
     "save": "Kaydet",
     "cancel": "İptal",

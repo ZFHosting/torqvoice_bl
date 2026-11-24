@@ -53,6 +53,7 @@ import { organizationTranslator } from '@/i18n/organization-translator'
 import { serviceRecordFileUrls, vehicleFileUrls } from '@/lib/files/collect'
 import { isTypeKeyEnabled } from '@/features/vehicles/Lib/typeKeySetting'
 import { isCustomerReferenceEnabled } from '@/features/customer-reference/Lib/referenceSetting'
+import { recordReset } from '@/features/public-api/Lib/resets.server' // fork (A5)
 
 // ── Input shapes ──────────────────────────────────────────────────────────────
 
@@ -849,7 +850,8 @@ export async function listImportBatches(limit = 20) {
 export async function undoImportBatch(batchId: string) {
   if (!batchId) return invalid('Import not found')
   return withAuth(
-    async ({ organizationId }) => {
+    // fork (A5): userId, the reset marker's actor
+    async ({ organizationId, userId }) => {
       demoGuard()
       const batch = await db.importBatch.findFirst({ where: { id: batchId, organizationId } })
       if (!batch) throw new Error('Import not found')
@@ -938,6 +940,8 @@ export async function undoImportBatch(batchId: string) {
       revalidatePath('/vehicles')
       revalidatePath('/work-orders')
       revalidatePath('/settings/data')
+      // fork (A5): no tombstone per row; API clients resync in full (public-api/Lib/resets.server.ts)
+      await recordReset(organizationId, 'import_undo', userId)
       return result
     },
     {

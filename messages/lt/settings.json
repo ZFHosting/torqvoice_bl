@@ -2246,7 +2246,13 @@
       "payments": "Mokėjimai",
       "inspections": "Apžiūros",
       "inventory": "Atsargos",
-      "findings": "Pastabos"
+      "findings": "Pastabos",
+      "workOrders": "Darbo užsakymai ir darbai",
+      "contacts": "Klientų kontaktai",
+      "appointments": "Vizitai",
+      "time": "Laikas ir pamainos",
+      "technicians": "Technikai",
+      "restores": "Atkūrimai"
     },
     "save": "Išsaugoti",
     "cancel": "Atšaukti",

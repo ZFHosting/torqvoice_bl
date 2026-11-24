@@ -146,7 +146,7 @@ export async function startEntry(args: {
   // Tapping start on the job already running is a no-op, not a restart. The
   // alternative loses the elapsed time to a double tap on a cold morning.
   if (open?.serviceRecordId === serviceRecordId) {
-    return { entry: open, closed: null }
+    return { entry: open, closed: null, fresh: false } // fork (A5): nothing started, so no event
   }
 
   const now = new Date()
@@ -226,7 +226,7 @@ export async function startEntry(args: {
           },
         })
       }
-      return { entry: result.entry, closed: result.closed }
+      return { entry: result.entry, closed: result.closed, fresh: true } // fork (A5)
     })
 }
 

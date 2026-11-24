@@ -17,7 +17,18 @@ export interface ReadSpec<Out> {
   filters?: z.ZodObject
   /** What may be named in `?include=` (comma separated). */
   includes?: readonly string[]
+  /**
+   * fork (A5): the model an imported row of this resource is (`Customer`, `ServiceRecord`, ...), as the archive names
+   * the row a record was loaded as (`SourceRecord.localEntity`). It adds `source` to the includes: the archived
+   * record the row came from, as `sourceRecord`.
+   */
+  sourceModel?: string
   response: z.ZodType<Out>
+}
+
+/** Everything `?include=` may name: the resource's own, and `source` where its rows can be imported. */
+export function allowedIncludes(spec: { includes?: readonly string[]; sourceModel?: string }) {
+  return [...(spec.includes ?? []), ...(spec.sourceModel ? ['source'] : [])]
 }
 
 /** `?include=a,b`, each one of `allowed`; an unknown one is a 400, not silently ignored. */
@@ -45,8 +56,12 @@ export function includeSchema(allowed: readonly string[]) {
  * A list's query: paging, `include` and the resource's filters, and nothing else. A parameter it doesn't know is a
  * 400, like an unknown include: a misspelt or unsupported filter silently ignored would hand back the whole list.
  */
-export function listQuerySchema(spec: { includes?: readonly string[]; filters?: z.ZodObject }) {
-  const base = pageQuerySchema.extend({ include: includeSchema(spec.includes ?? []) })
+export function listQuerySchema(spec: {
+  includes?: readonly string[]
+  sourceModel?: string
+  filters?: z.ZodObject
+}) {
+  const base = pageQuerySchema.extend({ include: includeSchema(allowedIncludes(spec)) })
   return (spec.filters ? base.extend(spec.filters.shape) : base).strict()
 }
 
@@ -70,7 +85,7 @@ export function readEndpoints(spec: ReadSpec<unknown>): EndpointSpec[] {
       path: `${spec.path}/{id}`,
       summary: `Get one ${spec.noun.one}`,
       tag: spec.tag,
-      query: getQuerySchema(spec.includes ?? []) as unknown as z.ZodObject,
+      query: getQuerySchema(allowedIncludes(spec)) as unknown as z.ZodObject,
       response: spec.response,
     },
   ]

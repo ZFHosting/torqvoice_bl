@@ -12,6 +12,8 @@ const scheduledMessage = { create: vi.fn() }
 const appSetting = { findUnique: vi.fn() }
 // A deleted placeholder job takes its custom field values with it.
 const customFieldValue = { deleteMany: vi.fn() }
+// fork (A5): the placeholder's tombstone
+const deletedRecord = { create: vi.fn() }
 // These tests are about workshop scoping, not files: the file manager and the
 // files a delete collects have tests of their own (src/__tests__/lib/files).
 vi.mock('@/lib/files/collect', () => ({
@@ -35,6 +37,7 @@ vi.mock('@/lib/db', () => ({
     scheduledMessage,
     appSetting,
     customFieldValue,
+    deletedRecord, // fork (A5)
   },
 }))
 const notify = vi.fn(async () => undefined)
@@ -253,6 +256,29 @@ describe('booking link', () => {
         field: { organizationId: 'org-a' },
       },
     })
+  })
+
+  // fork (A5): an API client may have read the placeholder work order, so its delete leaves a tombstone.
+  it('leaves a tombstone for the placeholder it removed, and none for one it kept', async () => {
+    inspectionReminderSend.findUnique.mockResolvedValue(
+      send({ bookedAt: new Date(), bookedServiceRecordId: 'rec-1' })
+    )
+    serviceRecord.findUnique.mockResolvedValue({
+      startDateTime: future,
+      endDateTime: new Date(future.getTime() + 3_600_000),
+      status: 'scheduled',
+    })
+    serviceRecord.findFirst.mockResolvedValue({ id: 'rec-1' })
+    serviceRecord.deleteMany.mockResolvedValue({ count: 1 })
+    await cancelBooking(TOKEN)
+    expect(deletedRecord.create).toHaveBeenCalledWith({
+      data: { organizationId: 'org-a', entityType: 'work_order', entityId: 'rec-1' },
+    })
+
+    deletedRecord.create.mockClear()
+    serviceRecord.deleteMany.mockResolvedValue({ count: 0 })
+    await cancelBooking(TOKEN)
+    expect(deletedRecord.create).not.toHaveBeenCalled()
   })
 
   it('keeps the custom field values of a job somebody started before the cancel landed', async () => {

@@ -2246,7 +2246,13 @@
       "payments": "Betalinger",
       "inspections": "Inspeksjoner",
       "inventory": "Lager",
-      "findings": "Funn"
+      "findings": "Funn",
+      "workOrders": "Arbeidsordrer og jobber",
+      "contacts": "Kundekontakter",
+      "appointments": "Avtaler",
+      "time": "Tid og skift",
+      "technicians": "Mekanikere",
+      "restores": "Gjenopprettinger"
     },
     "save": "Lagre",
     "cancel": "Avbryt",

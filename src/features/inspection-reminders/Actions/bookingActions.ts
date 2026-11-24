@@ -340,6 +340,16 @@ export async function cancelBooking(rawToken: string) {
       await deleteCustomFieldValuesOf(db, send.organizationId, 'service_record', [
         send.bookedServiceRecordId,
       ])
+      // fork (A5): the placeholder work order may have been read through the API: its tombstone.
+      if (stillPlaceholder) {
+        await db.deletedRecord.create({
+          data: {
+            organizationId: send.organizationId,
+            entityType: 'work_order',
+            entityId: stillPlaceholder.id,
+          },
+        })
+      }
     }
     await releaseFiles(files, {
       organizationId: send.organizationId,

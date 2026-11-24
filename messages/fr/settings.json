@@ -2246,7 +2246,13 @@
       "payments": "Paiements",
       "inspections": "Inspections",
       "inventory": "Inventaire",
-      "findings": "Constatations"
+      "findings": "Constatations",
+      "workOrders": "Ordres de réparation et travaux",
+      "contacts": "Contacts clients",
+      "appointments": "Rendez-vous",
+      "time": "Temps et équipes",
+      "technicians": "Techniciens",
+      "restores": "Restaurations"
     },
     "save": "Enregistrer",
     "cancel": "Annuler",

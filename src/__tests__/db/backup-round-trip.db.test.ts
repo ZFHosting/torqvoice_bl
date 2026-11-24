@@ -458,6 +458,52 @@ interface Difference {
   after: unknown
 }
 
+/**
+ * fork (A5): what a restore writes by design once the workshop's records are back, set aside before comparing: its
+ * one `restore` marker at `/api/v1/deleted` (public-api/Lib/resets.server.ts) and one `restore.complete` delivery to
+ * each of the workshop's webhooks (only theirs: one to another workshop's would show in its comparison). Each is
+ * asserted present, for this workshop.
+ */
+function withoutRestoreOwn(dump: Dump, organizationId: string): Dump {
+  const markers = (dump.get('deleted_records') ?? []).filter((r) => r.entityType === 'restore')
+  expect(markers.map((r) => [r.organizationId, r.entityId])).toEqual([[organizationId, 'restore']])
+  // One restore.complete to each of this workshop's webhooks that takes it; one sent anywhere else stays, for the
+  // comparison.
+  const ownWebhooks = (dump.get('webhooks') ?? []).filter(
+    (w) => w.organizationId === organizationId
+  )
+  const own = new Set(ownWebhooks.map((w) => w.id))
+  // As the dispatcher reads a webhook's events: what isn't a JSON list subscribes to nothing.
+  const eventsOf = (w: Row): string[] => {
+    try {
+      const parsed = JSON.parse(String(w.events ?? '[]'))
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  const takesIt = ownWebhooks.filter(
+    (w) =>
+      w.isActive === true && (eventsOf(w).includes('*') || eventsOf(w).includes('restore.complete'))
+  )
+  const sent = (dump.get('webhook_deliveries') ?? []).filter(
+    (d) => d.event === 'restore.complete' && own.has(d.webhookId)
+  )
+  expect(sent.map((d) => d.webhookId).sort()).toEqual(takesIt.map((w) => w.id).sort())
+  const out: Dump = new Map()
+  for (const [table, rows] of dump) {
+    const kept = rows.filter((r) =>
+      table === 'deleted_records'
+        ? r.entityType !== 'restore'
+        : table === 'webhook_deliveries'
+          ? !(r.event === 'restore.complete' && own.has(r.webhookId))
+          : true
+    )
+    if (kept.length || dump.get(table)?.length === 0) out.set(table, kept)
+  }
+  return out
+}
+
 function compare(before: Dump, after: Dump): Difference[] {
   const out: Difference[] = []
   for (const table of new Set([...before.keys(), ...after.keys()])) {
@@ -606,7 +652,8 @@ describeDb('a backup round trip', () => {
       { dataFile: backup.dataFile, filesDir: backup.filesDir, archiveFile: backup.archiveFile }
     )
 
-    const after = await dumpAll()
+    // fork (A5): the restore's own marker set aside (and checked)
+    const after = withoutRestoreOwn(await dumpAll(), ORG)
     const differences = compare(before, after)
     const expected = variant === 'zeros' ? { ...EXPECTED, ...EXPECTED_AT_ZERO } : EXPECTED
     const unexpected = differences.filter((d) => !(d.where in expected))

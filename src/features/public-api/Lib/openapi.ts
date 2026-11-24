@@ -18,6 +18,7 @@ import { settingsEndpoints } from '../Schema/settings'
 import { staffEndpoints } from '../Schema/staff'
 import { vehicleEndpoints } from '../Schema/vehicles'
 import { workOrderEndpoints } from '../Schema/workOrders'
+import { reportEndpoints } from '../Schema/reports'
 
 export interface EndpointSpec {
   method: 'get' | 'post' | 'patch' | 'delete'
@@ -52,6 +53,8 @@ export const RESOURCES: readonly EndpointSpec[][] = [
   catalogEndpoints,
   scheduleEndpoints,
   recordEndpoints,
+  // fork (A5): reports, tombstones, the Shopmonkey archive.
+  reportEndpoints,
 ]
 
 /** Every refusal's body (src/features/public-api/Lib/errors.ts); `components.schemas.Error`. */

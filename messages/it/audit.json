@@ -170,6 +170,7 @@
     "settings_setCustomFieldPlacement": "Posizione del campo personalizzato aggiornata",
     "import_commit": "Foglio di calcolo importato",
     "import_undo": "Importazione annullata",
+    "work_order_issue": "Fattura emessa",
     "integration_connect": "Integrazione collegata",
     "integration_disconnect": "Integrazione scollegata",
     "service_setInvoiceDesign": "Design della fattura cambiato",
@@ -390,6 +391,7 @@
     "settings_setCustomFieldPlacement": "Ha modificato dove viene stampato un campo personalizzato",
     "import_commit": "Foglio di calcolo importato: {created} record creati",
     "import_undo": "Importazione da foglio di calcolo annullata: {records} record rimossi",
+    "work_order_issue": "Emessa la fattura di un ordine di lavoro",
     "integration_connect": "{name} collegato",
     "integration_disconnect": "{name} scollegato",
     "service_setInvoiceDesign": "Ha cambiato il design con cui viene stampata una fattura",
@@ -448,6 +450,16 @@
     "shopmonkey_import_undo": "Annullata un'importazione da Shopmonkey: rimossi {records} record",
     "shopmonkey_cutover": "Passaggio da Shopmonkey completato: Torqvoice non lo segue più",
     "shopmonkey_sync_delete": "Eliminati {records} record eliminati in Shopmonkey (periodo di sincronizzazione)",
-    "platform_revokeSuperAdmin": "Ruolo di super amministratore rimosso da {name} ({email})"
+    "platform_revokeSuperAdmin": "Ruolo di super amministratore rimosso da {name} ({email})",
+    "contact_create": "Contatto cliente aggiunto",
+    "contact_update": "Contatto cliente modificato",
+    "contact_delete": "Contatto cliente rimosso",
+    "job_create": "Lavoro aggiunto",
+    "job_update": "Lavoro modificato",
+    "job_delete": "Lavoro rimosso",
+    "shift_create": "Turno registrato",
+    "shift_update": "Turno modificato",
+    "shift_delete": "Turno rimosso",
+    "time_entry_start": "Cronometro avviato su un lavoro"
   }
 }

@@ -170,6 +170,7 @@
     "settings_setCustomFieldPlacement": "Обновлено расположение пользовательского поля",
     "import_commit": "Импортирована таблица",
     "import_undo": "Отменён импорт",
+    "work_order_issue": "Счёт выставлен",
     "integration_connect": "Подключена интеграция",
     "integration_disconnect": "Отключена интеграция",
     "service_setInvoiceDesign": "Изменён дизайн счёта",
@@ -390,6 +391,7 @@
     "settings_setCustomFieldPlacement": "Изменено место печати пользовательского поля",
     "import_commit": "Импортирована таблица, создано записей: {created}",
     "import_undo": "Отменён импорт таблицы, удалено записей: {records}",
+    "work_order_issue": "Выставлен счёт по заказ-наряду",
     "integration_connect": "Подключена интеграция {name}",
     "integration_disconnect": "Отключена интеграция {name}",
     "service_setInvoiceDesign": "Изменил, с каким дизайном печатается счёт",
@@ -448,6 +450,16 @@
     "shopmonkey_import_undo": "Импорт из Shopmonkey отменён: удалено записей: {records}",
     "shopmonkey_cutover": "Переход с Shopmonkey: Torqvoice больше его не отслеживает",
     "shopmonkey_sync_delete": "Удалено записей, удалённых в Shopmonkey: {records} (период синхронизации)",
-    "platform_revokeSuperAdmin": "С {name} ({email}) сняты права суперадмина"
+    "platform_revokeSuperAdmin": "С {name} ({email}) сняты права суперадмина",
+    "contact_create": "Добавлен контакт клиента",
+    "contact_update": "Изменён контакт клиента",
+    "contact_delete": "Удалён контакт клиента",
+    "job_create": "Добавлена работа",
+    "job_update": "Изменена работа",
+    "job_delete": "Удалена работа",
+    "shift_create": "Записана смена",
+    "shift_update": "Изменена смена",
+    "shift_delete": "Удалена смена",
+    "time_entry_start": "Запущен учёт времени по работе"
   }
 }

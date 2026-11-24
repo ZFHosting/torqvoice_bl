@@ -170,6 +170,7 @@
     "settings_setCustomFieldPlacement": "Atnaujinta pasirinktinio lauko vieta",
     "import_commit": "Importuota skaičiuoklė",
     "import_undo": "Atšauktas importas",
+    "work_order_issue": "Išrašyta sąskaita",
     "integration_connect": "Prijungta integracija",
     "integration_disconnect": "Atjungta integracija",
     "service_setInvoiceDesign": "Pakeistas sąskaitos dizainas",
@@ -390,6 +391,7 @@
     "settings_setCustomFieldPlacement": "Pakeitė, kur spausdinamas pasirinktinis laukas",
     "import_commit": "Importuota skaičiuoklė: sukurta įrašų: {created}",
     "import_undo": "Atšauktas skaičiuoklės importas: pašalinta įrašų: {records}",
+    "work_order_issue": "Išrašyta darbo užsakymo sąskaita",
     "integration_connect": "Prijungta {name}",
     "integration_disconnect": "Atjungta {name}",
     "service_setInvoiceDesign": "Pakeitė, kokiu dizainu spausdinama sąskaita",
@@ -448,6 +450,16 @@
     "shopmonkey_import_undo": "Atšauktas importas iš Shopmonkey: pašalinta įrašų: {records}",
     "shopmonkey_cutover": "Perėjimas iš Shopmonkey: Torqvoice jo nebeseka",
     "shopmonkey_sync_delete": "Ištrinti {records} įrašai, ištrinti Shopmonkey (sinchronizacijos laikotarpis)",
-    "platform_revokeSuperAdmin": "Atimtos vyriausiojo administratoriaus teisės iš {name} ({email})"
+    "platform_revokeSuperAdmin": "Atimtos vyriausiojo administratoriaus teisės iš {name} ({email})",
+    "contact_create": "Pridėtas kliento kontaktas",
+    "contact_update": "Pakeistas kliento kontaktas",
+    "contact_delete": "Pašalintas kliento kontaktas",
+    "job_create": "Pridėtas darbas",
+    "job_update": "Pakeistas darbas",
+    "job_delete": "Pašalintas darbas",
+    "shift_create": "Užregistruota pamaina",
+    "shift_update": "Pakeista pamaina",
+    "shift_delete": "Pašalinta pamaina",
+    "time_entry_start": "Paleistas darbo laikmatis"
   }
 }

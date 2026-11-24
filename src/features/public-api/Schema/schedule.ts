@@ -15,7 +15,7 @@ import { isDateKey, isTime } from '@/features/workshop-calendar/Lib/calendar'
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
 import { writeEndpoints } from '../Lib/writeSpec'
-import { rangeFilters } from './common'
+import { rangeFilters, sourceSchema } from './common'
 
 export const appointmentSchema = z
   .object({
@@ -28,6 +28,8 @@ export const appointmentSchema = z
     vehicleId: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'Appointment' })
 
@@ -44,6 +46,8 @@ export const timeEntrySchema = z
     editedAt: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'TimeEntry' })
 
@@ -58,6 +62,8 @@ export const shiftSchema = z
     source: z.string(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'Shift' })
 
@@ -70,6 +76,8 @@ export const appointmentsSpec: ReadSpec<AppointmentOut> = {
   tag: 'Appointments',
   noun: { one: 'appointment', many: 'appointments' },
   filters: z.object({ ...rangeFilters }).describe('By start'),
+  // fork (A5): `include=source`
+  sourceModel: 'Appointment',
   response: appointmentSchema,
 }
 
@@ -82,6 +90,8 @@ export const timeEntriesSpec: ReadSpec<TimeEntryOut> = {
     workOrderId: z.string().min(1).optional(),
     ...rangeFilters,
   }),
+  // fork (A5): `include=source`
+  sourceModel: 'TimeEntry',
   response: timeEntrySchema,
 }
 
@@ -90,6 +100,8 @@ export const shiftsSpec: ReadSpec<ShiftOut> = {
   tag: 'Time',
   noun: { one: 'shift', many: 'shifts' },
   filters: z.object({ technicianId: z.string().min(1).optional(), ...rangeFilters }),
+  // fork (A5): `include=source`
+  sourceModel: 'TechnicianShift',
   response: shiftSchema,
 }
 

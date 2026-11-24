@@ -170,6 +170,7 @@
     "settings_setCustomFieldPlacement": "Updated Custom Field Placement",
     "import_commit": "Imported Spreadsheet",
     "import_undo": "Undid Import",
+    "work_order_issue": "Issued Invoice",
     "integration_connect": "Connected Integration",
     "integration_disconnect": "Disconnected Integration",
     "service_setInvoiceDesign": "Changed Invoice Design",
@@ -390,6 +391,7 @@
     "settings_setCustomFieldPlacement": "Changed where a custom field prints",
     "import_commit": "Imported a spreadsheet: {created} records created",
     "import_undo": "Undid a spreadsheet import: {records} records removed",
+    "work_order_issue": "Issued the invoice for a work order",
     "integration_connect": "Connected {name}",
     "integration_disconnect": "Disconnected {name}",
     "service_setInvoiceDesign": "Changed which design an invoice prints with",
@@ -448,6 +450,16 @@
     "shopmonkey_import_undo": "Undid a Shopmonkey import: removed {records} records",
     "shopmonkey_cutover": "Cut over from Shopmonkey: Torqvoice no longer follows it",
     "shopmonkey_sync_delete": "Deleted {records} records Shopmonkey deleted (the sync window)",
-    "platform_revokeSuperAdmin": "Removed super admin from {name} ({email})"
+    "platform_revokeSuperAdmin": "Removed super admin from {name} ({email})",
+    "contact_create": "Added a customer contact",
+    "contact_update": "Changed a customer contact",
+    "contact_delete": "Removed a customer contact",
+    "job_create": "Added a job",
+    "job_update": "Changed a job",
+    "job_delete": "Removed a job",
+    "shift_create": "Recorded a shift",
+    "shift_update": "Changed a shift",
+    "shift_delete": "Removed a shift",
+    "time_entry_start": "Started a clock on a job"
   }
 }

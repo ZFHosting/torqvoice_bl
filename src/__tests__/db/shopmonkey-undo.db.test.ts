@@ -49,6 +49,16 @@ describe('undoing a load', () => {
 
     await undo.undoLoad({ ...workshop, runId: summary.runId })
     expect(await countRows(workshop.organizationId)).toEqual(before)
+    // A5: what the undo removed has no tombstone each, so API clients are told to resync in full.
+    expect(
+      await db.deletedRecord.count({
+        where: {
+          organizationId: workshop.organizationId,
+          entityType: 'reset',
+          entityId: 'shopmonkey_undo',
+        },
+      })
+    ).toBe(1)
     const batches = await db.importBatch.findMany({
       where: { organizationId: workshop.organizationId },
     })

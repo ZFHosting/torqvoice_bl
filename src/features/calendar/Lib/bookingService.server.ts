@@ -5,6 +5,7 @@
 import 'server-only'
 import { type TxClient } from '@/lib/db'
 import { demoGuard } from '@/lib/demo'
+import { logAudit } from '@/lib/audit' // fork (A5)
 import { workshopTimeZone } from '@/lib/workshop-timezone'
 import { createDraftRecord } from '@/features/vehicles/Lib/createDraftRecord'
 import {
@@ -136,7 +137,7 @@ export async function createBookingOnceService(ctx: ServiceCtx, input: SaveBooki
   const from = data.fromAppointmentId
     ? await db.appointment.findFirst({
         where: { id: data.fromAppointmentId, organizationId },
-        select: { id: true },
+        select: { id: true, title: true }, // fork (A5): the title, for its delete event
       })
     : null
   if (data.fromAppointmentId && !from) {
@@ -230,11 +231,29 @@ export async function createBookingOnceService(ctx: ServiceCtx, input: SaveBooki
       { organizationId, userId, serviceRecordId: record.id },
       data.notifications
     )
-    if (from) await tx.appointment.delete({ where: { id: from.id } })
+    if (from) {
+      await tx.appointment.delete({ where: { id: from.id } })
+      // fork (A5): the tombstone an API client syncing appointments learns the delete from
+      await tx.deletedRecord.create({
+        data: { organizationId, entityType: 'appointment', entityId: from.id, actorUserId: userId },
+      })
+    }
     return record
   })
   const job = await booking.catch(theOneBooked(organizationId, token))
   if ('kind' in job) return job
+  // fork (A5): the appointment the work order replaced is gone: the app's own delete event, after the commit.
+  if (from) {
+    await logAudit(
+      { userId, organizationId },
+      {
+        action: 'appointment.delete',
+        entity: 'Appointment',
+        entityId: from.id,
+        details: { key: 'appointment_delete', params: { title: from.title } },
+      }
+    )
+  }
   // Booked all the same when everything is taken then: the office may
   // fill an hour the booking page would refuse. The dialog says so.
   return {

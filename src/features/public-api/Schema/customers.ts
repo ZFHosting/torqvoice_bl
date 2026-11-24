@@ -15,7 +15,7 @@ import {
   updateContactSchema,
 } from '@/features/fork-records/Schema/forkRecordSchemas'
 import { deletedSchema, patchBody, writeEndpoints } from '../Lib/writeSpec'
-import { customFieldValueSchema } from './common'
+import { customFieldValueSchema, sourceSchema } from './common'
 
 export const customerContactSchema = z
   .object({
@@ -48,6 +48,8 @@ export const customerSchema = z
     updatedAt: z.string(),
     contacts: z.array(customerContactSchema).optional(),
     customFields: z.array(customFieldValueSchema).optional(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'Customer' })
 
@@ -62,6 +64,8 @@ export const customersSpec: ReadSpec<CustomerOut> = {
     q: z.string().trim().min(1).max(100).optional().describe('Name, email, phone or number'),
   }),
   includes: ['contacts', 'customFields'],
+  // fork (A5): `include=source`
+  sourceModel: 'Customer',
   response: customerSchema,
 }
 

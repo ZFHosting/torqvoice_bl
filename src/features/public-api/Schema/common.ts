@@ -13,6 +13,20 @@ export const customFieldValueSchema = z
   })
   .meta({ id: 'CustomFieldValue' })
 
+/** fork (A5) `?include=source`, as `sourceRecord`: the archived record an imported row came from (Lib/sources.server.ts). */
+export const sourceSchema = z
+  .object({
+    source: z.string().describe('The source system: `shopmonkey`'),
+    table: z.string().describe('The source’s table, e.g. `order`'),
+    remoteId: z.string(),
+    payload: z.unknown().describe('The record as the source sent it, unchanged'),
+    remoteUpdatedAt: z.string().nullable(),
+    remoteDeletedAt: z.string().nullable().describe('When the source reported it deleted'),
+  })
+  .nullable()
+  .describe('With `include=source` (needs `read:settings`): null when the row wasn’t imported')
+  .meta({ id: 'SourceRecordRef' })
+
 /** `?from=&to=` on a time-ranged list: ISO instants, `from` inclusive, `to` exclusive. */
 export const rangeFilters = {
   from: z.iso.datetime({ offset: true }).optional().describe('From this instant (inclusive)'),
