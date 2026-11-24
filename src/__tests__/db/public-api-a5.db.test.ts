@@ -23,17 +23,22 @@ let a: Shop
 let b: Shop
 
 const ctx = vi.hoisted(() => ({ organizationId: '', userId: '' }))
-// The reports screen's actions, run as the workshop's owner.
-vi.mock('@/lib/with-auth', async (importOriginal) => {
-  const real = await importOriginal<typeof import('@/lib/with-auth')>()
-  return {
-    ...real,
-    withAuth: async (fn: (c: unknown) => Promise<unknown>) => ({
-      success: true,
-      data: await fn({ ...ctx, role: 'owner', isAdmin: true, isSuperAdmin: false }),
-    }),
-  }
-})
+// The app's own actions (the reports screen, the booking dialog) through the real `withAuth`, audit and all, signed
+// in as the workshop's owner.
+vi.mock('@/lib/cached-session', () => ({
+  getCachedSession: async () => ({ user: { id: ctx.userId, name: 'Owner', email: null } }),
+  getCachedMembership: async () => ({
+    organizationId: ctx.organizationId,
+    role: 'owner',
+    customRole: null,
+  }),
+  getCachedSessionScope: async () => null,
+}))
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers(),
+  cookies: async () => ({ get: () => undefined }),
+}))
+vi.mock('next/cache', () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined }))
 
 const ZONE = 'Pacific/Auckland'
 
@@ -228,6 +233,33 @@ describe('tombstones and the archive', () => {
 })
 
 describe('a fork event', () => {
+  it('goes out once from the app’s own booking dialog, with the API’s resource as its data', async () => {
+    ctx.organizationId = b.org
+    ctx.userId = b.owner
+    const { createBookingOnce } = await import('@/features/calendar/Actions/createBooking')
+    const booked = await createBookingOnce({
+      kind: 'appointment',
+      token: 'a5-ui-event-token-0001',
+      title: 'Booked in the app',
+      startDate: '2026-06-02',
+      startTime: '09:00',
+      endDate: '2026-06-02',
+      endTime: '09:30',
+      notifications: [],
+    })
+    expect(booked.success).toBe(true)
+    const events = await eventsOf(b.org, 'appointment.create')
+    expect(events.deliveries).toBe(1)
+    const sent = await db.webhookDelivery.findFirstOrThrow({
+      where: { webhook: { organizationId: b.org }, event: 'appointment.create' },
+      select: { payload: true },
+    })
+    const { GET } = await route('appointments')
+    const listed = (await (await call(GET, b.key, 'GET', '/appointments')).json()).data
+    const asApi = listed.find((x: { title: string }) => x.title === 'Booked in the app')
+    expect(JSON.parse(sent.payload).data).toEqual(asApi)
+  })
+
   it('goes out with the API’s resource as its data', async () => {
     const { POST } = await route('appointments')
     const res = await call(POST, a.key, 'POST', '/appointments', {
