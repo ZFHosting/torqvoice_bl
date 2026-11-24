@@ -228,3 +228,18 @@ model DeletedRecord {
   @@index([organizationId, entityType, deletedAt])
   @@map("deleted_records")
 }
+
+/// M7. An inbound webhook delivery, by its id, so one delivered again (a retry, a replay) is acted on once. The job
+/// queue can't remember it: it clears a job's `idempotencyKey` when it claims the job. Kept a week. The connection by
+/// id only, like `SourceRecord`: a delivery outlives nothing it needs.
+model InboundWebhookDelivery {
+  id           String   @id @default(cuid())
+  connectionId String
+  /// The `webhook-id` header (Standard Webhooks).
+  deliveryId   String
+  receivedAt   DateTime @default(now())
+
+  @@unique([connectionId, deliveryId])
+  @@index([receivedAt])
+  @@map("inbound_webhook_deliveries")
+}
