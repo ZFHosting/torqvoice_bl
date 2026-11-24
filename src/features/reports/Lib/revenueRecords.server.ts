@@ -3,6 +3,7 @@
  * the public API (`/api/v1/reports/sales`), so the two agree to the cent. Moved unchanged from the action.
  */
 import { db } from '@/lib/db'
+import { isShopFeeLine } from '@/features/settings/Lib/shopFee'
 import { earnedLineTotal } from '@/lib/tax'
 import { zonedDate, zonedParts } from '@/lib/timezone'
 import { workshopDayRange } from '@/lib/workshop-datetime'
@@ -52,7 +53,14 @@ export interface RevenueRecord {
   partsCost: number
   /** NET (pre-tax), with their share of the job's discount, so they add up with `partsCost` for profit. */
   partsRevenue: number
+  /** Every labor line, shop fee lines included (the reports screen's figure). */
   laborRevenue: number
+  /** The shop fee lines among them, net. */
+  feeRevenue: number
+  /** The tax charged, as the work order stores it. */
+  tax: number
+  /** The discount off the work order. */
+  discount: number
 }
 
 /** The work orders in the window and what each came to. */
@@ -77,10 +85,11 @@ export async function revenueRecords(
       taxInclusive: true,
       subtotal: true,
       discountAmount: true,
+      taxAmount: true,
       manuallyPaid: true,
       payments: { select: { amount: true } },
       partItems: { select: { unitCost: true, quantity: true, total: true, taxable: true } },
-      laborItems: { select: { total: true, taxable: true } },
+      laborItems: { select: { total: true, taxable: true, pricingType: true } },
     },
     orderBy: [{ startDateTime: { sort: 'asc', nulls: 'last' } }, { serviceDate: 'asc' }],
   })
@@ -94,6 +103,11 @@ export async function revenueRecords(
       partsCost: r.partItems.reduce((s, p) => s + p.unitCost * p.quantity, 0),
       partsRevenue: r.partItems.reduce((s, p) => s + earnedLineTotal(p.total, r, p.taxable), 0),
       laborRevenue: r.laborItems.reduce((s, l) => s + earnedLineTotal(l.total, r, l.taxable), 0),
+      feeRevenue: r.laborItems
+        .filter(isShopFeeLine)
+        .reduce((s, l) => s + earnedLineTotal(l.total, r, l.taxable), 0),
+      tax: r.taxAmount,
+      discount: r.discountAmount,
     }
   })
 }
