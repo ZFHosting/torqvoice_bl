@@ -82,9 +82,11 @@ Environment (local, Windows):
 4. [x] `/deleted` (per-kind permission) with tombstones for the deletes A2 missed (an inspection, a pulled payment, a
    booking's placeholder) and `restore` / `reset` markers for restores and bulk deletes (settings wipe, sample data,
    spreadsheet import undo, Shopmonkey undo), written after commit (`Lib/resets.server.ts`). No migration.
-5. [ ] Tests: unit (`report-periods`, `event-data`); db (`public-api-a5.db.test.ts`: reports against the screen in
-   Pacific/Auckland, tenant isolation and permissions of `/deleted` and `/source-records`, `include=source`, markers,
-   `restore.complete`, an event from the app's booking action and from the API). Then DoD, reviewer, merge.
+5. [x] Tests: unit (`report-periods`, `event-data`, `sources`, `resets`: the public-api folder 15 files / 106 tests
+   pass); db (`public-api-a5.db.test.ts` 12/12 at c82a0cde: reports against the screen in Pacific/Auckland, tenant
+   isolation and permissions of `/deleted` and `/source-records`, `include=source`, markers, `restore.complete`, an
+   event from the app's booking action and from the API); `tsc` exit 0; Biome 14 (baseline) in the LF worktree.
+6. [ ] Full unit suite and `test:db` (running), reviewer pass 1 (running), merge.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one

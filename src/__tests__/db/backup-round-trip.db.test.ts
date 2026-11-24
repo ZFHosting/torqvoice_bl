@@ -458,6 +458,28 @@ interface Difference {
   after: unknown
 }
 
+/**
+ * fork (A5): what a restore writes by design once the workshop's records are back, set aside before comparing: its
+ * one `restore` marker at `/api/v1/deleted` (public-api/Lib/resets.server.ts) and the `restore.complete` deliveries
+ * to the workshop's webhooks. Each is asserted present, for this workshop.
+ */
+function withoutRestoreOwn(dump: Dump, organizationId: string): Dump {
+  const markers = (dump.get('deleted_records') ?? []).filter((r) => r.entityType === 'restore')
+  expect(markers.map((r) => [r.organizationId, r.entityId])).toEqual([[organizationId, 'restore']])
+  const out: Dump = new Map()
+  for (const [table, rows] of dump) {
+    const kept = rows.filter((r) =>
+      table === 'deleted_records'
+        ? r.entityType !== 'restore'
+        : table === 'webhook_deliveries'
+          ? r.event !== 'restore.complete'
+          : true
+    )
+    if (kept.length || dump.get(table)?.length === 0) out.set(table, kept)
+  }
+  return out
+}
+
 function compare(before: Dump, after: Dump): Difference[] {
   const out: Difference[] = []
   for (const table of new Set([...before.keys(), ...after.keys()])) {
@@ -606,7 +628,8 @@ describeDb('a backup round trip', () => {
       { dataFile: backup.dataFile, filesDir: backup.filesDir, archiveFile: backup.archiveFile }
     )
 
-    const after = await dumpAll()
+    // fork (A5): the restore's own marker set aside (and checked)
+    const after = withoutRestoreOwn(await dumpAll(), ORG)
     const differences = compare(before, after)
     const expected = variant === 'zeros' ? { ...EXPECTED, ...EXPECTED_AT_ZERO } : EXPECTED
     const unexpected = differences.filter((d) => !(d.where in expected))

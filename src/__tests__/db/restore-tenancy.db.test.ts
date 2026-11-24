@@ -134,6 +134,28 @@ function rowsOf(dump: Dump, organizationId: string): Dump {
   return out
 }
 
+/**
+ * fork (A5): what a restore writes by design once the workshop's records are back, set aside before comparing: its
+ * one `restore` marker at `/api/v1/deleted` (public-api/Lib/resets.server.ts) and the `restore.complete` deliveries
+ * to the workshop's webhooks. Each is asserted present, for this workshop.
+ */
+function withoutRestoreOwn(dump: Dump, organizationId: string): Dump {
+  const markers = (dump.get('deleted_records') ?? []).filter((r) => r.entityType === 'restore')
+  expect(markers.map((r) => [r.organizationId, r.entityId])).toEqual([[organizationId, 'restore']])
+  const out: Dump = new Map()
+  for (const [table, rows] of dump) {
+    const kept = rows.filter((r) =>
+      table === 'deleted_records'
+        ? r.entityType !== 'restore'
+        : table === 'webhook_deliveries'
+          ? r.event !== 'restore.complete'
+          : true
+    )
+    if (kept.length || dump.get(table)?.length === 0) out.set(table, kept)
+  }
+  return out
+}
+
 function idsOf(rows: Dump): Set<string> {
   const out = new Set<string>()
   for (const list of rows.values())
@@ -462,7 +484,8 @@ describeDb('a restore never touches another workshop', () => {
     )
 
     expect(result.redactedSettings).toEqual([])
-    const after = await dumpAll()
+    // fork (A5): A's restore marker and its restore.complete delivery set aside (and checked)
+    const after = withoutRestoreOwn(await dumpAll(), a.organizationId)
     expect(rowsOf(after, b.organizationId)).toEqual(bBefore)
     // A came back whole, with the ids it had, and points at nothing of B's.
     const aAfter = rowsOf(after, a.organizationId)
