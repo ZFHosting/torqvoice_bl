@@ -98,16 +98,29 @@ describe('linking a login', () => {
   })
 
   it('never links an API key’s service user, a member though it is (A6)', async () => {
-    db.technician.findFirst.mockResolvedValue(null)
-    db.organizationMember.count.mockResolvedValue(1)
-    db.apiKey.findFirst.mockResolvedValue({ id: 'key-1' })
+    db.technician.findFirst.mockResolvedValueOnce(null)
+    db.organizationMember.count.mockResolvedValueOnce(1)
+    db.apiKey.findFirst.mockResolvedValueOnce({ id: 'key-1' })
     await expect(
       service.createTechnicianService(ctx, { name: 'Sync', userId: 'u-key' })
     ).rejects.toThrow('API key')
     expect(db.apiKey.findFirst).toHaveBeenCalledWith({
       where: { organizationId: 'org-a', serviceUserId: 'u-key' },
+      select: { id: true },
     })
     expect(db.technician.create).not.toHaveBeenCalled()
+  })
+
+  it('never links an existing technician to an API key’s service user either (A6)', async () => {
+    db.technician.findFirst
+      .mockResolvedValueOnce(null) // nobody else is linked to the key's user
+      .mockResolvedValueOnce({ userId: null }) // this technician has no login yet
+    db.organizationMember.count.mockResolvedValueOnce(1)
+    db.apiKey.findFirst.mockResolvedValueOnce({ id: 'key-1' })
+    await expect(
+      service.updateTechnicianService(ctx, { id: 't-1', userId: 'u-key' })
+    ).rejects.toThrow('API key')
+    expect(db.technician.updateMany).not.toHaveBeenCalled()
   })
 
   it('keeps the link a technician already has, though that person has left the team', async () => {

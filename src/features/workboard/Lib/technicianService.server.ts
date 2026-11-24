@@ -17,9 +17,14 @@ import type { ServiceCtx } from '@/lib/service-context'
 async function assertMember(organizationId: string, userId: string) {
   const member = await db.organizationMember.count({ where: { organizationId, userId } })
   if (!member) throw new Error('User not found')
-  // An API key's service user is a member too, but never a technician: the app's code would sign a phone in as the
-  // key (A6, SECURITY-REVIEW.md item 17).
-  if (await db.apiKey.findFirst({ where: { organizationId, serviceUserId: userId } })) {
+  // fork (A6): an API key's service user is a member too, but never a technician: the app's code would sign a phone in
+  // as the key (SECURITY-REVIEW.md item 17)
+  if (
+    await db.apiKey.findFirst({
+      where: { organizationId, serviceUserId: userId },
+      select: { id: true },
+    })
+  ) {
     throw new Error('That user is an API key, not a person.')
   }
 }

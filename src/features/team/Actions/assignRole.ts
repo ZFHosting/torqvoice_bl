@@ -24,6 +24,7 @@ export async function assignRole(input: unknown) {
 
       const member = await db.organizationMember.findFirst({
         where: { id: data.memberId, organizationId },
+        include: { user: { select: { apiKey: { select: { id: true } } } } }, // fork (A6)
       })
       if (!member) throw new Error('Member not found')
 
@@ -65,7 +66,8 @@ export async function assignRole(input: unknown) {
       // though the team page now picks the role by id like any other.
       const byWord = data.role === TECHNICIAN_ROLE_VALUE
       const byId = Boolean(data.roleId && data.roleId === technicianRole?.id)
-      const asTechnician = byWord || byId
+      // fork (A6): an API key takes the role (its scope) but never a place on the board
+      const asTechnician = (byWord || byId) && !member.user?.apiKey
 
       await db.organizationMember.update({
         where: { id: data.memberId },

@@ -13,6 +13,10 @@ export function loadDatabaseRefusal(databaseUrl: string | undefined): string | n
   } catch {
     return 'DATABASE_URL is not a database URL.'
   }
+  // A `socket:` URL reaches a Unix socket and names its database in the query, past every rule below.
+  if (url.protocol !== 'postgresql:' && url.protocol !== 'postgres:') {
+    return 'DATABASE_URL is not a postgresql:// URL.'
+  }
   if (!LOCAL_HOSTS.has(url.hostname.toLowerCase())) {
     return `Refusing ${url.hostname}: the load check seeds a database on this machine only.`
   }

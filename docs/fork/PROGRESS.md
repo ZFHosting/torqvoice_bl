@@ -98,6 +98,16 @@ seed and refusal envelope, the isolation sweep checks every record of B's, SECUR
 corrected and 17 added. After it: `tsc` exit 0; the touched unit files 28 / 160 pass. Not done (should-fix 9, part):
 calling each write once with a valid body in the contract test (successes are still checked when a random body
 succeeds); CI runs only on a pull request to `main`, so "pass in CI" is evidenced locally until that PR.
+Rest of the DoD at 3f852621/779d5688: unit chunks f2 (fails: meters-gates, baseline; fiken, the 5 s timeout under
+load), f3 149/149 pass, loose files: technician-account failed (779d5688's `db.apiKey` call missing from upstream's
+db mock; fixed in dbfc12c2 by reading the key through the member query each action already makes); `test:db` 41 files
+/ 271 tests pass. Contract test at `CONTRACT_RUNS=200` (seed 1): 4/4 pass in 200 s.
+Reviewer pass 2: needs changes (the seed URL's `?host=`, API.md §2's lockout text; should-fix: keys as technicians by
+the work board, the API and the app code). Fixed in dbfc12c2; the changed db files 4 / 20 pass, touched unit files
+51 / 443 pass, `tsc` 0, Biome 14.
+Reviewer pass 3: needs changes (the Technician role on the Team page still put a key on the board via `assignRole`).
+Fixed: the key takes the role but no technician row; the update path and `assignRole` tested; the guard refuses a
+non-postgresql URL. Touched unit files 36 / 369 pass, `api-keys-team.db.test.ts` 4 / 4, `tsc` 0.
 5. [x] `docs/fork/SECURITY-REVIEW.md`: no open high finding. Fixed on the way: error objects in logs, unbounded
    uploads without a Content-Length, allowlist spellings, the purge test's reach (8fa94409, 988b98d6).
 6. [x] `docs/fork/API-GUIDE.md` (2f043085).

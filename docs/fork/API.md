@@ -41,8 +41,8 @@ loop, idempotency and errors, with curl examples.
 - Revoking a key works immediately. `lastUsedAt` and `lastUsedIp` are recorded (throttled to one write a minute).
 - Optional per-key IP allowlist (exact addresses, no ranges; an entry matches the address in any spelling:
   an IPv4-mapped IPv6 address is its IPv4 one, and IPv6 compares without regard to case or zeros). It
-  reads the caller's address the way upstream's rate limiter does (`clientAddress` in `src/lib/rate-limit.ts`): `X-Real-IP`, set by the reverse proxy
-  in front of the app, or Cloudflare's `CF-Connecting-IP` when `TRUST_CF_CONNECTING_IP=true`. **It only
+  reads the caller's address the way upstream's rate limiter does (`clientAddress` in
+  `src/lib/rate-limit.ts`): `X-Real-IP`, set by the reverse proxy in front of the app, or Cloudflare's `CF-Connecting-IP` when `TRUST_CF_CONNECTING_IP=true`. **It only
   holds behind a proxy that overwrites `X-Real-IP`** (nginx with `proxy_set_header X-Real-IP
   $remote_addr`, for example): with the app's port open directly, as the shipped `docker-compose.yml`
   does, a caller can send any `X-Real-IP`. A request with no address is refused when the key has an

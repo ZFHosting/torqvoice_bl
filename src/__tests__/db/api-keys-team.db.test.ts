@@ -25,6 +25,7 @@ vi.mock('@/lib/cached-session', () => ({
   }),
   assertAccountSession: async () => undefined,
 }))
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 vi.mock('next/headers', () => ({
   headers: async () => new Headers(),
   cookies: async () => ({ get: () => undefined }),
@@ -95,7 +96,7 @@ describe('API keys on the Team page', () => {
     ).toBe(1)
   })
 
-  it('never become a technician or get an app code, by any way in (review pass 2)', async () => {
+  it('never become a technician or get an app code, by any way in (A6)', async () => {
     const { db } = await import('@/lib/db')
     const key = await db.apiKey.findFirstOrThrow({
       where: { organizationId: shop.org },
@@ -118,5 +119,21 @@ describe('API keys on the Team page', () => {
     const code = await createAppSetupCode({ userId: key.serviceUserId })
     expect(code.success).toBe(false)
     expect(code.error).toMatch(/API key/)
+
+    // The Technician role on the Team page: the key takes it (its scope), but no place on the board.
+    const member = await db.organizationMember.findFirstOrThrow({
+      where: { organizationId: shop.org, userId: key.serviceUserId },
+      select: { id: true },
+    })
+    const { assignRole } = await import('@/features/team/Actions/assignRole')
+    const assigned = await assignRole({ memberId: member.id, role: 'technician', roleId: null })
+    expect(assigned.success).toBe(true)
+    expect(assigned.data?.isTechnician).toBe(false)
+    expect(
+      (await db.organizationMember.findUniqueOrThrow({ where: { id: member.id } })).roleId
+    ).not.toBeNull()
+    expect(
+      await db.technician.count({ where: { organizationId: shop.org, userId: key.serviceUserId } })
+    ).toBe(0)
   })
 })

@@ -218,7 +218,7 @@ describe('withPublicApi', () => {
       (await withPublicApi(from('::ffff:203.0.113.11'), async () => new Response('ok'))).status
     ).toBe(200)
     // A header past any address's length counts as its first 64 characters, so it can't grow the maps.
-    const long = `${'a'.repeat(64)}`
+    const long = 'a'.repeat(64)
     mocks.verifyApiKey.mockResolvedValue({ ok: false, reason: 'unknown' })
     for (let i = 0; i < FAILED_AUTH_LIMIT; i++) {
       await withPublicApi(from(`${long}${i}`, other), async () => new Response())

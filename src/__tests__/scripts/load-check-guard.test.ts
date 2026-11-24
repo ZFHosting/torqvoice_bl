@@ -47,8 +47,10 @@ describe('loadDatabaseRefusal', () => {
     ).toMatch(/named for it/)
   })
 
-  it('refuses a missing or malformed URL', () => {
+  it('refuses a missing or malformed URL, or one that is not postgresql://', () => {
     expect(loadDatabaseRefusal(undefined)).toMatch(/not a database URL/)
     expect(loadDatabaseRefusal('torqvoice_fork_load')).toMatch(/not a database URL/)
+    expect(loadDatabaseRefusal('socket://localhost/test?db=production')).toMatch(/postgresql/)
+    expect(loadDatabaseRefusal('postgres://u:p@localhost/torqvoice_test')).toBeNull()
   })
 })
