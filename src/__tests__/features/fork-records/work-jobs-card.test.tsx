@@ -124,6 +124,25 @@ describe('the Jobs card', () => {
     })
     rerender(card(recreated))
     await waitFor(() => expect(actions.getWorkJobs).toHaveBeenCalledTimes(1))
+    // And once only: the read doesn't set the effect off again.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    })
+    expect(actions.getWorkJobs).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads the jobs again after a refused change, which may say they changed elsewhere', async () => {
+    actions.updateWorkJob.mockResolvedValue({
+      success: false,
+      error: 'Job not found',
+    })
+    renderCard()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Oil change' }))
+    const dialog = await screen.findByRole('dialog')
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    })
+    await waitFor(() => expect(actions.getWorkJobs).toHaveBeenCalledTimes(1))
   })
 
   it('shows each job with its note, status, subtotal and lines, and the lines of no job under Other', async () => {

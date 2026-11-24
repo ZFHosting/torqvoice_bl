@@ -141,6 +141,36 @@ describe('jobGroupsFor', () => {
     expect(lines.map(uncountedLinesLeftOut(jobs2, lines, undefined))).toEqual([false, false, false])
   })
 
+  it('reads cents and shop fee lines exactly, and gives any group whose every line is struck no subtotal', () => {
+    const jobs2 = [
+      { id: 'j1', name: 'Brakes', ordinal: 0 },
+      { id: 'j2', name: 'Wipers', ordinal: 1, authorizationStatus: 'Declined' },
+    ]
+    const lines = [
+      { jobId: 'j1', total: 0.1 },
+      { jobId: 'j1', total: 0.2, pricingType: 'shopFee' },
+      { jobId: 'j2', total: 0.3 },
+    ]
+    // 0.1 + 0.2 is 0.30000000000000004: still the counted lines' sum.
+    expect(lines.map(uncountedLinesLeftOut(jobs2, lines, 0.3))).toEqual([false, false, true])
+    expect(lines.map(uncountedLinesLeftOut(jobs2, lines, 0.6))).toEqual([false, false, false])
+    const groups = jobGroupsFor({
+      jobs: [{ id: 'j1', name: 'Brakes', ordinal: 0 }],
+      lines: [
+        { jobId: 'j1', total: 5, excluded: true },
+        { jobId: null, total: 2, excluded: true },
+        { jobId: null, total: 1 },
+      ],
+      labels: {},
+      shown,
+      money,
+    })
+    expect(groups?.map((g) => [g.title, g.excluded ?? false])).toEqual([
+      ['Brakes', true],
+      ['Other', false],
+    ])
+  })
+
   it('is nothing when no line has a job, so the sheet prints flat', () => {
     expect(
       jobGroupsFor({

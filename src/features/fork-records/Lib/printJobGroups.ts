@@ -48,9 +48,9 @@ export function uncountedLinesLeftOut(
   const isUncounted = (line: { jobId?: string | null }) =>
     Boolean(line.jobId && uncounted.has(line.jobId))
   if (!uncounted.size || subtotal == null) return () => false
-  const all = lines.reduce((sum, line) => sum + line.total, 0)
+  // When the uncounted lines add up to nothing both readings agree, and leaving their (zero) subtotal out is right.
   const counted = lines.reduce((sum, line) => (isUncounted(line) ? sum : sum + line.total), 0)
-  const leftOut = Math.abs(subtotal - counted) < 0.005 && Math.abs(subtotal - all) >= 0.005
+  const leftOut = Math.abs(subtotal - counted) < 0.005
   return leftOut ? isUncounted : () => false
 }
 

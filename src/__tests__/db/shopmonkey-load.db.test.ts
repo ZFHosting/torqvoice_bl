@@ -365,6 +365,8 @@ describe('around the records', () => {
       expect(named).toEqual(order.filter((name) => named.includes(name)))
       // A declined or deferred service: its lines are left out of the invoice's stored subtotal, so no subtotal of
       // its own either (the fixture's "Coolant flush" is declined).
+      // The counted services keep theirs.
+      expect(table.rows.some((row) => row.groupSubtotal)).toBe(true)
       for (const row of table.rows) {
         if (row.groupSubtotal) expect(row.desc).not.toMatch(/\((declined|deferred)\)/)
       }

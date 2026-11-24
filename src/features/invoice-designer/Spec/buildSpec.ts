@@ -73,7 +73,7 @@ export interface LineGroup {
   /** The subtotal row's wording, e.g. "Brakes subtotal". */
   subtotalLabel: string
   subtotal: string
-  /** fork (M9): its lines don't count toward the totals (a declined or deferred job): no subtotal row. */
+  /** fork (M9): every line of it is left out of the totals (struck, or a declined or deferred job): no subtotal row. */
   excluded?: boolean
 }
 
