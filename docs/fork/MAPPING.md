@@ -446,7 +446,8 @@ differs from the workshop's, never applied: renaming the workshop is the operato
   one is queued or running (refused). A run from the screen renews its job's lock every minute, so the queue's
   ten-minute stuck recovery never starts it again while it runs; a copy it does start (the worker crashed, so the run
   stopped beating) marks the run failed instead of running it, and a run whose job is gone shows as interrupted.
-  The screen also refuses a load until an extract has finished, and an undo while a load or the cutover runs.
+  The screen also refuses a load until an extract has finished, an undo while a load or the cutover runs, and a new
+  extract while the ten-minute sync reads.
   Still so: a dry run holds one transaction for the
   whole run (up to an hour), which can make the app wait on the same unique keys (customer numbers) meanwhile. Each
   committed record also wakes the workshop's open screens once (the realtime extension in `src/lib/db.ts`), so a

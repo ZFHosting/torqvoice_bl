@@ -54,7 +54,8 @@ export function ImportMappingCard({
       if (!res.success || !res.data) throw new Error(res.error ?? t('loadFailed'))
       return res.data
     },
-    staleTime: Number.POSITIVE_INFINITY,
+    // Read again whenever the card opens (another tab may have saved since), never behind the operator's back.
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
   })
   const mapping = query.data ?? null
@@ -85,6 +86,10 @@ export function ImportMappingCard({
     setSaving(false)
     if (res.success) {
       toast.success(t('saved'))
+      // What was stored, read back, and the choices made here folded into it.
+      await query.refetch()
+      setStages({})
+      setUsers({})
       await onSaved()
     } else {
       if (!handleGated(res)) toast.error(res.error || t('saveFailed'))

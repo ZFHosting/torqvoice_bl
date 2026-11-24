@@ -139,6 +139,76 @@ describe('the import screen', () => {
     expect(link.entityId).toBe(own.id)
   })
 
+  it('lists the operator’s loads apart from the sync’s, each with its undo, from the audit rows', async () => {
+    const { importView, loadHistory } = await import(
+      '@/features/shopmonkey-import/Lib/importView.server'
+    )
+    // The load above recorded the operator's load; a sync's load, and its undo, are added here.
+    const operator = await db.auditLog.findFirstOrThrow({
+      where: {
+        organizationId: shop.organizationId,
+        entityId: shop.connectionId,
+        action: 'shopmonkey.import',
+      },
+      orderBy: { timestamp: 'desc' },
+      select: { metadata: true },
+    })
+    const operatorRun = (operator.metadata as { runId: string }).runId
+    const added = await db.$transaction([
+      db.auditLog.create({
+        data: {
+          organizationId: shop.organizationId,
+          userId: shop.userId,
+          action: 'shopmonkey.import',
+          entity: 'integration_connection',
+          entityId: shop.connectionId,
+          metadata: {
+            runId: 'sync-run-1',
+            counts: { order: { created: 0, updated: 2 } },
+            sync: true,
+          },
+        },
+        select: { id: true },
+      }),
+      db.auditLog.create({
+        data: {
+          organizationId: shop.organizationId,
+          userId: shop.userId,
+          action: 'shopmonkey.import_undo',
+          entity: 'integration_connection',
+          entityId: shop.connectionId,
+          metadata: { runId: 'sync-run-1' },
+        },
+        select: { id: true },
+      }),
+    ])
+    try {
+      const runs = await loadHistory(shop.organizationId, shop.connectionId)
+      expect(runs.find((r) => r.runId === operatorRun)).toMatchObject({
+        sync: false,
+        undone: false,
+      })
+      expect(runs.find((r) => r.runId === 'sync-run-1')).toMatchObject({
+        sync: true,
+        undone: true,
+        records: 2,
+      })
+      // Newest first.
+      expect(runs[0].runId).toBe('sync-run-1')
+      // Another workshop asking with this connection's id gets nothing of it.
+      expect(await loadHistory('another-workshop', shop.connectionId)).toEqual([])
+      // And the polled view works without them.
+      const view = await importView(shop.organizationId, {
+        id: shop.connectionId,
+        status: 'active',
+        state: await state(),
+      })
+      expect(view.lastLoad).not.toBeNull()
+    } finally {
+      await db.auditLog.deleteMany({ where: { id: { in: added.map((a) => a.id) } } })
+    }
+  })
+
   it('lists a job billed to a vehicle’s previous owner in the current owner’s portal (B10’s default)', async () => {
     const linked = async (entityType: string, remoteId: string) =>
       (
@@ -175,6 +245,7 @@ describe('the import screen', () => {
       status: 'running',
       dryRun: false,
       at: new Date().toISOString(),
+      beatAt: new Date().toISOString(),
       token: 'run-token-1',
     }
     await mergeState(shop, { loadRun: running })
@@ -216,8 +287,13 @@ describe('the import screen', () => {
           token: 'run-token-2',
         },
       })
-      const stop = keepAlive(shop, 'load.run', 'loadRun', 50)
-      await new Promise((resolve) => setTimeout(resolve, 400))
+      const stop = keepAlive(shop, 'load.run', 'loadRun', 'run-token-2', 50)
+      // Until it has beaten at least once, however slow the database.
+      const beaten = async () =>
+        !!((await state()).loadRun as unknown as { beatAt?: string } | null)?.beatAt
+      for (let i = 0; i < 100 && !(await beaten()); i++) {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
       stop()
       await recoverStuckJobs()
       const row = await db.integrationJob.findUniqueOrThrow({

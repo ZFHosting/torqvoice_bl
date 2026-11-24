@@ -31,6 +31,6 @@ export async function resumeShopmonkeyExtract() {
       })
       return { runId: extract.runId }
     },
-    { write: true }
+    { write: true, plan: true }
   )
 }

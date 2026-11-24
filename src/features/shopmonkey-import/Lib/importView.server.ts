@@ -14,7 +14,7 @@ import { referencedUsers } from '@/integrations/shopmonkey/load/people'
 import { savedMapping } from '@/integrations/shopmonkey/load/run'
 import type { ReconciliationReport } from '@/integrations/shopmonkey/reconcile/types'
 import type { CutoverState, LastSync } from '@/integrations/shopmonkey/sync/jobs'
-import type { CutoverRunState, LoadRunState } from '@/integrations/shopmonkey/sync/runs'
+import type { CutoverRunState, LoadRunState, RunStatus } from '@/integrations/shopmonkey/sync/runs'
 import { defaultStages } from '@/integrations/shopmonkey/transform/staff'
 
 export interface TableProgress {
@@ -55,12 +55,20 @@ export interface LoadRunView {
   sync: boolean
 }
 
+/**
+ * A run as the screen shows it: as its state stores it, or `interrupted` when the state says queued or running and the
+ * job queue has no job for it (a paused connection, a plan that no longer has integrations, a crash).
+ */
+export type ViewRun<T extends { status: RunStatus }> = Omit<T, 'status'> & {
+  status: RunStatus | 'interrupted'
+}
+
 export interface ImportView {
   connectionId: string
   status: string
   webhookUrl: string
   extract: ExtractView | null
-  loadRun: LoadRunState | null
+  loadRun: ViewRun<LoadRunState> | null
   lastDryRun: {
     at: string
     counts: LastLoad['counts']
@@ -70,9 +78,8 @@ export interface ImportView {
   lastLoad: Pick<LastLoad, 'runId' | 'finishedAt' | 'counts' | 'failureCount' | 'issued'> | null
   report: ReconciliationReport | null
   lastSync: LastSync | null
-  cutoverRun: CutoverRunState | null
+  cutoverRun: ViewRun<CutoverRunState> | null
   cutover: CutoverState | null
-  runs: LoadRunView[]
   /** What the job queue has queued or running for the import: what the buttons and the polling go by. */
   live: LiveJobs
 }
@@ -82,29 +89,42 @@ const RUNS_LISTED = 20
 const SYNC_RUNS_LISTED = 5
 /** Rows of each list in the report the screen shows; the whole report stays in the state, for the CLI and the API. */
 const REPORT_LISTED = 20
+/** A run queued this recently may not have its job yet (the action writes the state first): not interrupted yet. */
+const QUEUE_GRACE_MS = 30_000
 
-/** The report as the screen shows it: polled every few seconds, so its long lists are cut to what the card lists. */
+/**
+ * The report as the screen shows it: polled every few seconds, so its long lists are cut to what the card lists. The
+ * spot checks stay whole (M6 picks 25, and the card shows each). A list an older report lacks is empty.
+ */
 function reportView(report: ReconciliationReport | undefined): ReconciliationReport | null {
   if (!report) return null
+  const cut = <T>(list: T[] | undefined) => (list ?? []).slice(0, REPORT_LISTED)
   return {
     ...report,
-    countProblems: report.countProblems.slice(0, REPORT_LISTED),
-    money: { ...report.money, differences: report.money.differences.slice(0, REPORT_LISTED) },
-    spotChecks: report.spotChecks.slice(0, REPORT_LISTED),
+    countProblems: cut(report.countProblems),
+    money: { ...report.money, differences: cut(report.money?.differences) },
+    spotChecks: report.spotChecks ?? [],
     warnings: Object.fromEntries(
-      Object.entries(report.warnings).map(([code, w]) => [code, { count: w.count, examples: [] }])
+      Object.entries(report.warnings ?? {}).map(([code, w]) => [
+        code,
+        { count: w.count, examples: [] },
+      ])
     ),
-    failures: report.failures.slice(0, REPORT_LISTED),
-    unmapped: report.unmapped.slice(0, REPORT_LISTED),
+    failures: cut(report.failures),
+    unmapped: cut(report.unmapped),
   }
 }
 
 /** A run the state says is queued or running, whose job the queue no longer has, stopped before it could say so. */
-function withLiveness<T extends { status: string }>(run: T | undefined, live: boolean): T | null {
+function withLiveness<T extends { status: RunStatus; at: string }>(
+  run: T | undefined,
+  live: boolean,
+  now: Date
+): ViewRun<T> | null {
   if (!run) return null
-  return (run.status === 'queued' || run.status === 'running') && !live
-    ? ({ ...run, status: 'interrupted' } as T)
-    : run
+  const waiting = run.status === 'queued' || run.status === 'running'
+  const settled = now.getTime() - Date.parse(run.at) > QUEUE_GRACE_MS
+  return waiting && !live && settled ? { ...run, status: 'interrupted' } : run
 }
 
 type LoadAudit = { timestamp: Date; metadata: unknown }
@@ -192,39 +212,12 @@ export async function importView(
   const lastLoad = (state.lastLoad as LastLoad | undefined) ?? null
   const live = await liveJobs(organizationId, connection.id)
   const dry = state.lastDryRun as ImportView['lastDryRun'] | undefined
-  const [operatorLoads, syncLoads, undos] = await Promise.all([
-    loadAudits(organizationId, connection.id, false, RUNS_LISTED),
-    loadAudits(organizationId, connection.id, true, SYNC_RUNS_LISTED),
-    db.auditLog.findMany({
-      where: { organizationId, entityId: connection.id, action: 'shopmonkey.import_undo' },
-      select: { metadata: true },
-    }),
-  ])
-  const undone = new Set(undos.map((a) => (a.metadata as { runId?: string } | null)?.runId))
-  const runs = [...operatorLoads, ...syncLoads]
-    .map((a) => {
-      const meta =
-        (a.metadata as { runId?: string; counts?: LastLoad['counts']; sync?: boolean } | null) ?? {}
-      const records = Object.values(meta.counts ?? {}).reduce(
-        (n, c) => n + (c?.created ?? 0) + (c?.updated ?? 0),
-        0
-      )
-      return {
-        runId: meta.runId ?? '',
-        at: new Date(a.timestamp).toISOString(),
-        records,
-        undone: undone.has(meta.runId),
-        sync: meta.sync === true,
-      }
-    })
-    .filter((r) => r.runId)
-    .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
   return {
     connectionId: connection.id,
     status: connection.status,
     webhookUrl: `${appUrl()}/api/integrations/shopmonkey/${connection.id}/webhook`,
     extract: extractView(state.extract as ExtractState | undefined, state.extractStop, live, now),
-    loadRun: withLiveness(state.loadRun as LoadRunState | undefined, live.load),
+    loadRun: withLiveness(state.loadRun as LoadRunState | undefined, live.load, now),
     lastDryRun: dry
       ? {
           at: dry.at,
@@ -244,11 +237,53 @@ export async function importView(
       : null,
     report: reportView(state.lastReconciliation as ReconciliationReport | undefined),
     lastSync: (state.lastSync as LastSync | undefined) ?? null,
-    cutoverRun: withLiveness(state.cutoverRun as CutoverRunState | undefined, live.cutover),
+    cutoverRun: withLiveness(state.cutoverRun as CutoverRunState | undefined, live.cutover, now),
     cutover: (state.cutover as CutoverState | undefined) ?? null,
-    runs,
     live,
   }
+}
+
+/**
+ * The loads of this connection, newest first, each with whether it was undone: the operator's twenty newest, and the
+ * sync's five newest marked as the sync's (listed apart, so the sync never pushes the first load and its undo out).
+ * Read apart from `importView`, which is polled: the screen asks for it when it opens and when a load or an undo ends.
+ */
+export async function loadHistory(
+  organizationId: string,
+  connectionId: string
+): Promise<LoadRunView[]> {
+  const [operatorLoads, syncLoads] = await Promise.all([
+    loadAudits(organizationId, connectionId, false, RUNS_LISTED),
+    loadAudits(organizationId, connectionId, true, SYNC_RUNS_LISTED),
+  ])
+  const listed = [...operatorLoads, ...syncLoads]
+    .map((a) => {
+      const meta =
+        (a.metadata as { runId?: string; counts?: LastLoad['counts']; sync?: boolean } | null) ?? {}
+      const records = Object.values(meta.counts ?? {}).reduce(
+        (n, c) => n + (c?.created ?? 0) + (c?.updated ?? 0),
+        0
+      )
+      return {
+        runId: meta.runId ?? '',
+        at: new Date(a.timestamp).toISOString(),
+        records,
+        sync: meta.sync === true,
+      }
+    })
+    .filter((r) => r.runId)
+  // The undos of these loads only.
+  const ids = listed.map((r) => r.runId)
+  const undos = ids.length
+    ? await db.$queryRaw<{ runId: string }[]>`
+        SELECT "metadata"->>'runId' AS "runId" FROM "public"."audit_logs"
+        WHERE "organizationId" = ${organizationId} AND "entityId" = ${connectionId}
+          AND "action" = 'shopmonkey.import_undo' AND "metadata"->>'runId' = ANY(${ids}::text[])`
+    : []
+  const undone = new Set(undos.map((u) => u.runId))
+  return listed
+    .map((r) => ({ ...r, undone: undone.has(r.runId) }))
+    .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
 }
 
 export interface MappingView {

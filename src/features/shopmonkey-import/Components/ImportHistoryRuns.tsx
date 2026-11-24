@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { History, Loader2, Undo2 } from 'lucide-react'
@@ -10,8 +11,9 @@ import { handleGated } from '@/components/upgrade-gate'
 import { useConfirm } from '@/components/confirm-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { getShopmonkeyLoadHistory } from '../Actions/getShopmonkeyLoadHistory'
 import { undoShopmonkeyLoad } from '../Actions/undoShopmonkeyLoad'
-import type { ImportView } from './types'
+import type { ImportView, LoadRunView } from './types'
 import { useWorkshopTime } from './useWorkshopTime'
 
 /**
@@ -31,7 +33,24 @@ export function ImportHistoryRuns({
   const confirm = useConfirm()
   const router = useRouter()
   const [busyId, setBusyId] = useState<string | null>(null)
-  if (view.runs.length === 0) return null
+  // Read apart from the polled view: when the screen opens, and when a load, a sync's load or an undo ends.
+  const history = useQuery<LoadRunView[], Error>({
+    queryKey: [
+      'shopmonkey-history',
+      view.lastLoad?.runId ?? '',
+      view.loadRun ? `${view.loadRun.status}:${view.loadRun.at}` : '',
+      view.lastSync?.at ?? '',
+      !!view.cutover,
+    ],
+    queryFn: async () => {
+      const res = await getShopmonkeyLoadHistory()
+      if (!res.success || !res.data) throw new Error(res.error ?? '')
+      return res.data
+    },
+    refetchOnWindowFocus: false,
+  })
+  const runs = history.data ?? []
+  if (runs.length === 0) return null
   const cutOver = !!view.cutover
   // Not under a load or the cutover (the action refuses too).
   const busy = view.live.load || view.live.cutover
@@ -60,6 +79,7 @@ export function ImportHistoryRuns({
       const removed = Object.values(res.data.removed).reduce((a, n) => a + n, 0)
       const kept = Object.values(res.data.kept).reduce((a, n) => a + n, 0)
       toast.success(t('undone', { removed, kept }))
+      await history.refetch()
       router.refresh()
     } else {
       if (!handleGated(res)) toast.error(res.error || t('undoFailed'))
@@ -74,7 +94,7 @@ export function ImportHistoryRuns({
       description={cutOver ? t('cutOver') : t('description')}
     >
       <div className="divide-y" data-testid="shopmonkey-runs">
-        {view.runs.map((run) => (
+        {runs.map((run) => (
           <div key={run.runId} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
             <div className="min-w-0 text-sm">
               <span className="font-medium">{when(run.at)}</span>

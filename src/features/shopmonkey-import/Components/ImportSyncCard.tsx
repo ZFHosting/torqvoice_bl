@@ -42,7 +42,7 @@ export function ImportSyncCard({
   const when = useWorkshopTime()
   const run = view.cutoverRun
   // What the job queue has: a cutover job that died leaves the buttons usable.
-  const running = view.live.cutover
+  const running = view.live.cutover || view.live.load
   const passed = view.report?.passed === true
 
   const cutover = async (dryRun: boolean) => {

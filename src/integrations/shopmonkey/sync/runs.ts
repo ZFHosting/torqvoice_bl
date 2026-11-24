@@ -17,15 +17,16 @@ const BUSY_RETRY_S = 60
  */
 const HEARTBEAT_MS = 60_000
 /** A run whose last heartbeat is older than the queue's stuck limit has no worker left. */
-const STALE_MS = 10 * 60 * 1000
+/**
+ * A copy of a run only exists once its job's lock went ten minutes without a renewal: the run is live only if it
+ * still stamped its state within the last few heartbeats.
+ */
+const LIVE_MS = 3 * HEARTBEAT_MS
 /** Failures kept in a dry run's summary; the count says how many there were. */
 const FAILURES_KEPT = 50
 
-/**
- * Where a run stands. `interrupted` is never stored: the import screen says it when the state says queued or running
- * and the job queue has no job for it (a paused connection, a plan that no longer has integrations).
- */
-export type RunStatus = 'queued' | 'running' | 'done' | 'refused' | 'failed' | 'interrupted'
+/** Where a run stands, as its state stores it. (The import screen adds `interrupted`: importView.server.ts.) */
+export type RunStatus = 'queued' | 'running' | 'done' | 'refused' | 'failed'
 
 export interface LoadRunState {
   status: RunStatus
@@ -83,7 +84,8 @@ async function runOf(scope: Scope, key: 'loadRun' | 'cutoverRun') {
 /**
  * Whether this job is a copy of a run that already started: once a run with this token has left `queued` (the
  * action's, or a busy load's re-queue), only that first job runs it. `live` while its heartbeat is fresh, `crashed`
- * when the worker running it stopped without writing its end, `finished` once it wrote one; null for the first run.
+ * when the worker running it stopped without writing its end (no beat for three heartbeats, or none at all: the copy
+ * exists because the lock went ten minutes unrenewed), `finished` once it wrote one; null for the first run.
  */
 export async function copyOf(
   scope: Scope,
@@ -94,19 +96,21 @@ export async function copyOf(
   const run = await runOf(scope, key)
   if (!run || run.token !== token || run.status === 'queued') return null
   if (run.status !== 'running') return 'finished'
-  const beat = Date.parse(run.beatAt ?? run.at ?? '')
-  return Number.isFinite(beat) && Date.now() - beat < STALE_MS ? 'live' : 'crashed'
+  const beat = Date.parse(run.beatAt ?? '')
+  return Number.isFinite(beat) && Date.now() - beat < LIVE_MS ? 'live' : 'crashed'
 }
 
 /**
  * While a run goes on: every minute, its job's lock is renewed, so the queue never takes it for stuck and starts it
- * again (and the screen, which reads the queue, keeps showing it), and `state.<key>.beatAt` says it is alive. Returns
- * the stop.
+ * again (and the screen, which reads the queue, keeps showing it), and `state.<key>.beatAt` says it is alive. Both
+ * writes name the run (its token), so a beat still in flight after the stop never touches the next run. Returns the
+ * stop.
  */
 export function keepAlive(
   scope: Scope,
   kind: 'load.run' | 'cutover.run',
   key: 'loadRun' | 'cutoverRun',
+  token: string,
   everyMs = HEARTBEAT_MS
 ) {
   const beat = async () => {
@@ -117,6 +121,7 @@ export function keepAlive(
         connectionId: scope.connectionId,
         kind,
         status: 'running',
+        payload: { path: ['token'], equals: token },
       },
       data: { lockedAt: at },
     })
@@ -125,7 +130,8 @@ export function keepAlive(
       UPDATE "public"."integration_connections"
       SET "state" = jsonb_set("state", ${`{${key},beatAt}`}::text[], to_jsonb(${at.toISOString()}::text))
       WHERE "id" = ${scope.connectionId} AND "organizationId" = ${scope.organizationId}
-        AND "state" -> ${key} ->> 'status' = 'running'`
+        AND "state" -> ${key} ->> 'status' = 'running'
+        AND "state" -> ${key} ->> 'token' = ${token}`
   }
   const timer = setInterval(() => {
     void beat().catch(() => undefined)
@@ -190,7 +196,7 @@ export function createRunJobs(deps: { depsFor(ctx: ConnectorContext): ExtractDep
     const { runLoad } = await import('../load/run')
     const { withLoadLock } = await import('../load/lock')
     await mergeState(scope, { loadRun: { status: 'running', dryRun, at: now(), token } })
-    const stop = keepAlive(scope, 'load.run', 'loadRun')
+    const stop = keepAlive(scope, 'load.run', 'loadRun', token)
     try {
       // A real load takes the load lock itself; a dry run takes it here, so it never runs beside a load either.
       const summary = dryRun
@@ -259,7 +265,7 @@ export function createRunJobs(deps: { depsFor(ctx: ConnectorContext): ExtractDep
     if (copy) return answerCopy(scope, 'cutoverRun', copy, { dryRun, token }, 'cutover')
     const { runCutover } = await import('./cutover')
     await mergeState(scope, { cutoverRun: { status: 'running', dryRun, at: now(), token } })
-    const stop = keepAlive(scope, 'cutover.run', 'cutoverRun')
+    const stop = keepAlive(scope, 'cutover.run', 'cutoverRun', token)
     try {
       const result = await runCutover({
         ...scope,

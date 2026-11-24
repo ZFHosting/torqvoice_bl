@@ -42,6 +42,6 @@ export async function queueShopmonkeyLoad(input: unknown) {
       })
       return { queued: true }
     },
-    { write: true }
+    { write: true, plan: true }
   )
 }

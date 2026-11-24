@@ -47,6 +47,8 @@ export function ImportRunCard({
   const loading = view.live.load
   // The sync's own runs are its to carry on; an operator's run its job stopped (or lost) can carry on.
   const resumable = !!extract && !extract.finishedAt && !extract.sync && !extracting
+  // As the server decides (`extractBlocker`): a finished extract, or the sync's run that follows one.
+  const loadable = !!extract && (extract.sync || !!extract.finishedAt)
   const when = useWorkshopTime()
 
   const act = async (
@@ -132,7 +134,7 @@ export function ImportRunCard({
             <Button
               variant="outline"
               size="sm"
-              disabled={busy !== null || cutOver || loading || view.live.cutover}
+              disabled={busy !== null || cutOver || loading || view.live.cutover || view.live.sync}
               onClick={() => act('extract', startShopmonkeyImportExtract, t('extractQueued'))}
             >
               {busy === 'extract' ? (
@@ -146,7 +148,7 @@ export function ImportRunCard({
           <Button
             variant="outline"
             size="sm"
-            disabled={busy !== null || cutOver || extracting || loading || !extract?.finishedAt}
+            disabled={busy !== null || cutOver || extracting || loading || !loadable}
             onClick={() => load(true)}
           >
             {busy === 'dry' ? (
@@ -158,7 +160,7 @@ export function ImportRunCard({
           </Button>
           <Button
             size="sm"
-            disabled={busy !== null || cutOver || extracting || loading || !extract?.finishedAt}
+            disabled={busy !== null || cutOver || extracting || loading || !loadable}
             onClick={() => load(false)}
           >
             {busy === 'load' ? (

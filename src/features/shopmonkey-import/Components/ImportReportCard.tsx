@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { AppCard } from '@/components/app-card'
 import { handleGated } from '@/components/upgrade-gate'
 import { useFormatCurrency } from '@/components/currency-settings-context'
+import { centsToAmount } from '@/integrations/shopmonkey/money'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -52,7 +53,7 @@ export function ImportReportCard({
   const report = view.report
   // In the workshop's currency (the import loads amounts as they are, in the workshop's own).
   const currency = useFormatCurrency()
-  const money = (cents: number) => currency(cents / 100)
+  const money = (cents: number) => currency(centsToAmount(cents))
 
   const run = async () => {
     setRunning(true)

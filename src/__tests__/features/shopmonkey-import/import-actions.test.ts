@@ -4,8 +4,8 @@
  * fork (M8 acceptance): every action of the Shopmonkey import screen is the owner's or an admin's. A member gets
  * `forbidden`, whatever their role's permissions; reads need the settings read permission and everything else the
  * settings update permission; the connection is always the caller's own workshop's. A load waits for a finished
- * extract, and an undo for the load or cutover under way. On a plan without integrations, what changes anything is
- * refused as `gated`; the screen can still be read.
+ * extract, and an undo for the load or cutover under way. On a plan without integrations, what runs the connector
+ * (extract, resume, load, cutover) is refused as `gated`; the screen can still be read, and an import taken back out.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -85,6 +85,7 @@ vi.mock('@/features/shopmonkey-import/Lib/startExtract.server', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: () => undefined }))
 
 import { getShopmonkeyImport } from '@/features/shopmonkey-import/Actions/getShopmonkeyImport'
+import { getShopmonkeyLoadHistory } from '@/features/shopmonkey-import/Actions/getShopmonkeyLoadHistory'
 import { getShopmonkeyMapping } from '@/features/shopmonkey-import/Actions/getShopmonkeyMapping'
 import { queueShopmonkeyCutover } from '@/features/shopmonkey-import/Actions/queueShopmonkeyCutover'
 import { queueShopmonkeyLoad } from '@/features/shopmonkey-import/Actions/queueShopmonkeyLoad'
@@ -98,6 +99,7 @@ import { undoShopmonkeyLoad } from '@/features/shopmonkey-import/Actions/undoSho
 const READS: [string, () => Promise<{ success: boolean; forbidden?: boolean }>][] = [
   ['getShopmonkeyImport', () => getShopmonkeyImport()],
   ['getShopmonkeyMapping', () => getShopmonkeyMapping()],
+  ['getShopmonkeyLoadHistory', () => getShopmonkeyLoadHistory()],
 ]
 const WRITES: [string, () => Promise<{ success: boolean; forbidden?: boolean }>][] = [
   ['saveShopmonkeyMapping', () => saveShopmonkeyMapping({ statusStageMap: {}, technicianMap: {} })],
@@ -237,10 +239,27 @@ describe('the Shopmonkey import actions', () => {
     expect(undoLoad).toHaveBeenCalledTimes(1)
   })
 
-  it.each(WRITES)('%s is refused as gated on a plan without integrations', async (_n, call) => {
+  const RUN_THE_CONNECTOR = [
+    'startShopmonkeyImportExtract',
+    'resumeShopmonkeyExtract',
+    'queueShopmonkeyLoad',
+    'queueShopmonkeyCutover',
+  ]
+
+  it.each(
+    WRITES.filter(([name]) => RUN_THE_CONNECTOR.includes(name))
+  )('%s is refused as gated on a plan without integrations', async (_n, call) => {
     mocks.ctx.isAdmin = true
     mocks.features = { integrations: false }
     expect(await call()).toMatchObject({ success: false, gated: { feature: 'integrations' } })
+  })
+
+  it.each(
+    WRITES.filter(([name]) => !RUN_THE_CONNECTOR.includes(name))
+  )('%s still works on a plan without integrations (nothing of the connector runs)', async (_n, call) => {
+    mocks.ctx.isAdmin = true
+    mocks.features = { integrations: false }
+    expect(await call()).not.toHaveProperty('gated')
   })
 
   it('still reads the import on a plan without integrations', async () => {

@@ -24,7 +24,7 @@ import {
   startState,
 } from '@/integrations/shopmonkey/extract/plan'
 import { tableSpec } from '@/integrations/shopmonkey/extract/tables'
-import { importView } from '@/features/shopmonkey-import/Lib/importView.server'
+import { importView, loadHistory } from '@/features/shopmonkey-import/Lib/importView.server'
 
 const NOW = new Date('2026-01-01T12:10:00.000Z')
 
@@ -143,30 +143,30 @@ describe('the import view', () => {
         metadata: { runId: 'run-s', counts: { order: { created: 0, updated: 1 } }, sync: true },
       },
     ]
-    mocks.raw.mockImplementation((org, connection, isSync, take) => {
+    mocks.raw.mockImplementation((org, connection, third, take) => {
       expect([org, connection]).toEqual(['org-1', 'conn-1'])
-      return Promise.resolve(isSync ? sync : operator).then((rows) => rows.slice(0, take as number))
+      // The undos of the listed loads only.
+      if (Array.isArray(third)) {
+        expect([...third].sort()).toEqual(['run-a', 'run-b', 'run-s'])
+        return Promise.resolve([{ runId: 'run-a' }])
+      }
+      return Promise.resolve(third ? sync : operator).then((rows) => rows.slice(0, take as number))
     })
-    mocks.findMany.mockResolvedValue([{ metadata: { runId: 'run-a' } }])
-    const view = await importView('org-1', { id: 'conn-1', status: 'active', state: {} }, NOW)
-    expect(mocks.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          organizationId: 'org-1',
-          entityId: 'conn-1',
-          action: 'shopmonkey.import_undo',
-        }),
-      })
-    )
+    const runs = await loadHistory('org-1', 'conn-1')
     // The operator's twenty and the sync's five, each list asked for on its own.
     expect(mocks.raw).toHaveBeenCalledWith('org-1', 'conn-1', false, 20)
     expect(mocks.raw).toHaveBeenCalledWith('org-1', 'conn-1', true, 5)
-    expect(view.runs).toEqual([
+    expect(runs).toEqual([
       { runId: 'run-s', at: '2026-01-03T00:10:00.000Z', records: 1, undone: false, sync: true },
       { runId: 'run-b', at: '2026-01-01T13:00:00.000Z', records: 3, undone: false, sync: false },
       { runId: 'run-a', at: '2026-01-01T12:00:00.000Z', records: 4, undone: true, sync: false },
     ])
+    // The polled view reads no audit rows at all.
+    mocks.raw.mockClear()
+    const view = await importView('org-1', { id: 'conn-1', status: 'active', state: {} }, NOW)
     expect(view.extract).toBeNull()
+    expect(mocks.raw).not.toHaveBeenCalled()
+    expect(mocks.findMany).not.toHaveBeenCalled()
   })
 
   it('says a load or a cutover the queue no longer has was interrupted, and leaves a live one as it is', async () => {
@@ -181,9 +181,23 @@ describe('the import view', () => {
     const live = await importView('org-1', { id: 'conn-1', status: 'active', state }, NOW)
     expect(live.loadRun?.status).toBe('running')
     expect(live.cutoverRun?.status).toBe('queued')
+    // Queued a moment ago: the action writes the state before the job, so not interrupted yet.
+    const justQueued = {
+      loadRun: {
+        status: 'queued',
+        dryRun: true,
+        at: new Date(NOW.getTime() - 5_000).toISOString(),
+      },
+    }
+    const soon = await importView(
+      'org-1',
+      { id: 'conn-1', status: 'active', state: justQueued },
+      NOW
+    )
+    expect(soon.loadRun?.status).toBe('queued')
   })
 
-  it('sends the report with its lists cut to what the screen shows', async () => {
+  it('sends the report with its lists cut to what the screen shows, the spot checks whole', async () => {
     const many = <T>(n: number, f: (i: number) => T) => Array.from({ length: n }, (_, i) => f(i))
     const report = {
       version: 1,
@@ -211,7 +225,7 @@ describe('the import view', () => {
     )
     expect(view.report?.countProblems).toHaveLength(20)
     expect(view.report?.money.differences).toHaveLength(20)
-    expect(view.report?.spotChecks).toHaveLength(20)
+    expect(view.report?.spotChecks).toHaveLength(30)
     expect(view.report?.failures).toHaveLength(20)
     expect(view.report?.unmapped).toHaveLength(20)
     // The counts stay whole: the screen says how many there were.

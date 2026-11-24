@@ -39,6 +39,6 @@ export async function queueShopmonkeyCutover(input: unknown) {
       })
       return { queued: true }
     },
-    { write: true }
+    { write: true, plan: true }
   )
 }

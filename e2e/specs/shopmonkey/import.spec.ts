@@ -1,13 +1,19 @@
 import { expect, type Page, test } from '@playwright/test'
-import { connectionStatus, forgetConnections } from '../../support/db'
+import {
+  connectionStatus,
+  customerOfVehicle,
+  forgetConnections,
+  ownerOrganizationId,
+} from '../../support/db'
 import { settle } from '../../support/hydration'
+import { portalAs, setPortal } from '../../support/portal'
 import { cleanUpShopmonkey, loadedRow, runQueuedJobs } from '../../support/shopmonkey'
 
 /**
  * fork (M8, docs/fork/milestones/M8-import-ui.md): the Shopmonkey import from its connector page, against the stand-in
  * Shopmonkey (`e2e/shopmonkey-standin.ts`, the synthetic fixtures). Connect, extract, map, dry run, load, the report
- * with every gate passing, what an imported vehicle and job look like, then undo, which leaves the shared workshop as
- * it was. The server's timers are off, so the spec runs the queued jobs itself (`support/shopmonkey.ts`).
+ * with every gate passing, what an imported vehicle and job look like (on the work order and in the vehicle's current
+ * owner's portal), then undo, which leaves the shared workshop as it was. The server's timers are off, so the spec runs the queued jobs itself (`support/shopmonkey.ts`).
  */
 
 test.describe.configure({ mode: 'serial' })
@@ -99,6 +105,19 @@ test.describe('the Shopmonkey import', () => {
     await settle(page)
     await expect(page.getByText(/Dana Dunmore/).first()).toBeVisible()
     await expect(page.getByTestId('shopmonkey-sync-banner')).toBeVisible()
+
+    // The same job in the vehicle's current owner's portal (B10's default: listed there, spike T3). The portal is put
+    // back as it was found.
+    const portalWasOpen = await setPortal(page, true)
+    try {
+      const owner = await customerOfVehicle(vehicle as string)
+      const { portal, base } = await portalAs(page, await ownerOrganizationId(), owner.email)
+      await portal.goto(`${base}/vehicles/${vehicle}`)
+      await expect(portal.locator(`a[href$="/invoices/${job}"]`).first()).toBeVisible()
+      await portal.close()
+    } finally {
+      await setPortal(page, portalWasOpen)
+    }
 
     // Undo the load: the workshop is as it was.
     await page.goto('/settings/integrations/shopmonkey')
