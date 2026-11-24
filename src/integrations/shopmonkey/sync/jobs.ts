@@ -11,7 +11,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import { enqueueJob } from '@/features/integrations/Lib/jobs'
-import type { ConnectorContext, JobOutcome } from '@/features/integrations/Lib/types'
+import type { ConnectorContext, JobHandler, JobOutcome } from '@/features/integrations/Lib/types'
 import { saveExtractState } from '@/features/shopmonkey-import/Lib/extractState.server'
 import { db } from '@/lib/db'
 import { ShopmonkeyError } from '../client'
@@ -235,5 +235,10 @@ export function createSyncJobs(deps: SyncJobDeps) {
     return { summary: await syncLoad(ctx) }
   }
 
-  return { refetch, 'sync.delta': delta, 'sync.load': load }
+  const handlers: Record<'refetch' | 'sync.delta' | 'sync.load', JobHandler> = {
+    refetch,
+    'sync.delta': delta,
+    'sync.load': load,
+  }
+  return handlers
 }
