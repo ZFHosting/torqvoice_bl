@@ -112,6 +112,14 @@ export function createMemoryStore() {
       for (const row of rows.values()) if (row.table === table) row.childrenHash = null
     },
 
+    async markDeleted(table, remoteId, when) {
+      const row = rows.get(key(table, remoteId))
+      if (!row || row.remoteDeletedAt) return false
+      row.remoteDeletedAt = when
+      writes++
+      return true
+    },
+
     async markGone(table, parentPath, parentId, keep, when) {
       let count = 0
       for (const row of rows.values()) {

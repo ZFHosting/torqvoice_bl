@@ -238,6 +238,8 @@
     "shopmonkey_extract": "Извлечено от Shopmonkey",
     "shopmonkey_import": "Импортирано от Shopmonkey",
     "shopmonkey_import_undo": "Импортът от Shopmonkey е отменен",
+    "shopmonkey_cutover": "Преминаване от Shopmonkey",
+    "shopmonkey_sync_delete": "Изтрито от синхронизацията с Shopmonkey",
     "contact_create": "Добавен контакт",
     "contact_update": "Променен контакт",
     "contact_delete": "Премахнат контакт",
@@ -446,6 +448,8 @@
     "shopmonkey_extract": "Извлечени {records} нови или променени записа от Shopmonkey ({count} API заявки)",
     "shopmonkey_import": "Импортирани {records} нови или променени записа от Shopmonkey",
     "shopmonkey_import_undo": "Отменен импорт от Shopmonkey: премахнати записи: {records}",
+    "shopmonkey_cutover": "Преминаване от Shopmonkey: Torqvoice вече не го следва",
+    "shopmonkey_sync_delete": "Изтрити {records} записа, изтрити в Shopmonkey (периодът на синхронизация)",
     "platform_revokeSuperAdmin": "Премахнати правата на супер администратор на {name} ({email})"
   }
 }

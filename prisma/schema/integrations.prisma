@@ -33,6 +33,8 @@ model IntegrationConnection {
   externalEvents ExternalCalendarEvent[]
   backupRuns     BackupRun[]
   repairData     RepairDataCache[]
+  /// fork: M7, the inbound webhook deliveries acted on (fork.prisma).
+  inboundWebhookDeliveries InboundWebhookDelivery[]
 
   @@unique([organizationId, connectorId])
   @@index([organizationId])

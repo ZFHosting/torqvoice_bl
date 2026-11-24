@@ -520,6 +520,9 @@ export const EXCLUDED_MODELS: Readonly<Record<string, string>> = {
   IntegrationLink:
     'Remote ids in a connected system, only valid for the connection that created them.',
   IntegrationLog: 'Connector activity log, rewritten every time a job runs.',
+  // fork: M7, the Shopmonkey sync's webhook deliveries.
+  InboundWebhookDelivery:
+    "Ids of a connection's inbound webhook deliveries, kept a week so a retry is acted on once; meaningless without the live connection they came to.",
   // fork: public API keys (docs/fork/API.md).
   ApiKey:
     'A credential bound to its service user account, which a backup does not carry; a restore keeps the keys this install already has, and new ones are created in Settings, API keys.',

@@ -35,7 +35,12 @@ describe('issuing imported invoices', () => {
       if (id === 'sr-3') throw new Error('boom')
       return true
     })
-    expect(await issueInvoices('org-1', ['sr-1', 'sr-2', 'sr-3'])).toEqual({ issued: 1, failed: 1 })
+    // M7: and which were issued, so their links are synced after it.
+    expect(await issueInvoices('org-1', ['sr-1', 'sr-2', 'sr-3'])).toEqual({
+      issued: 1,
+      failed: 1,
+      ids: ['sr-2'],
+    })
     expect(mocks.findMany).toHaveBeenCalledWith({
       where: { id: { in: ['sr-1', 'sr-2', 'sr-3'] }, organizationId: 'org-1', issuedAt: null },
       select: { id: true },
