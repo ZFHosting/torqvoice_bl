@@ -18,6 +18,17 @@
 export const SHOPMONKEY_BASE_URL = 'https://api.shopmonkey.cloud'
 
 /**
+ * Where this server reaches Shopmonkey: always Shopmonkey's own API, unless `SHOPMONKEY_API_BASE_URL` points it at a
+ * stand-in (M8: the end-to-end suite's mock, `e2e/shopmonkey-standin.ts`). Read from the environment only, as the
+ * payment vendors' stand-ins are (`lib/payment-providers/vendor-hosts.ts`): a workshop can't set it, so no tenant can
+ * send its key anywhere but Shopmonkey.
+ */
+export function shopmonkeyBaseUrl(): string {
+  const base = process.env.SHOPMONKEY_API_BASE_URL?.trim().replace(/\/+$/, '')
+  return base || SHOPMONKEY_BASE_URL
+}
+
+/**
  * POST endpoints that only read: every `.../search` route in Shopmonkey's API reference
  * (docs/fork/spikes/RESULTS.md S4). Exact paths, not a pattern, so nothing new is allowed by accident.
  * PROVISIONAL(M0:S2): from the docs; confirm with a key that each one only reads.
@@ -99,8 +110,9 @@ export class PagingStalled extends Error {
 function staysOnShopmonkey(pathName: string): boolean {
   if (!pathName.startsWith('/v3/') || /[?#\\]|\/\.\.?(\/|$)/.test(pathName)) return false
   try {
-    const resolved = new URL(pathName, SHOPMONKEY_BASE_URL)
-    return resolved.origin === SHOPMONKEY_BASE_URL && resolved.pathname === pathName
+    const base = shopmonkeyBaseUrl()
+    const resolved = new URL(pathName, base)
+    return resolved.origin === new URL(base).origin && resolved.pathname === pathName
   } catch {
     return false
   }
@@ -245,7 +257,7 @@ export function createShopmonkeyClient(options: ShopmonkeyClientOptions) {
     init: { query?: Query; body?: unknown; accept?: string }
   ) {
     assertReadOnly(method, pathName)
-    const url = `${SHOPMONKEY_BASE_URL}${pathName}${toSearch(init.query)}`
+    const url = `${shopmonkeyBaseUrl()}${pathName}${toSearch(init.query)}`
     for (let attempt = 1; ; attempt++) {
       if (nextDelay > 0) await sleep(nextDelay)
       nextDelay = 0

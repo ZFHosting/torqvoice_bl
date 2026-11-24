@@ -61,6 +61,8 @@ export default getRequestConfig(async () => {
   const billing = (await import(`../../messages/${locale}/billing.json`)).default
   const reminders = (await import(`../../messages/${locale}/reminders.json`)).default
   const audit = (await import(`../../messages/${locale}/audit.json`)).default
+  // fork: the Shopmonkey import screen (M8).
+  const shopmonkeyImport = (await import(`../../messages/${locale}/shopmonkeyImport.json`)).default
   const aiChat = (await import(`../../messages/${locale}/aiChat.json`)).default
   const laborPresets = (await import(`../../messages/${locale}/laborPresets.json`)).default
   const telegram = (await import(`../../messages/${locale}/telegram.json`)).default
@@ -116,6 +118,7 @@ export default getRequestConfig(async () => {
       billing,
       reminders,
       audit,
+      shopmonkeyImport,
       aiChat,
       laborPresets,
       telegram,

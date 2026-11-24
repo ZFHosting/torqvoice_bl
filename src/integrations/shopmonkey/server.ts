@@ -5,6 +5,7 @@ import type {
 } from '@/features/integrations/Lib/types'
 import { saveExtractState } from '@/features/shopmonkey-import/Lib/extractState.server'
 import { auditDetails, logAudit } from '@/lib/audit'
+import { db } from '@/lib/db'
 import {
   BACKFILL_BUDGET,
   createShopmonkeyClient,
@@ -18,6 +19,7 @@ import type { ExtractState } from './extract/plan'
 import { prismaSourceStore } from './extract/stage'
 import { manifest } from './manifest'
 import { createSyncJobs } from './sync/jobs'
+import { createRunJobs } from './sync/runs'
 import { receive } from './webhook'
 
 /** How long one job run keeps extracting before it hands back to the queue (the cron runs each minute). */
@@ -112,17 +114,22 @@ async function extractStepJob(ctx: ConnectorContext, payload: Record<string, unk
   if (!state || state.runId !== payload.runId || state.finishedAt) {
     return { summary: 'No extract to continue' }
   }
+  const scope = { connectionId: ctx.connection.id, organizationId: ctx.connection.organizationId }
+  if (await stopRequested(scope, state.runId)) return { summary: 'Stopped' }
   try {
     const result = await extractFor(extractDepsFor(ctx), state, {
       budgetMs: EXTRACT_BUDGET_MS,
-      // Only while this is still the connection's run: a new start or the CLI replaces it.
-      save: (next) =>
-        saveExtractState(
-          { connectionId: ctx.connection.id, organizationId: ctx.connection.organizationId },
-          next
-        ),
+      // Only while this is still the connection's run: a new start or the CLI replaces it. M8: a stop asked for on
+      // the import screen ends the run after the unit that is saving, and a resume carries on from there.
+      save: async (next) =>
+        (await saveExtractState(scope, next)) !== false &&
+        !(await stopRequested(scope, next.runId)),
     })
-    if (result.replaced) return { summary: 'Replaced by a newer extract' }
+    if (result.replaced) {
+      return {
+        summary: (await stopRequested(scope, state.runId)) ? 'Stopped' : 'Replaced by a newer extract',
+      }
+    }
     if (!result.done) {
       // A line for the log when a table changes hands, not one per unit.
       const moved = result.state.step !== state.step
@@ -137,6 +144,19 @@ async function extractStepJob(ctx: ConnectorContext, payload: Record<string, unk
     }
     throw err
   }
+}
+
+/** M8: whether the import screen asked this run to stop (`state.extractStop`, cleared by a resume). */
+async function stopRequested(
+  scope: { connectionId: string; organizationId: string },
+  runId: string
+): Promise<boolean> {
+  const row = await db.integrationConnection.findFirst({
+    where: { id: scope.connectionId, organizationId: scope.organizationId },
+    select: { state: true },
+  })
+  const stop = (row?.state as { extractStop?: { runId?: string } | null } | null)?.extractStop
+  return stop?.runId === runId
 }
 
 export const connector: ConnectorServer = {
@@ -187,6 +207,8 @@ export const connector: ConnectorServer = {
     'extract.step': extractStepJob,
     // M7: the sync window (webhook refetches, the ten-minute delta, a load put off).
     ...createSyncJobs({ depsFor: extractDepsFor, extractFinished: recordExtractFinished }),
+    // M8: what the import screen queues (a load, a dry run, the cutover).
+    ...createRunJobs({ depsFor: extractDepsFor }),
   },
   webhook: { receive },
 }
