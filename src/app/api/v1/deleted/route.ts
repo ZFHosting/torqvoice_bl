@@ -81,6 +81,7 @@ export async function GET(request: Request) {
       })),
       {
         meta: {
+          hasMore: rows.length > query.limit,
           nextCursor:
             rows.length > query.limit && last
               ? encodeCursor({ updatedAt: last.deletedAt, id: last.id })
