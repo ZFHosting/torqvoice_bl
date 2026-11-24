@@ -98,6 +98,34 @@ describe('the Jobs card', () => {
     expect(actions.getWorkJobs).not.toHaveBeenCalled()
   })
 
+  it('reads the jobs again when a refreshed page brings different ones, and not when they are the same', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const card = (jobs: typeof JOBS) => (
+      <QueryClientProvider client={client}>
+        <ConfirmProvider>
+          <WorkJobsCard
+            parent={parent}
+            initialJobs={jobs}
+            laborItems={labor}
+            partItems={parts}
+            onMoveLine={vi.fn()}
+            locked={false}
+          />
+        </ConfirmProvider>
+      </QueryClientProvider>
+    )
+    const { rerender } = render(card(JOBS))
+    rerender(card(JOBS.map((job) => ({ ...job }))))
+    expect(actions.getWorkJobs).not.toHaveBeenCalled()
+    const recreated = [{ ...JOBS[0], id: 'j9' }, JOBS[1]]
+    actions.getWorkJobs.mockResolvedValue({
+      success: true,
+      data: { usesJobs: true, jobs: recreated },
+    })
+    rerender(card(recreated))
+    await waitFor(() => expect(actions.getWorkJobs).toHaveBeenCalledTimes(1))
+  })
+
   it('shows each job with its note, status, subtotal and lines, and the lines of no job under Other', async () => {
     renderCard()
     const brakes = await screen.findByRole('region', { name: 'Front brakes' })

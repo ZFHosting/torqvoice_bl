@@ -25,13 +25,33 @@ export interface PrintJob {
 /**
  * A job the importer leaves out of the document's totals (MAPPING §6.3): declined, or deferred. The same rule as
  * `countsTowardTotals` (integrations/shopmonkey/transform/lines.ts), kept here so the designer's client code doesn't
- * load the importer. It prints marked; its subtotal goes only where its lines are left out of the totals too (a
- * quote's `excluded` lines): a work order's lines carry no flag, and an edit in the app counts them again.
- * PROVISIONAL(M0:S5).
+ * load the importer. It prints marked. PROVISIONAL(M0:S5).
  */
 function notCounted(job: PrintJob): 'declined' | 'deferred' | null {
   if (job.authorizationStatus === 'Declined') return 'declined'
   return job.deferredDate ? 'deferred' : null
+}
+
+/**
+ * Whether a work order's stored subtotal leaves out the lines of its declined and deferred jobs, read from the
+ * document itself: it does when the subtotal is the sum of the other lines and not of all of them, as an imported
+ * Shopmonkey order's is (MAPPING §6.3) until an edit in the app counts every line again (its lines carry no flag).
+ * Those lines then print without their job's subtotal, which the totals don't hold either. A quote marks such lines
+ * `excluded` itself.
+ */
+export function uncountedLinesLeftOut(
+  jobs: readonly PrintJob[],
+  lines: readonly { jobId?: string | null; total: number }[],
+  subtotal: number | null | undefined
+): (line: { jobId?: string | null }) => boolean {
+  const uncounted = new Set(jobs.filter((job) => notCounted(job)).map((job) => job.id))
+  const isUncounted = (line: { jobId?: string | null }) =>
+    Boolean(line.jobId && uncounted.has(line.jobId))
+  if (!uncounted.size || subtotal == null) return () => false
+  const all = lines.reduce((sum, line) => sum + line.total, 0)
+  const counted = lines.reduce((sum, line) => (isUncounted(line) ? sum : sum + line.total), 0)
+  const leftOut = Math.abs(subtotal - counted) < 0.005 && Math.abs(subtotal - all) >= 0.005
+  return leftOut ? isUncounted : () => false
 }
 
 /**
@@ -126,7 +146,7 @@ export function jobGroupsFor(input: JobGroupInput): LineGroup[] | undefined {
         0
       )
     )
-  const group = (key: string, title: string, leftOut = false): LineGroup | null => {
+  const group = (key: string, title: string): LineGroup | null => {
     const lines = keyed.filter((entry) => entry.key === key).map((entry) => entry.line)
     if (!lines.length) return null
     return {
@@ -134,8 +154,8 @@ export function jobGroupsFor(input: JobGroupInput): LineGroup[] | undefined {
       title,
       subtotalLabel: fill(L('groupSubtotal', '{group} subtotal'), { group: title }),
       subtotal: subtotalOf(lines),
-      // No subtotal for lines the totals leave out, every one of them.
-      ...(leftOut && lines.every((line) => line.excluded) ? { excluded: true } : {}),
+      // No subtotal for a group whose every line the totals leave out.
+      ...(lines.every((line) => line.excluded) ? { excluded: true } : {}),
     }
   }
 
@@ -147,7 +167,7 @@ export function jobGroupsFor(input: JobGroupInput): LineGroup[] | undefined {
       out === 'declined'
         ? L('jobDeclined', '{job} (declined)')
         : L('jobDeferred', '{job} (deferred)')
-    return group(`job:${job.id}`, fill(label, { job: job.name }), true)
+    return group(`job:${job.id}`, fill(label, { job: job.name }))
   })
   groups.push(group(NO_JOB_GROUP, L('otherJobLines', 'Other')))
   return groups.filter((g): g is LineGroup => g !== null)

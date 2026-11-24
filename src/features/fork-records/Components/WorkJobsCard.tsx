@@ -114,13 +114,15 @@ export function WorkJobsCard({
   })
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState<{ job: Job | null } | null>(null)
-  // A save refreshes the page, which reads the jobs again (the sync may have recreated them): the card takes those.
+  // A refreshed page brings the jobs it read again (the sync may have recreated them). Different from the card's:
+  // read them now, rather than trust either copy (the page's may be older than a change made here).
   const serverJobs = JSON.stringify(initialJobs)
   useEffect(() => {
-    queryClient.setQueryData(['work-jobs', parent.kind, parent.id], {
-      usesJobs: true,
-      jobs: JSON.parse(serverJobs) as Job[],
-    })
+    const key = ['work-jobs', parent.kind, parent.id]
+    const cached = queryClient.getQueryData<JobsView>(key)
+    if (cached && JSON.stringify(cached.jobs) !== serverJobs) {
+      void queryClient.invalidateQueries({ queryKey: key })
+    }
   }, [queryClient, parent.kind, parent.id, serverJobs])
 
   const jobs = query.data?.jobs ?? []
@@ -154,6 +156,8 @@ export function WorkJobsCard({
       const res = await write()
       if (!res.success) {
         toast.error(res.error ?? t('saveFailed'))
+        // The refusal may say the jobs changed elsewhere: show them as they are.
+        await refresh()
         return false
       }
       await refresh()

@@ -363,7 +363,13 @@ describe('around the records', () => {
       }
       const named = headings.filter((h) => h !== 'Other')
       expect(named).toEqual(order.filter((name) => named.includes(name)))
+      // A declined or deferred service: its lines are left out of the invoice's stored subtotal, so no subtotal of
+      // its own either (the fixture's "Coolant flush" is declined).
+      for (const row of table.rows) {
+        if (row.groupSubtotal) expect(row.desc).not.toMatch(/\((declined|deferred)\)/)
+      }
     }
+    expect(JSON.stringify(spec)).toContain('Coolant flush (declined)')
   })
 
   it('records one audit event per run, and fires no webhook even for a webhook that takes every event', async () => {

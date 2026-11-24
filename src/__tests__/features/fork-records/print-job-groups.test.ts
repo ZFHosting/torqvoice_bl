@@ -15,6 +15,7 @@ import {
   jobGroupsFor,
   NO_JOB_GROUP,
   sampleJobs,
+  uncountedLinesLeftOut,
 } from '@/features/fork-records/Lib/printJobGroups'
 
 const jobs = [
@@ -66,7 +67,7 @@ describe('jobGroupsFor', () => {
     ])
   })
 
-  it('marks a declined or deferred job, and drops its subtotal only where the totals leave its lines out', () => {
+  it('marks a declined or deferred job, and drops a subtotal only for lines left out of the totals', () => {
     const jobs3 = [
       { id: 'j1', name: 'Brakes', ordinal: 0, authorizationStatus: 'Declined' },
       { id: 'j2', name: 'Tyres', ordinal: 1, deferredDate: new Date('2026-10-01T00:00:00Z') },
@@ -74,7 +75,7 @@ describe('jobGroupsFor', () => {
     ]
     const read = (groups: ReturnType<typeof jobGroupsFor>) =>
       groups?.map((g) => [g.title, g.excluded ?? false])
-    // A work order's lines: no flag, the totals count them, so the subtotal stays.
+    // Lines the totals count (a work order edited in the app): the subtotal stays.
     const invoice = jobGroupsFor({
       jobs: jobs3,
       lines: [
@@ -91,7 +92,7 @@ describe('jobGroupsFor', () => {
       ['Tyres (deferred)', false],
       ['Oil', false],
     ])
-    // A quote's: excluded (struck), left out of the totals, so no subtotal.
+    // Lines left out of the totals (a quote's struck lines, an imported invoice's): no subtotal.
     const quote = jobGroupsFor({
       jobs: jobs3,
       lines: [
@@ -118,6 +119,26 @@ describe('jobGroupsFor', () => {
         money,
       })?.[0].title
     ).toBe('Brakes')
+  })
+
+  it('reads from a work order’s stored subtotal whether it leaves a declined job’s lines out', () => {
+    const jobs2 = [
+      { id: 'j1', name: 'Brakes', ordinal: 0, authorizationStatus: 'Declined' },
+      { id: 'j2', name: 'Oil', ordinal: 1 },
+    ]
+    const lines = [
+      { jobId: 'j1', total: 250 },
+      { jobId: 'j2', total: 70 },
+      { jobId: null, total: 30 },
+    ]
+    // Imported: the subtotal is the other lines' sum.
+    const imported = uncountedLinesLeftOut(jobs2, lines, 100)
+    expect(lines.map(imported)).toEqual([true, false, false])
+    // Edited in the app: every line counted.
+    expect(lines.map(uncountedLinesLeftOut(jobs2, lines, 350))).toEqual([false, false, false])
+    // No declined or deferred job, or no subtotal to read: nothing is left out.
+    expect(lines.map(uncountedLinesLeftOut([jobs2[1]], lines, 100))).toEqual([false, false, false])
+    expect(lines.map(uncountedLinesLeftOut(jobs2, lines, undefined))).toEqual([false, false, false])
   })
 
   it('is nothing when no line has a job, so the sheet prints flat', () => {

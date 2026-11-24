@@ -8,7 +8,12 @@ import { parseTaxComponents } from '@/lib/tax-components'
 import { taxLines } from './taxLines'
 import { printFigures } from './printFigures'
 import { LABOR_GROUP, lineGroupsFor, partGroupKey } from './lineGroups'
-import { jobGroupsFor, jobKeyer } from '@/features/fork-records/Lib/printJobGroups' // fork (M9)
+// fork (M9)
+import {
+  jobGroupsFor,
+  jobKeyer,
+  uncountedLinesLeftOut,
+} from '@/features/fork-records/Lib/printJobGroups'
 import {
   getDefaultInvoiceLayout,
   isCustomFieldId,
@@ -358,8 +363,20 @@ export function buildInvoicePrintSpec(input: InvoicePrintInput): DocumentSpec {
   })
 
   // fork (M9): one group per job, with its subtotal, for a table that groups by job
+  // A declined or deferred job's lines the stored subtotal leaves out (an imported order) print without its subtotal.
+  const leftOut = uncountedLinesLeftOut(
+    data.workJobs ?? [],
+    [...data.laborItems, ...data.partItems],
+    data.subtotal
+  )
   const jobGroupsOf = (lines: Parameters<typeof jobGroupsFor>[0]['lines']) =>
-    jobGroupsFor({ jobs: data.workJobs ?? [], lines, labels, shown, money })
+    jobGroupsFor({
+      jobs: data.workJobs ?? [],
+      lines: lines.map((line) => (leftOut(line) ? { ...line, excluded: true } : line)),
+      labels,
+      shown,
+      money,
+    })
   const jobGroups = {
     items: jobGroupsOf([...data.laborItems, ...data.partItems]),
     parts: jobGroupsOf(data.partItems),

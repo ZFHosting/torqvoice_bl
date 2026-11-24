@@ -480,10 +480,11 @@ differs from the workshop's, never applied: renaming the workshop is the operato
 - Invoices and quotes print a document's lines under its jobs (X2, milestone M9): each Shopmonkey service's
   name, its lines and their subtotal, then the lines of no job. The layout can say otherwise (Settings →
   designer, "Group lines"). Shopmonkey's own PDF hasn't been compared yet (B1). Declined and deferred services
-  print under their name marked "(declined)" or "(deferred)"; on a quote, whose totals leave their lines out
-  (struck through), without a subtotal. On a work order their lines carry no such flag, so an edit saved in the
-  app counts them again, and the print shows their subtotal. Hidden and lump-sum services print as their lines
-  do, PROVISIONAL(M0:S5) (see M9's brief).
+  print under their name marked "(declined)" or "(deferred)", with no subtotal while the document's totals leave
+  their lines out: a quote's are struck through; an imported invoice's stored subtotal leaves them out. Once a
+  work order is edited and saved in the app, its subtotal counts every line again (they carry no flag), and the
+  print shows their subtotal with the rest. Hidden and lump-sum services print as their lines do,
+  PROVISIONAL(M0:S5) (see M9's brief).
 - Vendors, purchase orders, statements, pricing matrices and message history are archive only in this
   phase. They're readable through `/api/v1/source-records` but not shown in the app.
 - Login accounts aren't migrated. Staff get invited.

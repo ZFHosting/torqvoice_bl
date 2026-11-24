@@ -150,7 +150,7 @@ describe('a work order’s jobs, from its page', () => {
 })
 
 describe('a page’s Jobs card', () => {
-  it('is for a workshop with jobs only: a workshop without any reads nothing for it', async () => {
+  it('is for a workshop with jobs only: a workshop without any gets no Jobs card (null)', async () => {
     const { pageJobs } = await import('@/features/fork-records/Lib/pageJobs.server')
     expect(await pageJobs(B.org, { kind: 'workOrder', id: ids.bOrder })).toEqual({
       jobs: [{ id: ids.bJob, name: 'Their job', note: null, authorizationStatus: null }],

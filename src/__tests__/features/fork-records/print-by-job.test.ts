@@ -166,21 +166,97 @@ describe('an invoice with jobs', () => {
 })
 
 describe('an invoice with a declined job', () => {
-  it('prints its lines under the job, marked, with their subtotal (a work order’s totals count them)', () => {
-    const data = {
+  const declined = (subtotal: number) =>
+    ({
       ...invoiceData,
+      subtotal,
       workJobs: [
         { id: 'j-brakes', name: 'Front brakes', ordinal: 0, authorizationStatus: 'Declined' },
         { id: 'j-oil', name: 'Oil change', ordinal: 1 },
       ],
-    } as unknown as InvoiceData
-    const rows = read(tableWith(invoiceSpec(preset('itemized'), data), 'n'))
+    }) as unknown as InvoiceData
+
+  it('as imported (its subtotal leaves the job out): marked, with no subtotal of its own', () => {
+    const rows = read(tableWith(invoiceSpec(preset('itemized'), declined(181)), 'n'))
+    expect(rows.slice(0, 4)).toEqual([
+      '# Front brakes (declined)',
+      '- Replace discs',
+      '- Brake disc',
+      '# Oil change',
+    ])
+    expect(rows).toContain('= Oil change subtotal $85.00')
+  })
+
+  it('once edited in the app (its subtotal counts every line): marked, with its subtotal', () => {
+    const rows = read(tableWith(invoiceSpec(preset('itemized'), declined(581)), 'n'))
     expect(rows.slice(0, 4)).toEqual([
       '# Front brakes (declined)',
       '- Replace discs',
       '- Brake disc',
       '= Front brakes (declined) subtotal $400.00',
     ])
+  })
+})
+
+describe('a quote with a declined job', () => {
+  it('strikes its lines and gives the job no subtotal (the quote’s totals leave them out)', () => {
+    const quote = {
+      ...(invoiceData as unknown as Record<string, unknown>),
+      quoteNumber: 'Q-2',
+      status: 'draft',
+      createdAt: new Date('2026-09-26T09:00:00Z'),
+      validUntil: null,
+      notes: null,
+      discountType: null,
+      discountValue: 0,
+      discountAmount: 0,
+      workJobs: [
+        { id: 'j-brakes', name: 'Front brakes', ordinal: 0, authorizationStatus: 'Declined' },
+        { id: 'j-oil', name: 'Oil change', ordinal: 1 },
+      ],
+      laborItems: [
+        { description: 'Oil change labour', hours: 1, rate: 70, total: 70, jobId: 'j-oil' },
+        {
+          description: 'Replace discs',
+          hours: 2.5,
+          rate: 100,
+          total: 250,
+          jobId: 'j-brakes',
+          excluded: true,
+        },
+      ],
+      partItems: [
+        {
+          partNumber: 'BD-1',
+          name: 'Brake disc',
+          quantity: 2,
+          unitPrice: 75,
+          total: 150,
+          jobId: 'j-brakes',
+          excluded: true,
+        },
+        {
+          partNumber: 'OF-3',
+          name: 'Oil filter',
+          quantity: 1,
+          unitPrice: 15,
+          total: 15,
+          jobId: 'j-oil',
+        },
+      ],
+    }
+    const items = tableWith(
+      buildQuotePrintSpec({ data: quote, layoutConfig: preset('itemized') } as never),
+      'n'
+    )
+    const rows = read(items)
+    expect(rows.slice(0, 4)).toEqual([
+      '# Front brakes (declined)',
+      '- Replace discs',
+      '- Brake disc',
+      '# Oil change',
+    ])
+    expect(items?.rows.find((r) => r.desc === 'Brake disc')?.struck).toBe('1')
     expect(rows).toContain('= Oil change subtotal $85.00')
   })
 })
