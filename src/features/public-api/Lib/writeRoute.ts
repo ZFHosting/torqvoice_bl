@@ -60,6 +60,31 @@ export interface WriteOptions<P extends Record<string, string>, R> {
   replayAs?: (body: unknown) => unknown
 }
 
+/** The body, or null as soon as it passes `maxBytes` (the rest is not read). */
+export async function readBounded(request: Request, maxBytes: number): Promise<Uint8Array | null> {
+  if (!request.body) return new Uint8Array(0)
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > maxBytes) {
+      await reader.cancel().catch(() => undefined)
+      return null
+    }
+    chunks.push(value)
+  }
+  const out = new Uint8Array(size)
+  let at = 0
+  for (const chunk of chunks) {
+    out.set(chunk, at)
+    at += chunk.byteLength
+  }
+  return out
+}
+
 /**
  * An upload's form, and what `Idempotency-Key` compares it by: its fields and files in order, not its bytes, since a
  * client sending it again picks a new multipart boundary.
@@ -75,8 +100,10 @@ async function readMultipart(
   } catch {
     return tooLarge()
   }
-  const bytes = new Uint8Array(await request.arrayBuffer())
-  if (bytes.byteLength > maxBytes) return tooLarge()
+  // Read as it arrives and stopped past the limit (A6, SECURITY-REVIEW.md): a body sent without a Content-Length is
+  // never held whole before its size is known.
+  const bytes = await readBounded(request, maxBytes)
+  if (!bytes) return tooLarge()
   let form: FormData
   try {
     form = await new Response(bytes, {

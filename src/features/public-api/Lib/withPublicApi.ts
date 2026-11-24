@@ -178,7 +178,13 @@ function errorResponse(request: Request, err: unknown): Response {
   if (err instanceof SyntaxError) {
     return publicApiError(400, 'invalid_request', 'The request body was not valid JSON.')
   }
-  // Ids and the path only: never a body, a header or a key.
-  console.error('[public-api]', request.method, new URL(request.url).pathname, err)
+  // Ids and the path only: never a body, a header or a key. Nor the error itself (A6, SECURITY-REVIEW.md): its message
+  // or a Prisma error's meta can quote what was sent; its class and code say enough to find it.
+  console.error('[public-api] request failed', {
+    method: request.method,
+    path: new URL(request.url).pathname,
+    error: err instanceof Error ? err.name : 'unknown',
+    code: (err as { code?: unknown } | null)?.code ?? null,
+  })
   return publicApiError(500, 'server_error', 'Something went wrong. Try again.')
 }

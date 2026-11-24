@@ -120,7 +120,12 @@ export async function withIdempotency(
   } catch (err) {
     // The write itself committed: answer as it did, rather than a 500 that invites a retry. The
     // claim stays in flight until it counts as abandoned, then the key is free again.
-    console.error('[public-api] storing an idempotent response failed', { claimId }, err)
+    // The class and code only (A6, SECURITY-REVIEW.md): the message can quote the stored body.
+    console.error('[public-api] storing an idempotent response failed', {
+      claimId,
+      error: err instanceof Error ? err.name : 'unknown',
+      code: (err as { code?: unknown } | null)?.code ?? null,
+    })
   }
   return response
 }
