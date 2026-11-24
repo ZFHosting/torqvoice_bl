@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { Client } from 'pg'
 
 /**
@@ -21,7 +22,8 @@ export function runQueuedJobs(): void {
     process.execPath,
     [
       resolve('node_modules/tsx/dist/cli.mjs'),
-      '--conditions=react-server',
+      '--import',
+      pathToFileURL(resolve('scripts/shopmonkey/register.mjs')).href,
       resolve('e2e/support/run-jobs.ts'),
     ],
     {

@@ -8,7 +8,7 @@ the workshop's system and nothing is read from Shopmonkey again.
 Every command below runs on the server that hosts the workshop, against its own database:
 
 ```bash
-npx tsx --conditions=react-server scripts/shopmonkey/run.ts <command> --connection <connection id> ...
+npx tsx --import ./scripts/shopmonkey/register.mjs scripts/shopmonkey/run.ts <command> --connection <connection id> ...
 ```
 
 Nothing here ever writes to Shopmonkey: the client refuses anything but reads.

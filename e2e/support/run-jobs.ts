@@ -3,7 +3,7 @@
  * DISABLE_BACKGROUND_JOBS=1, so a spec that queues connector work (the Shopmonkey import) calls the processor itself
  * through this, as e2e/README.md asks. Run by `support/shopmonkey.ts` with the server's environment:
  *
- *   node node_modules/tsx/dist/cli.mjs --conditions=react-server e2e/support/run-jobs.ts
+ *   node node_modules/tsx/dist/cli.mjs --import ./scripts/shopmonkey/register.mjs e2e/support/run-jobs.ts
  */
 import { runDueJobs } from '@/features/integrations/Lib/jobs'
 import { db } from '@/lib/db'
