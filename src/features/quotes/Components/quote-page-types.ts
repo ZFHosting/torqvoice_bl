@@ -67,6 +67,8 @@ export interface QuoteRecord {
     excluded?: boolean
     taxable?: boolean
     inventoryPartId?: string | null
+    /** fork (M9): the job the line is under. */
+    jobId?: string | null
   }[]
   laborItems: {
     id: string
@@ -77,6 +79,8 @@ export interface QuoteRecord {
     pricingType?: string
     excluded?: boolean
     taxable?: boolean
+    /** fork (M9): the job the line is under. */
+    jobId?: string | null
   }[]
   customer: {
     id: string

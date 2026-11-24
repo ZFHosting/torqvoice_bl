@@ -25,6 +25,8 @@ export const servicePartSchema = z.object({
    * for this kind of line (Settings, Tax).
    */
   taxable: z.boolean().optional(),
+  // fork (M9): the job the line is under; only a job of this document is kept (fork-records/Lib/lineJobs.server.ts)
+  jobId: z.string().max(64).nullish(),
 })
 
 export const serviceLaborSchema = z.object({
@@ -39,6 +41,8 @@ export const serviceLaborSchema = z.object({
    * for this kind of line (Settings, Tax).
    */
   taxable: z.boolean().optional(),
+  // fork (M9): the job the line is under; only a job of this document is kept (fork-records/Lib/lineJobs.server.ts)
+  jobId: z.string().max(64).nullish(),
 })
 
 export const serviceAttachmentSchema = z.object({

@@ -349,6 +349,8 @@ export async function ServiceRecordPage({
       // would send the line back without it and the server would put the
       // workshop's default over whatever had been chosen.
       taxable: p.taxable,
+      // fork (M9): the line's job, so a save keeps it, or moves it (WorkJobsCard)
+      jobId: p.jobId ?? null,
     })),
     laborItems: shopFeeLinesLast(record.laborItems).map((l) => ({
       description: l.description,
@@ -357,6 +359,8 @@ export async function ServiceRecordPage({
       total: l.total,
       pricingType: (l.pricingType as 'hourly' | 'service' | 'shopFee') || 'hourly',
       taxable: l.taxable,
+      // fork (M9): the line's job, so a save keeps it, or moves it (WorkJobsCard)
+      jobId: l.jobId ?? null,
     })),
     attachments: [],
     subtotal: record.subtotal,

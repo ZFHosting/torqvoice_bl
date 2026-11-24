@@ -128,6 +128,8 @@ export function useQuoteFormState({
       // default overwrite what had been chosen.
       taxable: p.taxable,
       inventoryPartId: p.inventoryPartId ?? null,
+      // fork (M9): the line's job, so a save keeps it, or moves it (WorkJobsCard)
+      jobId: p.jobId ?? null,
       // Evaluated once, on settled values from the database; see
       // isPriceOverridden for why it must not be recomputed while typing.
       priceOverridden: isPriceOverridden({
@@ -147,6 +149,8 @@ export function useQuoteFormState({
       pricingType: (l.pricingType as 'hourly' | 'service' | 'shopFee') || 'hourly',
       excluded: l.excluded ?? false,
       taxable: l.taxable,
+      // fork (M9): the line's job, so a save keeps it, or moves it (WorkJobsCard)
+      jobId: l.jobId ?? null,
     }))
   )
   const [taxRate, setTaxRate] = useState(quote.taxRate ?? defaultTaxRate)

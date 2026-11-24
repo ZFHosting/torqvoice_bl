@@ -70,6 +70,8 @@ import type { ServiceCtx } from '@/lib/service-context'
 import { cascadeTombstones } from '@/features/public-api/Lib/tombstones.server'
 // fork: no part line of another workshop's inventory (A4)
 import { assertNoForeignInventoryParts } from '@/features/fork-records/Lib/ownInventoryParts.server'
+// fork (M9): the jobs a save's lines may be under
+import { ownLineJobs } from '@/features/fork-records/Lib/lineJobs.server'
 // fork: work order writes take only this workshop's uploads (A4)
 import { assertOwnUploads } from '@/lib/upload-url'
 
@@ -79,6 +81,9 @@ export async function createServiceRecordService(ctx: ServiceCtx, input: unknown
   // fork: no part of another workshop's inventory, no file of another workshop's uploads (A4)
   await assertNoForeignInventoryParts(data.partItems, organizationId)
   assertOwnUploads(data, organizationId)
+  // fork (M9): a new work order has no jobs: no line is under one
+  data.partItems = await ownLineJobs(organizationId, null, data.partItems, ctx.actor === 'api')
+  data.laborItems = await ownLineJobs(organizationId, null, data.laborItems, ctx.actor === 'api')
   const timeZone = await workshopTimeZone(organizationId)
 
   // Two shapes: a vehicle-linked work order, or a counter sale (no vehicle)
@@ -370,6 +375,19 @@ export async function updateServiceRecordService(ctx: ServiceCtx, input: unknown
   // fork: no part of another workshop's inventory, no file of another workshop's uploads (A4)
   await assertNoForeignInventoryParts(data.partItems, organizationId)
   assertOwnUploads(data, organizationId)
+  // fork (M9): a line is under one of this work order's jobs, or none
+  data.partItems = await ownLineJobs(
+    organizationId,
+    { serviceRecordId: existing.id },
+    data.partItems,
+    ctx.actor === 'api'
+  )
+  data.laborItems = await ownLineJobs(
+    organizationId,
+    { serviceRecordId: existing.id },
+    data.laborItems,
+    ctx.actor === 'api'
+  )
   // A save that leaves the job completed asks for its required meters
   // first, on the vehicle it will be on, when it completes the job or
   // moves a completed one to another vehicle; nothing of the save is
