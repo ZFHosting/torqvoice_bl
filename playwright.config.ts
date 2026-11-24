@@ -32,6 +32,19 @@ const mailApiPort = process.env.E2E_MAIL_API_PORT ?? '8025'
 const paymentPort = process.env.E2E_PAYMENT_PORT ?? '8026'
 const paymentSinkUrl = `http://127.0.0.1:${paymentPort}`
 
+/** fork (M8): Shopmonkey as far as the app can tell, for the import spec (`e2e/shopmonkey-standin.ts`). */
+const shopmonkeyPort = process.env.E2E_SHOPMONKEY_PORT ?? '8027'
+const shopmonkeyStandinUrl = `http://127.0.0.1:${shopmonkeyPort}`
+const shopmonkeyStandin = {
+  command: 'npx tsx e2e/shopmonkey-standin.ts',
+  url: `${shopmonkeyStandinUrl}/health`,
+  reuseExistingServer: !process.env.CI,
+  timeout: 60_000,
+  stdout: 'pipe' as const,
+  stderr: 'pipe' as const,
+  env: { E2E_SHOPMONKEY_PORT: shopmonkeyPort },
+}
+
 /**
  * Stripe and PayPal as far as the app can tell, with a checkout page a spec
  * can pay on. Started in every mode, like the mail sink: a server somebody
@@ -178,10 +191,16 @@ export default defineConfig({
    * and it is not the artifact that ships anyway.
    */
   webServer: process.env.E2E_BASE_URL
-    ? [mailSink, paymentSink, ...(cloud ? [googleStandin, torqvoiceComStandin] : [])]
+    ? [
+        mailSink,
+        paymentSink,
+        shopmonkeyStandin,
+        ...(cloud ? [googleStandin, torqvoiceComStandin] : []),
+      ]
     : [
         mailSink,
         paymentSink,
+        shopmonkeyStandin,
         ...(cloud ? [googleStandin, torqvoiceComStandin] : []),
         {
           // The database first, then the server, in one command: Playwright
@@ -250,6 +269,8 @@ export default defineConfig({
             // environment, so nothing a workshop stores can redirect a key.
             STRIPE_API_BASE_URL: paymentSinkUrl,
             PAYPAL_API_BASE_URL: paymentSinkUrl,
+            // fork (M8): Shopmonkey goes to its stand-in, read from the environment only too.
+            SHOPMONKEY_API_BASE_URL: shopmonkeyStandinUrl,
           },
         },
       ],

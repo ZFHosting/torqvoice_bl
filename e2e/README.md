@@ -12,6 +12,7 @@ e2e/
   auth.setup.ts        signs in once; every spec starts with that session
   prepare-db.ts        reset + seed, run ahead of the server
   mail-sink.ts         a mail server that delivers nothing and keeps everything
+  shopmonkey-standin.ts  fork: Shopmonkey's API from the synthetic fixtures, for specs/shopmonkey
   payment-sink.ts      Stripe and PayPal as far as the app can tell; no money moves
   google-standin.ts    Google's account chooser and token endpoint, for the cloud run
   support/             helpers specs share: reading mail, reading a PDF's text,
@@ -46,6 +47,10 @@ otherwise tick through the run: the due-reminder scan stamps `notifiedAt` on row
 is asserting on, the message and webhook processors send things, and all of them compete
 for the single CPU a serial suite is using. A spec that needs one of them should call the
 processor directly rather than wait for a timer.
+
+A server you start yourself (`E2E_BASE_URL`) needs `SHOPMONKEY_API_BASE_URL=http://127.0.0.1:8027` for the
+Shopmonkey import spec (fork), as it needs the payment stand-in's base URLs. That spec queues connector jobs and runs
+them itself (`support/run-jobs.ts`), since the server's timers are off.
 
 ## One-time setup
 
