@@ -53,6 +53,7 @@ import { extractDepsFor, recordExtractFinished } from '@/integrations/shopmonkey
 import { formatCutoverResult, parseCutoverArgs } from '@/integrations/shopmonkey/sync/cli'
 import { runCutover } from '@/integrations/shopmonkey/sync/cutover'
 import { db } from '@/lib/db'
+import { endProcess } from './exit'
 
 async function load() {
   const args = parseLoadArgs(process.argv.slice(2))
@@ -183,4 +184,5 @@ main()
     console.error(err instanceof Error ? err.message : err)
     process.exitCode = 1
   })
-  .finally(() => db.$disconnect())
+  // The realtime bus keeps the process open after a load or an undo: end it here (exit.ts).
+  .finally(() => endProcess(() => db.$disconnect()))

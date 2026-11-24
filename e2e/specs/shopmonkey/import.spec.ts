@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 import { connectionStatus, forgetConnections } from '../../support/db'
 import { settle } from '../../support/hydration'
 import { cleanUpShopmonkey, loadedRow, runQueuedJobs } from '../../support/shopmonkey'
@@ -12,10 +12,18 @@ import { cleanUpShopmonkey, loadedRow, runQueuedJobs } from '../../support/shopm
 
 test.describe.configure({ mode: 'serial' })
 
+/** The toast saying this: the panel's status line can show the same words (e2e/support/email-designer.ts does the same). */
+const toast = (page: Page, text: string | RegExp) =>
+  page.locator('[data-sonner-toast]').filter({ hasText: text }).first()
+
 test.afterAll(async () => {
-  // Whether or not the test got to its own undo: the loads undone, the archive gone, then the connection.
-  cleanUpShopmonkey()
-  await forgetConnections(['shopmonkey'])
+  // Whether or not the test got to its own undo: the loads undone, the archive gone, then the connection, even when
+  // the clean-up fails.
+  try {
+    cleanUpShopmonkey()
+  } finally {
+    await forgetConnections(['shopmonkey'])
+  }
 })
 
 test.describe('the Shopmonkey import', () => {
@@ -40,7 +48,7 @@ test.describe('the Shopmonkey import', () => {
 
     // Extract.
     await panel.getByRole('button', { name: 'Extract', exact: true }).click()
-    await expect(page.getByText('The extract has started.')).toBeVisible()
+    await expect(toast(page, 'The extract has started.')).toBeVisible()
     runQueuedJobs()
     await page.reload()
     await settle(page)
@@ -51,11 +59,11 @@ test.describe('the Shopmonkey import', () => {
     await expect(panel.getByRole('combobox', { name: /^Stage for / }).first()).toBeVisible()
     await expect(panel.getByRole('combobox', { name: /^Technician for / }).first()).toBeVisible()
     await panel.getByTestId('shopmonkey-mapping-save').click()
-    await expect(page.getByText('Saved. The next load uses it.')).toBeVisible()
+    await expect(toast(page, 'Saved. The next load uses it.')).toBeVisible()
 
     // A dry run, then the load.
     await panel.getByRole('button', { name: 'Dry run', exact: true }).click()
-    await expect(page.getByText('Dry run queued.')).toBeVisible()
+    await expect(toast(page, 'Dry run queued.')).toBeVisible()
     runQueuedJobs()
     await page.reload()
     await settle(page)
@@ -64,7 +72,7 @@ test.describe('the Shopmonkey import', () => {
 
     await panel.getByRole('button', { name: 'Load', exact: true }).click()
     await page.getByRole('alertdialog').getByRole('button', { name: 'Load', exact: true }).click()
-    await expect(page.getByText('Load queued.')).toBeVisible()
+    await expect(toast(page, 'Load queued.')).toBeVisible()
     runQueuedJobs()
     await page.reload()
     await settle(page)
@@ -72,7 +80,7 @@ test.describe('the Shopmonkey import', () => {
 
     // The report: every gate passes.
     await panel.getByTestId('shopmonkey-reconcile').click()
-    await expect(page.getByText('Every check passes.')).toBeVisible()
+    await expect(toast(page, 'Every check passes.')).toBeVisible()
     await expect(panel.locator('[data-gate][data-passed="true"]')).toHaveCount(4)
 
     // A vehicle Shopmonkey has no year, make or model for (M0 spike T4): no stray "0", and it says it's synced.
@@ -98,7 +106,7 @@ test.describe('the Shopmonkey import', () => {
     const runs = page.getByTestId('shopmonkey-runs')
     await runs.getByRole('button', { name: 'Undo', exact: true }).first().click()
     await page.getByRole('alertdialog').getByRole('button', { name: 'Undo', exact: true }).click()
-    await expect(page.getByText(/^Undone: /)).toBeVisible()
+    await expect(toast(page, /Undone: /)).toBeVisible()
     expect(await loadedRow('ServiceRecord', 'order', 'syn_ord_1004')).toBeNull()
   })
 

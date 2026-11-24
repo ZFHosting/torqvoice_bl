@@ -7,6 +7,7 @@
  */
 import { undoLoad } from '@/integrations/shopmonkey/load/undo'
 import { db } from '@/lib/db'
+import { endProcess } from '../../scripts/shopmonkey/exit'
 
 async function main() {
   const email = process.env.E2E_USER_EMAIL ?? 'demo@torqvoice.com'
@@ -51,4 +52,4 @@ main()
     console.error(err instanceof Error ? err.message : err)
     process.exitCode = 1
   })
-  .finally(() => db.$disconnect())
+  .finally(() => endProcess(() => db.$disconnect()))

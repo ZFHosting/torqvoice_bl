@@ -7,6 +7,7 @@
  */
 import { runDueJobs } from '@/features/integrations/Lib/jobs'
 import { db } from '@/lib/db'
+import { endProcess } from '../../scripts/shopmonkey/exit'
 
 const DEADLINE = Date.now() + Number(process.env.E2E_JOBS_TIMEOUT_MS ?? 150_000)
 /** A job rescheduled this soon (an extract's next unit) is waited for; a later one is left. */
@@ -29,4 +30,4 @@ main()
     console.error(err instanceof Error ? err.message : err)
     process.exitCode = 1
   })
-  .finally(() => db.$disconnect())
+  .finally(() => endProcess(() => db.$disconnect()))
