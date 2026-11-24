@@ -34,7 +34,7 @@ resolved.
 | M7 | provisional | fork/M7-delta-and-cutover | Merged 4ca6b295. Built on the synthetic fixtures and the mock server: re-verify the webhook and list facts with a key (B1). Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (M7 provisional). |
 | M8 | provisional | fork/M8-import-ui | Merged 2dc93789. Built on M5-M7 (synthetic fixtures, the mock server, the e2e stand-in): re-verify with a key (B1). Reviewer: ready for PR after 5 passes. Evidence in the Decisions log (M8 provisional). |
 | A5 | done | fork/A5-events-reports | Merged a1112343. Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (A5 done). |
-| A6 | in_progress | fork/A6-hardening | |
+| A6 | done | fork/A6-hardening | Merged b36dfadb. Reviewer: ready for PR after 4 passes. Evidence in the Decisions log (A6 done). |
 | M9 | todo | | optional, last |
 
 ## Current step
@@ -69,49 +69,8 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**A6 (hardening), in progress** on `fork/A6-hardening` (from `fork/integration` after A5; the upstream merge still
-conflicts, B15). Plan, from the brief:
-1. [x] Playwright `e2e/specs/public-api/public-api.spec.ts` (a folder per area, as the suite keeps): a key made in
-   Settings, then customer → vehicle → work order → line → payment over HTTP; the UI shows them, the webhook's
-   delivery log has the events, revoking stops the key. Fixtures by `e2e/support/public-api-fixtures.ts`. Against a
-   production build and the e2e database: "2 passed (41.6s)" (setup, and "a key made in Settings writes a work order
-   the app shows, with its webhook events"); afterwards the spec's keys, role, webhook, customers and orders all 0.
-   3f852621.
-2. [x] Contract tests (`public-api-contract.db.test.ts`, fast-check now a declared dev dependency): every endpoint of
-   `RESOURCES`, nothing 500s, successes match their schemas, every read asked plainly once. Found and fixed two 500s
-   (an emptied `userId` on a technician, an emptied `invoiceDesignId` on a customer). 98371497.
-3. [x] Isolation sweep (`public-api-isolation.db.test.ts`): every route with an id, found on disk, every method:
-   404 for A's key and B's ids. 988b98d6.
-4. [x] Load check (`scripts/load-check/seed.ts` and `run.ts`, results in `docs/fork/LOAD-CHECK.md`): local database
-   `torqvoice_fork_load` (5,000 customers, 10,000 vehicles, 50,000 work orders, 20,000 payments, 12 keys), production
-   build on 127.0.0.1:3101, 20 rps for 120 s: 2,400 requests, all 200, p50 58 ms, p95 91 ms, p99 128 ms. 3f852621.
-
-DoD at 3f852621: `tsc` exit 0; Biome 14 (baseline, upstream files only); unit chunks rest, lib, f1: failures only the
-Windows baseline files (health, photo-handoff, portal-upload; backup/engine, restic, files/manager,
-only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access, and backup-manifest, CRLF-only;
-equipment-gates, portal-file-route); f2, f3 and `test:db` running.
-Reviewer pass 1: needs changes, no high finding. Fixed in 779d5688: JSON write bodies capped at 1 MiB, read as they
-arrive (413); the load seed's guard (local host, name word); API.md's stale lines; should-fixes: a recently good key
-gets past its address's failed-auth block, 500 logs carry frames, a system error is a 500 not a 400, the Team page and
-actions refuse removing a key or giving it the app, the subscription page's count, a Team UI test, the contract test's
-seed and refusal envelope, the isolation sweep checks every record of B's, SECURITY-REVIEW rows 3, 4, 5, 6, 7, 9, 16
-corrected and 17 added. After it: `tsc` exit 0; the touched unit files 28 / 160 pass. Not done (should-fix 9, part):
-calling each write once with a valid body in the contract test (successes are still checked when a random body
-succeeds); CI runs only on a pull request to `main`, so "pass in CI" is evidenced locally until that PR.
-Rest of the DoD at 3f852621/779d5688: unit chunks f2 (fails: meters-gates, baseline; fiken, the 5 s timeout under
-load), f3 149/149 pass, loose files: technician-account failed (779d5688's `db.apiKey` call missing from upstream's
-db mock; fixed in dbfc12c2 by reading the key through the member query each action already makes); `test:db` 41 files
-/ 271 tests pass. Contract test at `CONTRACT_RUNS=200` (seed 1): 4/4 pass in 200 s.
-Reviewer pass 2: needs changes (the seed URL's `?host=`, API.md §2's lockout text; should-fix: keys as technicians by
-the work board, the API and the app code). Fixed in dbfc12c2; the changed db files 4 / 20 pass, touched unit files
-51 / 443 pass, `tsc` 0, Biome 14.
-Reviewer pass 3: needs changes (the Technician role on the Team page still put a key on the board via `assignRole`).
-Fixed: the key takes the role but no technician row; the update path and `assignRole` tested; the guard refuses a
-non-postgresql URL. Touched unit files 36 / 369 pass, `api-keys-team.db.test.ts` 4 / 4, `tsc` 0.
-5. [x] `docs/fork/SECURITY-REVIEW.md`: no open high finding. Fixed on the way: error objects in logs, unbounded
-   uploads without a Content-Length, allowlist spellings, the purge test's reach (8fa94409, 988b98d6).
-6. [x] `docs/fork/API-GUIDE.md` (2f043085).
-7. [x] API keys on the Team page: labelled, no Remove, not a seat (`api-keys-team.db.test.ts`, 4098201e).
+**Next: M9** (optional, last): job grouping in the UI and on invoices, on `fork/M9-job-grouping` (its plan goes here
+when it starts on that branch).
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
@@ -377,3 +336,8 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-24 | A5: restores and bulk deletes are marked in `DeletedRecord` itself (`entityType` `restore` or `reset`, `entityId` the reason), written after the change commits, served at `/deleted` to every key and through any `?entityType=` filter: no new table, no migration. The reset is for deletes that remove many rows and what cascades with them (the settings wipe, the sample data, a spreadsheet import's undo, a Shopmonkey undo); one-at-a-time deletes all leave tombstones. A restore's own marker and `restore.complete` delivery are set aside (and asserted) in the restore round-trip and tenancy tests. | Brief tasks 6 and 7: the brief allows "list them at `/deleted` as not covered"; per-row tombstones for cascades would miss children. |
 | 2026-11-24 | A5: the fork's events go out through the dispatcher's hook (`public-api/Lib/eventHook.ts`, three marked lines in `dispatcher.ts`): the API's name and kind first without a read, the record only once a webhook subscribes, its id (and the ids that find it) if it can't be read. Every clock sends `time_entry.start`/`stop` (the app's My clock, the technician app's start, stop and finish-a-job, the API's start and the clock it closed; marked calls to `clockEvents.server.ts`); `startEntry` returns `fresh` (two marked lines). `include=source` is `sourceRecord` (a time entry and a shift already have `source`), read by the archive's local row. | Reviewer passes 1-2. |
 | 2026-11-24 | **A5 done.** DoD at 02aa97a2 (a1112343 merged): `tsc` exit 0; Biome 14 (the baseline, LF checkout); `npm test` in chunks (`a5dod3`): failures only on the Windows baseline (api/health, photo-handoff, portal-upload, lib/backup engine and restic, files/manager, only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access, equipment-gates, portal-file-route, meters-gates); `test:db` 38 files / 260 tests at b10d4c91 (`public-api-a5-hooks` 9/9 again at 02aa97a2). Reviewer: needs changes (pass 1: 5 must-fix; pass 2: 2), ready for PR (pass 3). | Acceptance evidence: (1) each event once from the UI and the API with the serialized `data`: `public-api-a5.db.test.ts` "goes out once from the app’s own booking dialog…" and "goes out with the API’s resource…", `public-api-a5-hooks.db.test.ts` (the app's and the technician app's clocks, `work_order.issue`, `appointment.delete`), `dispatcher-fork.test.ts`, `event-data.test.ts`; (2) the reports match the reports screen in Pacific/Auckland: "group sales by the workshop’s month…" (every shared figure and the summary), "age what is owed…", "give each technician the hours sold and clocked…", "name a day and a week…across its midnight", with workshop B's data kept out; (3) `/source-records` tenant-isolated and needing `read:settings`: "serve the Shopmonkey archive to its own workshop only, with read:settings", and `include=source` the same ("lists them on a page, and needs read:settings"). |
+| 2026-11-24 | A6: JSON write bodies are capped at 1 MiB, read as they arrive (413 past it, or before reading when `Content-Length` says so): `/api/v1` is outside the proxy whose body limit covers the rest of the app, and 1 MiB is what the app's own server actions take (Next's default). Uploads keep their per-type limits, also streamed. | Security review item 7; review pass 1 must-fix. Parity with the app: no body the app sends is refused. |
+| 2026-11-24 | A6: the failed-authentication block (30 a minute per address) lets a key that authenticated from that address in the last 10 minutes through, until it fails 30 times itself; addresses are counted in one spelling. No switch to trust or distrust `X-Real-IP`: the API reads the address with upstream's `clientAddress`, shared with upstream's limiter; the fix for a spoofable header is the proxy (API.md §2). | Answers the brief's "should a valid key get past a blocked address?": yes, a working one. SECURITY-REVIEW item 9 (Medium, changed). |
+| 2026-11-24 | A6: an API key's service user stays a member (its role is the key's scope, editable on the Team page) but is labelled a key, not removable there (revoke it in Settings → API keys), not a seat, never a technician (the Technician role gives it the role only), never given the app, not offered by member pickers, and never linked to a technician by a restore. Checked in the actions and services (old tabs, the API), read from the member query each upstream action already makes, so upstream's mocked tests are untouched. | Brief task 7; reviews passes 1–4. SECURITY-REVIEW item 17. |
+| 2026-11-24 | A6: the Playwright spec is `e2e/specs/public-api/public-api.spec.ts` (the suite keeps one folder per area; the brief named `e2e/specs/public-api.spec.ts`). Contract tests use fast-check, now a declared devDependency, with a fixed `CONTRACT_SEED`; a valid-body call per write endpoint is not there yet (successes are checked when a random body succeeds). "Pass in CI": CI runs only on a pull request to `main`, so the evidence is local until that PR. | Brief tasks 1–2; review pass 1 should-fix 9 (in part). |
+| 2026-11-24 | **A6 done.** DoD at 4a65828f (merged b36dfadb): `tsc` exit 0; Biome 14 (the baseline, upstream files); `npm test` in chunks (`a6final`): rest 103/106, lib 139/148, f1 209/211, f2 235/237, f3 149/149, loose 11/11, the failures only the Windows baseline files (health, photo-handoff, portal-upload; backup-manifest (CRLF), backup/engine, restic, files/manager, only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access; equipment-gates, portal-file-route, meters-gates) and `fiken` (5 s timeout under load; 32/32 alone); `test:db` 41 files / 271 tests. Acceptance: Playwright spec "2 passed (41.6s)" against a production build (3f852621); contract tests at 200 runs per endpoint, seed 1, pass (200 s), and found and fixed two 500s; isolation sweep over every route with an id, every method, 404, B's records unchanged; load check 2,400 requests all 200, p95 91 ms (LOAD-CHECK.md); SECURITY-REVIEW.md: no open high finding. Reviewer: needs changes (passes 1–3), ready for PR (pass 4). | Evidence for the definition of done and acceptance (PROGRESS Current step at the merge, and the tests named there). |
