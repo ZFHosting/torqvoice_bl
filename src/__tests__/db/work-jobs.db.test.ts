@@ -149,6 +149,18 @@ describe('a work order’s jobs, from its page', () => {
   })
 })
 
+describe('a page’s Jobs card', () => {
+  it('is for a workshop with jobs only: a workshop without any reads nothing for it', async () => {
+    const { pageJobs } = await import('@/features/fork-records/Lib/pageJobs.server')
+    expect(await pageJobs(B.org, { kind: 'workOrder', id: ids.bOrder })).toEqual({
+      jobs: [{ id: ids.bJob, name: 'Their job', note: null, authorizationStatus: null }],
+    })
+    const empty = await newShop('M9jobsC')
+    const order = await orderOf(empty, 'No jobs here')
+    expect(await pageJobs(empty.org, { kind: 'workOrder', id: order })).toBeNull()
+  })
+})
+
 describe('a quote’s jobs, from its page', () => {
   it('are kept on the quote', async () => {
     const a = await actions()

@@ -42,9 +42,14 @@ screens and on the printed documents, so the shop sees its work the way it did i
 - **Issued invoices:** the import issues the invoices it loads, and those reprint by job too (the grouping changes,
   never a line or a total), as they printed in Shopmonkey. A workshop that wants them flat sets "None" in its design
   and re-applies it.
-- **Declined and deferred services** (their lines don't count toward the total, MAPPING §6.3) print under their name
-  marked "(declined)" or "(deferred)", with no subtotal. PROVISIONAL(M0:S5): `hidden` and `lumpSum` services print as
-  any other until real data shows what Shopmonkey's PDF does with them.
+- **Declined and deferred services** (MAPPING §6.3) print under their name marked "(declined)" or "(deferred)", by
+  the importer's own rule (`Declined` exactly, or a `deferredDate`). Their subtotal is left out only where the
+  totals leave their lines out: a quote's lines are `excluded` (struck); a work order's carry no flag, so an edit
+  saved in the app counts them again, and the print shows their subtotal. PROVISIONAL(M0:S5): `hidden` and `lumpSum`
+  services print as any other until real data shows what Shopmonkey's PDF does with them.
+- **Counter sales** (`/sales/[id]`) are work orders: they show the Jobs card too.
+- **Last writer wins** for a line's job, as for its other fields: a page sends each line's job as it loaded it (or as
+  moved), so a job the sync or the API put a line under while the page was open is replaced by the page's save.
 - **The designer** offers "By job" for invoices and quotes only (the work order sheet doesn't group).
 
 ## Out of scope

@@ -166,7 +166,7 @@ describe('an invoice with jobs', () => {
 })
 
 describe('an invoice with a declined job', () => {
-  it('prints its lines under the job, marked, with no subtotal (the totals leave them out)', () => {
+  it('prints its lines under the job, marked, with their subtotal (a work order’s totals count them)', () => {
     const data = {
       ...invoiceData,
       workJobs: [
@@ -175,12 +175,12 @@ describe('an invoice with a declined job', () => {
       ],
     } as unknown as InvoiceData
     const rows = read(tableWith(invoiceSpec(preset('itemized'), data), 'n'))
-    expect(rows.slice(0, 3)).toEqual([
+    expect(rows.slice(0, 4)).toEqual([
       '# Front brakes (declined)',
       '- Replace discs',
       '- Brake disc',
+      '= Front brakes (declined) subtotal $400.00',
     ])
-    expect(rows).not.toContain('= Front brakes subtotal $400.00')
     expect(rows).toContain('= Oil change subtotal $85.00')
   })
 })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslations } from 'next-intl'
 import { ArrowDown, ArrowUp, Layers, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
@@ -114,6 +114,14 @@ export function WorkJobsCard({
   })
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState<{ job: Job | null } | null>(null)
+  // A save refreshes the page, which reads the jobs again (the sync may have recreated them): the card takes those.
+  const serverJobs = JSON.stringify(initialJobs)
+  useEffect(() => {
+    queryClient.setQueryData(['work-jobs', parent.kind, parent.id], {
+      usesJobs: true,
+      jobs: JSON.parse(serverJobs) as Job[],
+    })
+  }, [queryClient, parent.kind, parent.id, serverJobs])
 
   const jobs = query.data?.jobs ?? []
   const lines = useMemo<Line[]>(() => {

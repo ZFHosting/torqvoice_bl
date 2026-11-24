@@ -18,6 +18,7 @@ import {
   updateJobSchema,
   updateShiftSchema,
 } from '../Schema/forkRecordSchemas'
+import type { JobParent } from '../Schema/workJobActionSchemas'
 
 /** A delete and its tombstone, in one transaction: a sync never misses a delete, nor hears of one that didn't happen. */
 async function removeWithTombstone(
@@ -112,7 +113,7 @@ export async function deleteContactService(ctx: ServiceCtx, customerId: string, 
 /* ---------- jobs on a work order or a quote (X2) ---------- */
 
 /** What a job belongs to: a work order (the API's `/work-orders/{id}/jobs`, the work order page) or a quote (M9). */
-export type JobParent = { kind: 'workOrder' | 'quote'; id: string }
+export type { JobParent }
 
 type JobOwner =
   | { serviceRecordId: string; quoteId: null }

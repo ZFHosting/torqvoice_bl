@@ -93,8 +93,23 @@ Written in a worktree while A6's checks ran, then on this branch: e9b1518c (task
 table now adds up its own lines); `work-jobs.db.test.ts` + `shopmonkey-load.db.test.ts` 20/20 (imported invoice
 1003 prints each line under its own service, in their order); Playwright `e2e/specs/work-jobs/work-jobs.spec.ts`
 "3 passed (1.0m)" against a production build (a jobless work order and its PDF as before; with jobs, the card, a line
-moved and saved, the PDF by job), the e2e database left clean (0 work orders, jobs, lines). Reviewer pass 1 running;
-the full suites next.
+moved and saved, the PDF by job), the e2e database left clean (0 work orders, jobs, lines).
+Reviewer pass 1: needs changes (the card needed a QueryClient upstream's page tests don't give, so `npm test` would
+fail; a page holding stale job ids would drop jobs; MAPPING stale). Fixed in 1d910758: the pages read `pageJobs` on
+the server and mount the card only for a workshop with jobs; a stale id on the page path goes to the carry; declined
+and deferred jobs marked; the designer groups invoices and quotes only; docs. Snapshot provenance: with
+`fork/integration`'s version of all 40 source files M9 modifies checked out in place, `print-without-jobs.test.ts`
+passed (then restored). DoD at 1d910758: `tsc` 0; `next build` 0; Biome 14 (baseline); `npm test` in chunks
+(`m9dod2`): rest 103/106, lib 139/148, f1 168/169, f2 202/203, f3 228/229, loose 11/11, the failures only the Windows
+baseline files (health, photo-handoff, portal-upload; backup-manifest (CRLF), backup/engine, restic, files/manager,
+only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access; equipment-gates, portal-file-route,
+meters-gates); `test:db` 42 files / 283 tests; Playwright work-jobs "3 passed (59.6s)" on a fresh build, e2e database
+clean.
+Reviewer pass 2: needs changes (MAPPING §10's declined/deferred sentence). Fixed, with the should-fixes: a declined
+or deferred job's subtotal is dropped only when all its lines are excluded (a quote's), by the importer's exact rule;
+the card takes the jobs a refreshed page read; `pageJobs` null for a workshop without jobs tested; the brief notes
+counter sales and last-writer-wins. After: `tsc` 0; unit fork-records, invoice-designer, workboard 56 files / 598
+tests; db work-jobs, shopmonkey-load, public-api-write-orders 3 files / 39 tests.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one

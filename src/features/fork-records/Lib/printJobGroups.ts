@@ -23,11 +23,14 @@ export interface PrintJob {
 }
 
 /**
- * A job whose lines don't count toward the document's totals (MAPPING §6.3): declined, or deferred. It prints its
- * lines under its name, marked, with no subtotal to add up. PROVISIONAL(M0:S5): the rule is the importer's.
+ * A job the importer leaves out of the document's totals (MAPPING §6.3): declined, or deferred. The same rule as
+ * `countsTowardTotals` (integrations/shopmonkey/transform/lines.ts), kept here so the designer's client code doesn't
+ * load the importer. It prints marked; its subtotal goes only where its lines are left out of the totals too (a
+ * quote's `excluded` lines): a work order's lines carry no flag, and an edit in the app counts them again.
+ * PROVISIONAL(M0:S5).
  */
 function notCounted(job: PrintJob): 'declined' | 'deferred' | null {
-  if (job.authorizationStatus?.trim().toLowerCase() === 'declined') return 'declined'
+  if (job.authorizationStatus === 'Declined') return 'declined'
   return job.deferredDate ? 'deferred' : null
 }
 
@@ -123,7 +126,7 @@ export function jobGroupsFor(input: JobGroupInput): LineGroup[] | undefined {
         0
       )
     )
-  const group = (key: string, title: string): LineGroup | null => {
+  const group = (key: string, title: string, leftOut = false): LineGroup | null => {
     const lines = keyed.filter((entry) => entry.key === key).map((entry) => entry.line)
     if (!lines.length) return null
     return {
@@ -131,6 +134,8 @@ export function jobGroupsFor(input: JobGroupInput): LineGroup[] | undefined {
       title,
       subtotalLabel: fill(L('groupSubtotal', '{group} subtotal'), { group: title }),
       subtotal: subtotalOf(lines),
+      // No subtotal for lines the totals leave out, every one of them.
+      ...(leftOut && lines.every((line) => line.excluded) ? { excluded: true } : {}),
     }
   }
 
@@ -142,8 +147,7 @@ export function jobGroupsFor(input: JobGroupInput): LineGroup[] | undefined {
       out === 'declined'
         ? L('jobDeclined', '{job} (declined)')
         : L('jobDeferred', '{job} (deferred)')
-    const marked = group(`job:${job.id}`, fill(label, { job: job.name }))
-    return marked && { ...marked, excluded: true }
+    return group(`job:${job.id}`, fill(label, { job: job.name }), true)
   })
   groups.push(group(NO_JOB_GROUP, L('otherJobLines', 'Other')))
   return groups.filter((g): g is LineGroup => g !== null)

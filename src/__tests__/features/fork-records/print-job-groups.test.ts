@@ -66,13 +66,17 @@ describe('jobGroupsFor', () => {
     ])
   })
 
-  it('marks a declined or deferred job, whose lines the totals leave out, and gives it no subtotal', () => {
-    const groups = jobGroupsFor({
-      jobs: [
-        { id: 'j1', name: 'Brakes', ordinal: 0, authorizationStatus: 'Declined' },
-        { id: 'j2', name: 'Tyres', ordinal: 1, deferredDate: new Date('2026-10-01T00:00:00Z') },
-        { id: 'j3', name: 'Oil', ordinal: 2, authorizationStatus: 'Authorized' },
-      ],
+  it('marks a declined or deferred job, and drops its subtotal only where the totals leave its lines out', () => {
+    const jobs3 = [
+      { id: 'j1', name: 'Brakes', ordinal: 0, authorizationStatus: 'Declined' },
+      { id: 'j2', name: 'Tyres', ordinal: 1, deferredDate: new Date('2026-10-01T00:00:00Z') },
+      { id: 'j3', name: 'Oil', ordinal: 2, authorizationStatus: 'Authorized' },
+    ]
+    const read = (groups: ReturnType<typeof jobGroupsFor>) =>
+      groups?.map((g) => [g.title, g.excluded ?? false])
+    // A work order's lines: no flag, the totals count them, so the subtotal stays.
+    const invoice = jobGroupsFor({
+      jobs: jobs3,
       lines: [
         { jobId: 'j1', total: 250 },
         { jobId: 'j2', total: 400 },
@@ -82,11 +86,38 @@ describe('jobGroupsFor', () => {
       shown,
       money,
     })
-    expect(groups?.map((g) => [g.title, g.excluded ?? false])).toEqual([
+    expect(read(invoice)).toEqual([
+      ['Brakes (declined)', false],
+      ['Tyres (deferred)', false],
+      ['Oil', false],
+    ])
+    // A quote's: excluded (struck), left out of the totals, so no subtotal.
+    const quote = jobGroupsFor({
+      jobs: jobs3,
+      lines: [
+        { jobId: 'j1', total: 250, excluded: true },
+        { jobId: 'j2', total: 400, excluded: true },
+        { jobId: 'j3', total: 70 },
+      ],
+      labels: {},
+      shown,
+      money,
+    })
+    expect(read(quote)).toEqual([
       ['Brakes (declined)', true],
       ['Tyres (deferred)', true],
       ['Oil', false],
     ])
+    // The importer's rule exactly: only `Declined`.
+    expect(
+      jobGroupsFor({
+        jobs: [{ id: 'j1', name: 'Brakes', ordinal: 0, authorizationStatus: 'declined' }],
+        lines: [{ jobId: 'j1', total: 1 }],
+        labels: {},
+        shown,
+        money,
+      })?.[0].title
+    ).toBe('Brakes')
   })
 
   it('is nothing when no line has a job, so the sheet prints flat', () => {
