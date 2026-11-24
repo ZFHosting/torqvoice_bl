@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
     },
     serviceRecord: { updateMany: vi.fn() },
     organizationMember: { count: vi.fn() },
+    apiKey: { findFirst: vi.fn() },
   },
   emit: vi.fn(),
   revoke: vi.fn(async () => undefined),
@@ -94,6 +95,19 @@ describe('linking a login', () => {
     })
     expect(db.technician.create).not.toHaveBeenCalled()
     expect(db.technician.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('never links an API key’s service user, a member though it is (A6)', async () => {
+    db.technician.findFirst.mockResolvedValue(null)
+    db.organizationMember.count.mockResolvedValue(1)
+    db.apiKey.findFirst.mockResolvedValue({ id: 'key-1' })
+    await expect(
+      service.createTechnicianService(ctx, { name: 'Sync', userId: 'u-key' })
+    ).rejects.toThrow('API key')
+    expect(db.apiKey.findFirst).toHaveBeenCalledWith({
+      where: { organizationId: 'org-a', serviceUserId: 'u-key' },
+    })
+    expect(db.technician.create).not.toHaveBeenCalled()
   })
 
   it('keeps the link a technician already has, though that person has left the team', async () => {

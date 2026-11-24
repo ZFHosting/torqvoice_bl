@@ -31,6 +31,8 @@ interface Window {
 
 const buckets = new Map<string, Window>()
 const failures = new Map<string, Window>()
+/** A key's own failures from an address, apart from the address's: no address header can name one. */
+const pairFailures = new Map<string, Window>()
 /** `<address>|<key prefix>` → until when that key gets past the address's block. */
 const trusted = new Map<string, number>()
 
@@ -90,7 +92,7 @@ export function failedAuthRetryAfter(
   now = Date.now()
 ): number | null {
   if (prefix && (trusted.get(pairKey(address, prefix)) ?? 0) > now) {
-    const own = failures.get(pairKey(address, prefix))
+    const own = pairFailures.get(pairKey(address, prefix))
     return blockedBy(own, now) && own ? retryAfter(own, now) : null
   }
   const window = failures.get(addressKey(address))
@@ -103,7 +105,7 @@ export function recordFailedAuth(
   now = Date.now()
 ): void {
   tick(failures, addressKey(address), FAILED_AUTH_WINDOW_MS, now).count++
-  if (prefix) tick(failures, pairKey(address, prefix), FAILED_AUTH_WINDOW_MS, now).count++
+  if (prefix) tick(pairFailures, pairKey(address, prefix), FAILED_AUTH_WINDOW_MS, now).count++
 }
 
 /** A key authenticated from this address: it gets past the address's block for a while. */
@@ -115,13 +117,14 @@ export function recordGoodAuth(address: string, prefix: string, now = Date.now()
 export function resetKeyBudgets() {
   buckets.clear()
   failures.clear()
+  pairFailures.clear()
   trusted.clear()
 }
 
 // Drop finished windows now and then, so revoked keys and passing addresses don't linger.
 const sweep = setInterval(() => {
   const now = Date.now()
-  for (const store of [buckets, failures]) {
+  for (const store of [buckets, failures, pairFailures]) {
     for (const [key, window] of store) if (now >= window.resetAt) store.delete(key)
   }
   for (const [key, until] of trusted) if (now >= until) trusted.delete(key)

@@ -25,6 +25,16 @@ describe('loadDatabaseRefusal', () => {
     expect(loadDatabaseRefusal(url('10.0.0.5', 'torqvoice_test'))).toMatch(/this machine/)
   })
 
+  it('refuses a local URL whose query names another host, which the driver would connect to', () => {
+    for (const query of [
+      '?host=db.prod.example.com',
+      '?host=/cloudsql/project:region:db',
+      '?hostaddr=10.0.0.5',
+    ]) {
+      expect(loadDatabaseRefusal(url('localhost', 'torqvoice_test', query))).toMatch(/query/)
+    }
+  })
+
   it('refuses a name that only contains the words', () => {
     for (const name of ['latest', 'payload', 'download', 'torqvoice', 'contest_db']) {
       expect(loadDatabaseRefusal(url('localhost', name))).toMatch(/named for it/)

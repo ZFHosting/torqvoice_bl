@@ -39,18 +39,21 @@ loop, idempotency and errors, with curl examples.
   roles screen as staff. It also gives every record a real `userId` / `createdById` (Torqvoice requires
   one on customers, vehicles, quotes and inventory).
 - Revoking a key works immediately. `lastUsedAt` and `lastUsedIp` are recorded (throttled to one write a minute).
-- Optional per-key IP allowlist (exact addresses, no ranges; an entry matches the address in any spelling: an
-  IPv4-mapped IPv6 address is its IPv4 one, and IPv6 compares without regard to case or zeros). It reads the caller's address the way upstream's
-  rate limiter does (`clientAddress` in `src/lib/rate-limit.ts`): `X-Real-IP`, set by the reverse proxy
+- Optional per-key IP allowlist (exact addresses, no ranges; an entry matches the address in any spelling:
+  an IPv4-mapped IPv6 address is its IPv4 one, and IPv6 compares without regard to case or zeros). It
+  reads the caller's address the way upstream's rate limiter does (`clientAddress` in `src/lib/rate-limit.ts`): `X-Real-IP`, set by the reverse proxy
   in front of the app, or Cloudflare's `CF-Connecting-IP` when `TRUST_CF_CONNECTING_IP=true`. **It only
   holds behind a proxy that overwrites `X-Real-IP`** (nginx with `proxy_set_header X-Real-IP
   $remote_addr`, for example): with the app's port open directly, as the shipped `docker-compose.yml`
   does, a caller can send any `X-Real-IP`. A request with no address is refused when the key has an
   allowlist. The settings screen says so under the field.
-- An address that fails authentication 30 times in a minute is refused (429) before any key lookup. It
-  reads the address the same way, so the same caveat holds: without a proxy that overwrites
-  `X-Real-IP`, a caller can spend another address's failures (and lock out a valid key using it) by
-  sending that address in the header.
+- An address that fails authentication 30 times in a minute is refused (429) before any key lookup,
+  except for a key that authenticated from that address in the last 10 minutes: that key is still
+  looked up until it fails 30 times a minute itself. The address is read the same way, so the same
+  caveat holds: without a proxy that overwrites `X-Real-IP`, a caller can spend another address's
+  failures by sending that address in the header. That locks out keys the address hasn't used in the
+  last 10 minutes, and a key in use only if the caller also sends its prefix, which is not a secret
+  (Settings → API keys shows it).
 - Server-to-server only: no CORS headers.
 
 **New tables (`prisma/schema/fork.prisma`)**

@@ -77,6 +77,7 @@ const ERRORS: Record<string, string> = {
   '404': 'Not found in this workshop',
   '409': 'Conflict: a locked document, a restore in progress or a reused Idempotency-Key',
   '412': 'If-Match did not match the current version',
+  '413': 'The body is over its limit: 1 MiB for JSON, or the upload’s own',
   '429': 'Rate limited; see Retry-After',
 }
 

@@ -94,4 +94,29 @@ describe('API keys on the Team page', () => {
       'the key still works'
     ).toBe(1)
   })
+
+  it('never become a technician or get an app code, by any way in (review pass 2)', async () => {
+    const { db } = await import('@/lib/db')
+    const key = await db.apiKey.findFirstOrThrow({
+      where: { organizationId: shop.org },
+      select: { serviceUserId: true },
+    })
+    const { createTechnicianService } = await import(
+      '@/features/workboard/Lib/technicianService.server'
+    )
+    await expect(
+      createTechnicianService(
+        { organizationId: shop.org, userId: shop.owner, actor: 'user' },
+        { name: 'The key', userId: key.serviceUserId }
+      )
+    ).rejects.toThrow(/API key/)
+    expect(
+      await db.technician.count({ where: { organizationId: shop.org, userId: key.serviceUserId } })
+    ).toBe(0)
+
+    const { createAppSetupCode } = await import('@/features/team/Actions/createAppSetupCode')
+    const code = await createAppSetupCode({ userId: key.serviceUserId })
+    expect(code.success).toBe(false)
+    expect(code.error).toMatch(/API key/)
+  })
 })

@@ -116,5 +116,5 @@ in a field you control) before a late retry.
 | 409 | `document_locked`, `idempotency_conflict`, `conflict` | A locked invoice; a reused idempotency key; a restore in progress (try again later). |
 | 412 | `precondition_failed` | The record changed since your `ETag`. |
 | 413 | `invalid_request` | An upload over its size limit (see `openapi.json` for each kind), or a JSON body over 1 MiB. |
-| 429 | `rate_limited` | Wait `Retry-After` seconds: the key's 120 a minute, or too many failed attempts from your address (30 a minute; a key that has worked from that address lately still gets through). |
+| 429 | `rate_limited` | Wait `Retry-After` seconds: the key's 120 a minute, or too many failed attempts from your address (30 a minute; a key that has worked from that address in the last 10 minutes still gets through, so an integration that calls at least that often isn't locked out by someone else's failures). |
 | 5xx | | Retry with backoff, with the same `Idempotency-Key`. |
