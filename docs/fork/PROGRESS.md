@@ -11,10 +11,76 @@ counts as done for the hook).
 
 ## Summary
 
-**Autopilot is running** (resumed 2026-11-22 with `/autopilot`). The Milestones table, Current step and
-Blockers are the live state; a full summary (what's done, what's provisional, what I need from you, how to
-verify) is written here when the run stops. Earlier stop: B12 (M1's checks stopped for low memory), now
-resolved.
+**The autopilot run finished on 2026-11-24.** Every milestone is `done` or `provisional`, and none is `blocked`.
+Everything is merged into `fork/integration` and pushed to `origin`. I pushed nothing to `main`, and opened or merged
+no pull request. Some things still wait on you; they're listed below.
+
+### Done
+
+- **Public API (A1–A6).** A key-authenticated REST API over everything the app holds (`docs/fork/API.md`,
+  `docs/fork/API-GUIDE.md`). It covers:
+  - keys with a role, an IP allowlist, a rate limit, idempotency and ETags;
+  - every resource, read and written through the same domain services and audit events as the app, so webhooks fire
+    as they would from the screen;
+  - webhooks for the fork's own records, reports, the Shopmonkey source archive, and `/deleted` for sync.
+
+  A6 hardened it:
+  - a Playwright spec that runs a key end to end;
+  - contract tests over every endpoint, using fast-check against `openapi.json`;
+  - an isolation sweep over every route and method;
+  - a load check (50,000 work orders, 20 req/s, p95 91 ms; `docs/fork/LOAD-CHECK.md`);
+  - a security review with no open high-severity finding (`docs/fork/SECURITY-REVIEW.md`).
+- **M1:** the schema the importer and the API share: jobs, contacts, shifts, source records and line columns.
+- **M9:** job grouping, with one caveat; see Provisional below. Work order and quote lines are shown under their jobs
+  (Shopmonkey's services), on the screens (a Jobs card) and on printed invoices and quotes. A workshop without jobs
+  sees no change. That is proven by spec hashes of every layout preset, taken before M9 changed any print code, and
+  by a Playwright run.
+
+### Provisional, and why
+
+M0 and M2–M8 are built and tested against **synthetic fixtures** and a mock Shopmonkey server, because no Shopmonkey
+API key was available (B1). That covers the Shopmonkey connector and client, extract, transform, load, reconcile,
+delta sync and cutover, and the import screen. M9's first acceptance item also rests on the fixtures: imported orders
+print by their services, but nothing has been compared with Shopmonkey's own PDF yet.
+
+Every assumption about Shopmonkey's real API and data is marked `PROVISIONAL(M0:Sx)` in the code and listed under
+**Re-verify with real Shopmonkey data** below. These milestones count as done for the build, but they must be checked
+against a recorded account before you run a real import or cutover.
+
+### What I need from you
+
+| # | What | What to do |
+| --- | --- | --- |
+| B1 | **A Shopmonkey API key** | From a Shopmonkey admin (Settings → Integration → API Keys). Export it as `SHOPMONKEY_API_KEY`, with a secret `ANONYMIZE_SALT` (16+ characters). Run `npx tsx scripts/shopmonkey/spike.ts`, then `npx tsx scripts/shopmonkey/anonymize-fixtures.ts --deny deny.txt` (deny.txt: the shop's name, some real surnames, some VINs). Then re-verify the list below. This is what turns M0, M2–M8 and M9's import check from provisional into done. |
+| B2–B8 | **The import's open questions (PLAN §6)** | Defaults are taken and recorded; confirm or correct each. **B2:** Enterprise (EDS) or not, and how many locations (default: REST, one location). **B3:** rough volumes (default: sized for 50,000 orders). **B4:** message history (default: archive only). **B5:** original invoice PDFs (default: the last 2 years). **B6:** how workflow statuses map to stages (default per RESULTS S9; editable in the import screen). **B7:** which staff need logins on day one (default: none created; technicians made for the history). **B8:** cutover date and how long Shopmonkey can be frozen (default: under one hour, CUTOVER.md). |
+| B9 | **Licensing** | Hosting this fork for BlueLabel as a third party is the licensor's call under the Elastic License 2.0. Get a decision from Torqvoice's licensor before production hosting. This is not a code task. |
+| B10 | **Previous owners' orders** | Imported invoices bill the order's own customer, which is right. As a side effect (upstream behaviour), a vehicle's current owner sees a previous owner's jobs, name and address in the customer portal. Confirm that's acceptable, or ask for vehicles to be split per owner period. |
+| B11 | **The committed Claude Code kit** | `.claude/` (the Stop hook `keep-going.sh`, the autopilot and milestone commands, the reviewer agent) applies to every Claude Code session in this repo: the hook refuses to stop while a milestone is `todo` or `in_progress`. Every milestone is now done or provisional, so it is quiet. Confirm you want it kept, or scope it. The escape is `touch .claude/STOP`. |
+| B13 | **Node on this machine** (not blocking) | Upgrade to 22.23.4 (what CI pins), or at least 22.19. With 22.14, `npm test` silently runs only 141 of 775 files. |
+| B14 | **Old local databases** (not blocking) | `torqvoice` and `torqvoice_test` in the `torqvoice-bl-db` container hold a pre-review migration. Run `npx prisma migrate reset` against each, or point `.env` at `torqvoice_fork_test`. Prisma refuses a reset from an agent without your consent. |
+| B15 | **Upstream merge** (not blocking) | `git merge upstream/main` (upstream f620cbda, #672) conflicts in `src/app/api/protected/backup/import/route.ts`. It was still the same conflict at the start of M9. It's small: an import line and an `assertUrlSafeIds(backup.data)` call beside the fork's archive lines. Merge it by hand, or tell me to resolve conflicts this mechanical. |
+| B16 | **Shopmonkey deletes during the sync window** | Default (MAPPING §13): a loaded work order, quote or appointment that hasn't changed here is deleted, and everything else is kept and listed for the cutover. Confirm, or say what else should go. |
+
+Not blocking, carried on (Decisions log, 2026-11-24, M9):
+- the M5/M8 importer hardening listed for M9 (in Current step);
+- a quote's jobs following it into a converted work order;
+- job grouping on the technician's work order sheet;
+- what Shopmonkey prints for `hidden` and `lumpSum` services.
+
+### How to verify
+
+```bash
+git checkout fork/integration
+npm ci && npx prisma generate
+npm run check                       # 14 errors, all pre-existing upstream ones (globals.css, prisma.config.ts, 4 tests)
+npm test                            # on Linux/CI all pass; on Windows 14 upstream files fail on paths (Decisions log)
+NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit
+E2E_DATABASE_URL=postgresql://…/torqvoice_fork_test npm run test:db
+npm run test:e2e                    # a built app and the e2e database; see e2e/README.md
+```
+
+Then open a pull request from `fork/integration` to `main`. CI runs the checks, the unit suite, the db suite and the
+e2e suite in eight shards there. I don't open or merge pull requests.
 
 ## Milestones
 
@@ -35,7 +101,7 @@ resolved.
 | M8 | provisional | fork/M8-import-ui | Merged 2dc93789. Built on M5-M7 (synthetic fixtures, the mock server, the e2e stand-in): re-verify with a key (B1). Reviewer: ready for PR after 5 passes. Evidence in the Decisions log (M8 provisional). |
 | A5 | done | fork/A5-events-reports | Merged a1112343. Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (A5 done). |
 | A6 | done | fork/A6-hardening | Merged b36dfadb. Reviewer: ready for PR after 4 passes. Evidence in the Decisions log (A6 done). |
-| M9 | in_progress | fork/M9-job-grouping | optional, last |
+| M9 | provisional | fork/M9-job-grouping | Merged 35d321f5. Imported orders print by their services against the synthetic fixtures; no Shopmonkey PDF to compare yet (B1). Reviewer: ready for PR after 4 passes. Evidence in the Decisions log (M9 provisional). |
 
 ## Current step
 
@@ -69,47 +135,8 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**M9 (job grouping in the UI and on invoices), in progress** on `fork/M9-job-grouping` (from `fork/integration` after
-A6; the upstream merge still conflicts, B15). Plan, from the brief (decisions in its "As built"):
-1. [x] Lines name their job in a save: `jobId` on the work order and quote line schemas (marked); kept only when it is
-   a job of that document (`fork-records/Lib/lineJobs.server.ts`): from the page anything else is no job, through the
-   API a 404; unsent, the job is carried over as before. The forms load each line's `jobId`.
-2. [x] Job writes for the screens (`fork-records/Actions`: get, create, update, delete, reorder), on a work order or
-   a quote; the services generalized to a parent (`createJobOn`, ...), the API's work order services wrappers;
-   permissions, locks, `job.*` audit events, tenancy.
-3. [x] `WorkJobsCard` on the work order page (`ModernDetails`) and the quote page: job headers (name, note, status,
-   subtotal), lines, "Other"; add, edit, reorder, delete at once; a line's job menu saved with the form. Only for a
-   workshop with jobs. `workJobs` namespace, 14 locales.
-4. [x] Print: `groupBy` `job`/`none` (items, parts and labor tables); `printJobGroups.ts`; builders key each line's
-   job; unset prints by job when the document has jobs; data through `workJobs` includes (invoice assembly, the
-   public quote select, the quote PDF); the designer offers "By job" to a workshop with jobs, its sample has two jobs.
-5. [x] No change without jobs: `print-without-jobs.test.ts`, hashes of every preset's invoice and quote, flat and by
-   category, taken on pre-M9 print code (A6's tree, identical there); Playwright: a jobless work order and its PDF.
-6. [x] Imported orders print by their services (`shopmonkey-load.db.test.ts`), PROVISIONAL(M0:S5): no Shopmonkey PDF
-   to compare with (B1).
-Written in a worktree while A6's checks ran, then on this branch: e9b1518c (tasks 1-2), 77eac9ea (task 3), 29b31543
-(task 4). Evidence so far: `tsc` exit 0; `next build` exit 0; unit `features/fork-records` + `features/invoice-designer`
-40 files / 364 tests pass (the first run found that a job's subtotal in the parts table added its labor too: each
-table now adds up its own lines); `work-jobs.db.test.ts` + `shopmonkey-load.db.test.ts` 20/20 (imported invoice
-1003 prints each line under its own service, in their order); Playwright `e2e/specs/work-jobs/work-jobs.spec.ts`
-"3 passed (1.0m)" against a production build (a jobless work order and its PDF as before; with jobs, the card, a line
-moved and saved, the PDF by job), the e2e database left clean (0 work orders, jobs, lines).
-Reviewer pass 1: needs changes (the card needed a QueryClient upstream's page tests don't give, so `npm test` would
-fail; a page holding stale job ids would drop jobs; MAPPING stale). Fixed in 1d910758: the pages read `pageJobs` on
-the server and mount the card only for a workshop with jobs; a stale id on the page path goes to the carry; declined
-and deferred jobs marked; the designer groups invoices and quotes only; docs. Snapshot provenance: with
-`fork/integration`'s version of all 40 source files M9 modifies checked out in place, `print-without-jobs.test.ts`
-passed (then restored). DoD at 1d910758: `tsc` 0; `next build` 0; Biome 14 (baseline); `npm test` in chunks
-(`m9dod2`): rest 103/106, lib 139/148, f1 168/169, f2 202/203, f3 228/229, loose 11/11, the failures only the Windows
-baseline files (health, photo-handoff, portal-upload; backup-manifest (CRLF), backup/engine, restic, files/manager,
-only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access; equipment-gates, portal-file-route,
-meters-gates); `test:db` 42 files / 283 tests; Playwright work-jobs "3 passed (59.6s)" on a fresh build, e2e database
-clean.
-Reviewer pass 2: needs changes (MAPPING §10's declined/deferred sentence). Fixed, with the should-fixes: a declined
-or deferred job's subtotal is dropped only when all its lines are excluded (a quote's), by the importer's exact rule;
-the card takes the jobs a refreshed page read; `pageJobs` null for a workshop without jobs tested; the brief notes
-counter sales and last-writer-wins. After: `tsc` 0; unit fork-records, invoice-designer, workboard 56 files / 598
-tests; db work-jobs, shopmonkey-load, public-api-write-orders 3 files / 39 tests.
+**None.** Every milestone is `done` or `provisional` (the Summary above). The environment notes and the carry-over
+notes below stay for whoever picks the fork up next.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
@@ -186,7 +213,7 @@ M0 acceptance:
 | B12 | M1 (and everything after it) | ~~Re-run M1's checks.~~ **Resolved 2026-11-22:** rerunning `/autopilot` was the go-ahead; the checks ran one at a time in the foreground with two test workers, and pass (Current step). | 2026-11-22 |
 | B13 | All (not blocking) | **Upgrade Node on this machine to 22.23.4** (what CI, the Dockerfile and the devcontainer pin), or at least ≥22.19. With the installed 22.14, `npm test` silently runs only 141 of 775 test files: `jsdom` 30 pulls `undici` 8, which needs `zlib.createZstdDecompress`, and the other 634 files' workers crash on start without counting as failures. The build carries on with a checksum-verified portable Node 22.23.4 in the session scratchpad, so nothing waits on this. | 2026-11-22 |
 | B14 | None (local housekeeping) | **Reset or drop the old local databases** `torqvoice` (what `.env`'s `DATABASE_URL` points at) and `torqvoice_test` in the `torqvoice-bl-db` container: they hold the pre-review version of M1's migration, so `prisma migrate dev` against them now wants a reset, and Prisma refuses `migrate reset` from an AI agent without your explicit consent. Either run `npx prisma migrate reset` against each yourself, or tell me to, or point `.env` at `torqvoice_fork_test`. Tests already use `torqvoice_fork_test`, so nothing waits on this. | 2026-11-22 |
-| B15 | All (not blocking) | **Upstream merge conflict.** `git merge upstream/main` at the start of A3 (upstream f620cbda, "Refuse an uploaded backup whose record ids cannot sit in a link", #672) conflicts in `src/app/api/protected/backup/import/route.ts`, where M3 marked its archive edits. Aborted, per the rules; the fork carries on without it. Still the same conflict at the start of M6 (2026-11-23). The conflict is small (an import line and one `assertUrlSafeIds(backup.data)` call next to the fork's archive lines): merge it by hand, or tell me to resolve conflicts that are this mechanical. | 2026-11-23 |
+| B15 | All (not blocking) | **Upstream merge conflict.** `git merge upstream/main` at the start of A3 (upstream f620cbda, "Refuse an uploaded backup whose record ids cannot sit in a link", #672) conflicts in `src/app/api/protected/backup/import/route.ts`, where M3 marked its archive edits. Aborted, per the rules; the fork carries on without it. Still the same conflict at the start of M6 (2026-11-23), and of A4, A5, A6 and M9 (2026-11-24). The conflict is small (an import line and one `assertUrlSafeIds(backup.data)` call next to the fork's archive lines): merge it by hand, or tell me to resolve conflicts that are this mechanical. | 2026-11-23 |
 | B16 | M7 (not blocking) | **What a Shopmonkey delete removes in Torqvoice during the sync window.** Default taken (MAPPING §13): a loaded work order, quote or appointment unchanged in Torqvoice since its last sync is deleted (with its tombstone); one edited here, a locked invoice, and every other kind of record (customer, vehicle, part, technician, attachment) is kept and listed in `state.lastSync.keptDeletes` for the person doing the cutover. Confirm, or say which other records should go too. | 2026-11-23 |
 
 ## Re-verify with real Shopmonkey data
@@ -385,3 +412,4 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-24 | M9: a page's save keeps a line's `jobId` only when it is a job of that document; an id that isn't is left to M5's carry-over by name (a page open while the sync recreated the jobs keeps each line's new job); through the API it is a 404 (API.md §3). | Tenancy (no line under another workshop's or document's job) without losing jobs to a stale page (M9 review pass 1). |
 | 2026-11-24 | M9: "A workshop with no jobs sees no change (Playwright snapshot)" is shown by a Vitest snapshot of every preset's invoice and quote spec without jobs, flat and by category (SHA-256 per spec), taken on the pre-M9 print code and still equal after, plus the Playwright spec's jobless work order and PDF. | Playwright's pixel snapshots differ between this Windows machine and CI's Linux; the spec hashes are exact and platform-free. |
 | 2026-11-24 | M9: not built, carried on (not blocking): the M5/M8 carry-overs listed for M9 in Current step (the dry run's long transaction, the realtime notify per record, an operator's `'create'` choice for a matched user, the stuck-limit lease for an extract and `sync.load`, `children.retry` in the done summary, the 401/403 file host), a quote's jobs following it into a converted work order, the technician's work order sheet grouping by job, `hidden`/`lumpSum` services on print (PROVISIONAL(M0:S5)). | M9's brief is job grouping; the carry-overs are importer hardening that wants real Shopmonkey data first (B1). Listed in the final summary. |
+| 2026-11-24 | **M9 provisional.** DoD at a0b9fbfd (merged 35d321f5): `tsc` exit 0; `next build` exit 0; Biome 14 (the baseline, upstream files); `npm test` in chunks (`m9final`): rest 103/106, lib 139/148, f1 168/169, f2 202/203, f3 228/229, loose 11/11, the failures only the Windows baseline files (health, photo-handoff, portal-upload; backup-manifest (CRLF), backup/engine, restic, files/manager, only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access; equipment-gates, portal-file-route, meters-gates); `test:db` 42 files / 284 tests. Acceptance: (1) imported invoice 1003 prints each line under its own Shopmonkey service in their order, a declined service marked without a subtotal its totals leave out, the counted ones with theirs (`shopmonkey-load.db.test.ts`), against the synthetic fixtures: no recorded Shopmonkey PDF to compare the structure with (B1), so provisional; (2) a workshop without jobs sees no change: `print-without-jobs.test.ts` (SHA-256 of every preset's invoice and quote spec, flat and by category, taken on the pre-M9 print code; passed again with `fork/integration`'s version of all 40 modified source files in place) and Playwright `e2e/specs/work-jobs/work-jobs.spec.ts` "3 passed (1.1m)" at 905968b4 on a production build (a jobless work order and its PDF as before; with jobs, the card, a line moved and saved, the PDF by job), the e2e database left clean. Reviewer: needs changes (passes 1–3), ready for PR (pass 4). | Evidence for the definition of done and acceptance (the commits and tests named in M9's merge). |
