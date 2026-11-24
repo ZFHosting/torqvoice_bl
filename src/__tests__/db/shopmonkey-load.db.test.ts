@@ -304,6 +304,67 @@ describe('around the records', () => {
     expect(open?.issuedAt).toBeNull()
   })
 
+  it('prints an imported invoice by its Shopmonkey services, in their order, each line under its own (M9)', async () => {
+    // PROVISIONAL(M0:S5): the structure of Shopmonkey's own invoice PDF is taken from its documented services; there
+    // is no recorded PDF to compare with until a key is available (B1).
+    const invoice = await db.serviceRecord.findFirstOrThrow({
+      where: { organizationId, invoiceNumber: '1003' },
+      select: { id: true },
+    })
+    const jobs = await db.workJob.findMany({
+      where: { serviceRecordId: invoice.id },
+      orderBy: { ordinal: 'asc' },
+      select: { id: true, name: true },
+    })
+    expect(jobs.length).toBeGreaterThan(1)
+    const { assembleInvoicePrint } = await import('@/features/invoices/Lib/assembleInvoicePrint')
+    const { buildInvoicePrintSpec } = await import(
+      '@/features/invoice-designer/Pdf/buildInvoicePrint'
+    )
+    const sheet = await assembleInvoicePrint(invoice.id)
+    if (!sheet) throw new Error('no sheet')
+    const spec = buildInvoicePrintSpec({
+      data: sheet.data,
+      workshop: sheet.workshop,
+      invoiceSettings: sheet.invoiceSettings,
+      template: sheet.template,
+      labels: {},
+    })
+    // The workshop's design sets no grouping: an imported invoice prints by job. Each table's headings follow the
+    // services' order, and every line sits under the heading of the job it was loaded under.
+    const jobOfLine = new Map<string, string>()
+    for (const l of sheet.data.laborItems) jobOfLine.set(l.description, l.jobId ?? '')
+    for (const p of sheet.data.partItems) jobOfLine.set(p.name, p.jobId ?? '')
+    const nameOf = new Map(jobs.map((j) => [j.id, j.name]))
+    const order = jobs.map((j) => j.name)
+    const tables: { rows: Record<string, string>[] }[] = []
+    const walk = (node: unknown) => {
+      if (Array.isArray(node)) node.forEach(walk)
+      else if (node && typeof node === 'object') {
+        const n = node as Record<string, unknown>
+        if (n.kind === 'table' && Array.isArray(n.rows) && n.groupKey) tables.push(n as never)
+        Object.values(n).forEach(walk)
+      }
+    }
+    walk(spec)
+    expect(tables.length).toBeGreaterThan(0)
+    for (const table of tables) {
+      let heading = ''
+      const headings: string[] = []
+      for (const row of table.rows) {
+        if (row.groupTitle) {
+          heading = row.groupTitle
+          headings.push(heading)
+        } else if (!row.groupSubtotal && row.desc && jobOfLine.has(row.desc)) {
+          const jobId = jobOfLine.get(row.desc) as string
+          expect(heading).toBe(jobId ? nameOf.get(jobId) : 'Other')
+        }
+      }
+      const named = headings.filter((h) => h !== 'Other')
+      expect(named).toEqual(order.filter((name) => named.includes(name)))
+    }
+  })
+
   it('records one audit event per run, and fires no webhook even for a webhook that takes every event', async () => {
     const auditsBefore = await db.auditLog.count({
       where: { organizationId, action: 'shopmonkey.import' },

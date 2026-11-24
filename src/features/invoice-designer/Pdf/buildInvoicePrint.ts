@@ -8,6 +8,7 @@ import { parseTaxComponents } from '@/lib/tax-components'
 import { taxLines } from './taxLines'
 import { printFigures } from './printFigures'
 import { LABOR_GROUP, lineGroupsFor, partGroupKey } from './lineGroups'
+import { jobGroupsFor, jobKeyer } from '@/features/fork-records/Lib/printJobGroups' // fork (M9)
 import {
   getDefaultInvoiceLayout,
   isCustomFieldId,
@@ -294,6 +295,8 @@ export function buildInvoicePrintSpec(input: InvoicePrintInput): DocumentSpec {
   // Tables. Labor first, then parts: a job reads as the work that was done
   // followed by what it took.
   // -------------------------------------------------------------------------
+  // fork (M9): each line's job group, for a table that groups by job
+  const jobOf = jobKeyer(data.workJobs)
   const items: DocumentData['items'] = [
     ...data.laborItems.map((l, i) => ({
       n: String(i + 1),
@@ -303,6 +306,7 @@ export function buildInvoicePrintSpec(input: InvoicePrintInput): DocumentSpec {
       price: money(shown(l.rate, l.taxable !== false)),
       total: money(shown(l.total, l.taxable !== false)),
       group: LABOR_GROUP,
+      job: jobOf(l.jobId), // fork (M9)
     })),
     ...data.partItems.map((p, i) => ({
       n: String(data.laborItems.length + i + 1),
@@ -313,6 +317,7 @@ export function buildInvoicePrintSpec(input: InvoicePrintInput): DocumentSpec {
       price: money(shown(p.unitPrice, p.taxable !== false)),
       total: money(shown(p.total, p.taxable !== false)),
       group: partGroupKey(p.category),
+      job: jobOf(p.jobId), // fork (M9)
     })),
   ]
 
@@ -323,6 +328,7 @@ export function buildInvoicePrintSpec(input: InvoicePrintInput): DocumentSpec {
     price: money(shown(p.unitPrice, p.taxable !== false)),
     total: money(shown(p.total, p.taxable !== false)),
     group: partGroupKey(p.category),
+    job: jobOf(p.jobId), // fork (M9)
   }))
 
   const lineGroups = lineGroupsFor({
@@ -347,8 +353,18 @@ export function buildInvoicePrintSpec(input: InvoicePrintInput): DocumentSpec {
           ? fillTemplate(labels.ratePerHour, { rate: money(shown(l.rate, l.taxable !== false)) })
           : `${money(shown(l.rate, l.taxable !== false))}/hr`,
       total: money(shown(l.total, l.taxable !== false)),
+      job: jobOf(l.jobId), // fork (M9)
     }
   })
+
+  // fork (M9): one group per job, with its subtotal, for a table that groups by job
+  const jobGroupsOf = (lines: Parameters<typeof jobGroupsFor>[0]['lines']) =>
+    jobGroupsFor({ jobs: data.workJobs ?? [], lines, labels, shown, money })
+  const jobGroups = {
+    items: jobGroupsOf([...data.laborItems, ...data.partItems]),
+    parts: jobGroupsOf(data.partItems),
+    labor: jobGroupsOf(data.laborItems),
+  }
 
   const severityLabels: Record<string, string> = {
     urgent: L('findingSeverityUrgent', 'Urgent'),
@@ -499,6 +515,8 @@ export function buildInvoicePrintSpec(input: InvoicePrintInput): DocumentSpec {
     parts,
     labor,
     lineGroups,
+    jobGroups, // fork (M9)
+    groupByJob: data.groupByJob ?? Boolean(data.workJobs?.length), // fork (M9)
     findings,
     totals,
     notes: { html: data.invoiceNotes ?? undefined },

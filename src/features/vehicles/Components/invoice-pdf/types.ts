@@ -82,6 +82,7 @@ export interface InvoiceData {
     total: number
     /** False when the document's tax is not charged on the line. */
     taxable?: boolean | null
+    jobId?: string | null // fork (M9)
   }[]
   laborItems: {
     description: string
@@ -91,7 +92,15 @@ export interface InvoiceData {
     pricingType?: string
     /** False when the document's tax is not charged on the line. */
     taxable?: boolean | null
+    jobId?: string | null // fork (M9)
   }[]
+  /**
+   * fork (M9): the document's jobs, for a layout that groups lines by job, as `PRINT_JOBS` reads them
+   * (fork-records/Lib/printJobGroups.ts). A table that sets no grouping groups by job when there are any.
+   */
+  workJobs?: { id: string; name: string; ordinal: number }[]
+  /** fork (M9): false prints a table that sets no grouping flat, jobs or not (the designer's sample sets it). */
+  groupByJob?: boolean
   customFields?: PrintableCustomField[]
   /**
    * The vehicle's and the customer's own custom fields. They print only where

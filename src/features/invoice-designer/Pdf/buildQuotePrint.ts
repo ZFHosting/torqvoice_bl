@@ -8,6 +8,7 @@ import { parseTaxComponents } from '@/lib/tax-components'
 import { taxLines } from './taxLines'
 import { printFigures } from './printFigures'
 import { LABOR_GROUP, lineGroupsFor, partGroupKey } from './lineGroups'
+import { jobGroupsFor, jobKeyer } from '@/features/fork-records/Lib/printJobGroups' // fork (M9)
 import {
   getDefaultInvoiceLayout,
   isCustomFieldId,
@@ -87,6 +88,7 @@ export interface QuotePrintData {
     excluded?: boolean
     /** False when the quote's tax is not charged on the line. */
     taxable?: boolean | null
+    jobId?: string | null // fork (M9)
   }[]
   laborItems: {
     description: string
@@ -97,7 +99,15 @@ export interface QuotePrintData {
     excluded?: boolean
     /** False when the quote's tax is not charged on the line. */
     taxable?: boolean | null
+    jobId?: string | null // fork (M9)
   }[]
+  /**
+   * fork (M9): the document's jobs, for a layout that groups lines by job, as `PRINT_JOBS` reads them
+   * (fork-records/Lib/printJobGroups.ts). A table that sets no grouping groups by job when there are any.
+   */
+  workJobs?: { id: string; name: string; ordinal: number }[]
+  /** fork (M9): false prints a table that sets no grouping flat, jobs or not (the designer's sample sets it). */
+  groupByJob?: boolean
   customer: {
     name: string
     email: string | null
@@ -301,6 +311,8 @@ export function buildQuotePrintSpec(input: QuotePrintInput): DocumentSpec {
     })
   }
 
+  // fork (M9): each line's job group, for a table that groups by job
+  const jobOf = jobKeyer(data.workJobs)
   const items: DocumentData['items'] = [
     ...data.laborItems.map((l, i) => ({
       n: String(i + 1),
@@ -311,6 +323,7 @@ export function buildQuotePrintSpec(input: QuotePrintInput): DocumentSpec {
       total: money(shown(l.total, l.taxable !== false)),
       excluded: l.excluded,
       group: LABOR_GROUP,
+      job: jobOf(l.jobId), // fork (M9)
     })),
     ...data.partItems.map((p, i) => ({
       n: String(data.laborItems.length + i + 1),
@@ -322,6 +335,7 @@ export function buildQuotePrintSpec(input: QuotePrintInput): DocumentSpec {
       total: money(shown(p.total, p.taxable !== false)),
       excluded: p.excluded,
       group: partGroupKey(p.category),
+      job: jobOf(p.jobId), // fork (M9)
     })),
   ]
 
@@ -333,6 +347,7 @@ export function buildQuotePrintSpec(input: QuotePrintInput): DocumentSpec {
     total: money(shown(p.total, p.taxable !== false)),
     excluded: p.excluded,
     group: partGroupKey(p.category),
+    job: jobOf(p.jobId), // fork (M9)
   }))
 
   const lineGroups = lineGroupsFor({
@@ -358,8 +373,18 @@ export function buildQuotePrintSpec(input: QuotePrintInput): DocumentSpec {
           : `${money(shown(l.rate, l.taxable !== false))}/hr`,
       total: money(shown(l.total, l.taxable !== false)),
       excluded: l.excluded,
+      job: jobOf(l.jobId), // fork (M9)
     }
   })
+
+  // fork (M9): one group per job, with its subtotal of the lines the customer kept, for a table that groups by job
+  const jobGroupsOf = (lines: Parameters<typeof jobGroupsFor>[0]['lines']) =>
+    jobGroupsFor({ jobs: data.workJobs ?? [], lines, labels, shown, money })
+  const jobGroups = {
+    items: jobGroupsOf([...data.laborItems, ...data.partItems]),
+    parts: jobGroupsOf(data.partItems),
+    labor: jobGroupsOf(data.laborItems),
+  }
 
   // Totals from the lines the customer kept; excluded ones do not count.
   const subtotal = figures.laborTotal + figures.partsTotal
@@ -442,6 +467,8 @@ export function buildQuotePrintSpec(input: QuotePrintInput): DocumentSpec {
     parts,
     labor,
     lineGroups,
+    jobGroups, // fork (M9)
+    groupByJob: data.groupByJob ?? Boolean(data.workJobs?.length), // fork (M9)
     findings: [],
     totals,
     notes: { html: data.description ?? undefined },

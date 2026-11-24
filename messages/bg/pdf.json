@@ -22,6 +22,7 @@
     "parts": "Резервни части",
     "otherParts": "Други резервни части",
     "groupSubtotal": "Междинна сума за {group}",
+    "otherJobLines": "Други",
     "partNumber": "Артикулен номер",
     "description": "Описание",
     "qty": "Кол.",

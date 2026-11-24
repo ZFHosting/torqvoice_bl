@@ -22,6 +22,7 @@
     "parts": "Parts",
     "otherParts": "Other parts",
     "groupSubtotal": "{group} subtotal",
+    "otherJobLines": "Other",
     "partNumber": "Part #",
     "description": "Description",
     "qty": "Qty",

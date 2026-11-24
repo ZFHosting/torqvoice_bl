@@ -13,6 +13,7 @@
  */
 
 import { normalizeFleetNumber } from '@/features/vehicles/Lib/fleetNumber'
+import { PRINT_JOBS } from '@/features/fork-records/Lib/printJobGroups' // fork (M9)
 
 /**
  * Turns a stored upload address into the one this link's token opens. Each
@@ -167,6 +168,7 @@ export const PUBLIC_QUOTE_SELECT = {
       // The sheet works its tax out from the lines, so each has to say
       // whether it is taxed; left out here, every line would be.
       taxable: true,
+      jobId: true, // fork (M9): for a layout that groups lines by job
     },
     orderBy: { sortOrder: 'asc' as const },
   },
@@ -180,9 +182,11 @@ export const PUBLIC_QUOTE_SELECT = {
       pricingType: true,
       excluded: true,
       taxable: true,
+      jobId: true, // fork (M9)
     },
     orderBy: { sortOrder: 'asc' as const },
   },
+  workJobs: PRINT_JOBS, // fork (M9): printed as the lines' headings, never sent to the browser as they are
   customer: { select: PUBLIC_QUOTE_PARTY },
   vehicle: {
     select: {

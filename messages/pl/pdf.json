@@ -22,6 +22,7 @@
     "parts": "Części",
     "otherParts": "Inne części",
     "groupSubtotal": "Suma częściowa: {group}",
+    "otherJobLines": "Inne",
     "partNumber": "Nr części",
     "description": "Opis",
     "qty": "Ilość",

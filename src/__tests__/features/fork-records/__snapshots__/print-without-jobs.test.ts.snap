@@ -1,0 +1,30 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`a document without jobs > prints as it did before job grouping, in every preset, flat and by category 1`] = `
+{
+  "classic category invoice": "d7567421ca98e7859dcf7a2d0f7662cce69cbc8e9fdd04989d25a95f35aaa27e",
+  "classic category quote": "375b3c74df0a6957e0f60b6c2caf2758d8fb320b6cab92fc7c2298c42e71e5aa",
+  "classic flat invoice": "e17f2ab12b3a17d0cf34eb93c98029bc4f1f275739bc6dcf12c8c213da3b6738",
+  "classic flat quote": "51883c2d1440908639d521a96cc8e7a65493960f7a981df7112b73a359e6b86d",
+  "compact category invoice": "a63543caac89c4c2cca47eb301e7572b3e6993d1b09ba93ad9a8497e527a7905",
+  "compact category quote": "175b2a4505cef82234a79145ec35fd436a544c74b4695fdb8178c36a375e4ef8",
+  "compact flat invoice": "af4605bf62b68ac9c2f2e9305e7a8baa8f6bcb9459d4c8ef36918a1983414cbd",
+  "compact flat quote": "cba68a787b84c1ac53c2e4e853141db90aa02dd9b99ca28d52f812080d7919b6",
+  "detailed category invoice": "852e99390b3d8b23b01c6c8f5a8787dde60cf89fef1586de9a8c7182bb1796b8",
+  "detailed category quote": "b4ea0c2bc497bfee6fb226f9afd62d4388c075d8037b9d2f0b8288afe24c8e9c",
+  "detailed flat invoice": "847d4b19facf2cbbb9718fdb9735e33765b261fe9d370f3c638fc69fa57b1c7e",
+  "detailed flat quote": "ead51fa84fbdf40217c2148e36720df082f3833cf9520ad9c5fb0f7b4d88fd98",
+  "itemized category invoice": "79970ff1f69e6746524ecc39afdfe856d329c238174eb48d8ac8edc18ee7222d",
+  "itemized category quote": "be4af8e0cd1ddda5ff11167ccd554ff52818a84059a6dda24cb897d0141950a3",
+  "itemized flat invoice": "0fe3460ced09f1b742ce3a06fedfe72bb01ad2ba5c1b2805dd5c37cb6396f033",
+  "itemized flat quote": "11db9b2251fda5e6444ac8442af3c43f6952dd20cee8d9ace36791fc985e68a7",
+  "letterhead category invoice": "6edb9e6461489d2a9ecd423d47d65d94fdbe3332dfe39e60fbe74c025b282852",
+  "letterhead category quote": "83033cc4c433666250d8159fdb55208c1179eca3353768df97544914cf585b79",
+  "letterhead flat invoice": "bf5abdaff79bdf3cfe5234152d5471386550a60860de4a17108347e7394bb91e",
+  "letterhead flat quote": "536d75979c0bc91b6a22c52860e14099192e5a4185471078a170ee0828e940ad",
+  "minimal category invoice": "a4f57258c687c296a3913f6aeb68952ec27a15168de5c6a9d5858b38295c2148",
+  "minimal category quote": "2085acbdc25bc5fc801481ae6a7d1841592c45d7cc9cf01630ec34077596bafa",
+  "minimal flat invoice": "c3efef67e8a1ddcb9d9d2c911b1a8efc12fe75a8aa01c9a6b3ecc51d8166fe7b",
+  "minimal flat quote": "8fa789c0d371dae17b96369416546a5527b354f7940f55cd5ac5408af3ff5706",
+}
+`;

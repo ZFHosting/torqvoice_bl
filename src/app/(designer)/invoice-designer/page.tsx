@@ -3,6 +3,7 @@ import { MeterTypesProvider } from '@/components/meter-types-context'
 import { activeMeterTypes } from '@/features/meters/Lib/meters.server'
 import { EquipmentTypesProvider } from '@/components/equipment-types-context'
 import { equipmentTypes } from '@/features/equipment/Lib/equipmentGate.server'
+import { workshopUsesJobs } from '@/features/fork-records/Lib/workshopUsesJobs.server' // fork (M9)
 import { redirect } from 'next/navigation'
 import { defaultCertificateDesign } from '@/features/inspections/Lib/defaultCertificateDesign'
 
@@ -149,6 +150,8 @@ export default async function InvoiceDesignerPage({
   const equipmentTypeNames = (await equipmentTypes(data.organizationId))
     .sort((a, b) => Number(b.isActive) - Number(a.isActive))
     .map((type) => type.name)
+  // fork (M9): a workshop with jobs is offered "By job" for the line tables
+  const usesJobs = await workshopUsesJobs(data.organizationId)
 
   return (
     <MeterTypesProvider value={meterTypes}>
@@ -207,6 +210,7 @@ export default async function InvoiceDesignerPage({
           workOrderTemplate={templateFor('work_order')}
           initialSavedDesigns={savedDesigns}
           telegramBotLink={telegramBotUsername ? botLinkOf(telegramBotUsername) : undefined}
+          workshopUsesJobs={usesJobs} // fork (M9)
           workshop={{
             name: organization?.name || '',
             address: settings[SETTING_KEYS.WORKSHOP_ADDRESS] || '',

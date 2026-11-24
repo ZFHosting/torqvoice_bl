@@ -22,6 +22,7 @@
     "parts": "Deler",
     "otherParts": "Andre deler",
     "groupSubtotal": "Delsum {group}",
+    "otherJobLines": "Annet",
     "partNumber": "Del #",
     "description": "Beskrivelse",
     "qty": "Ant.",

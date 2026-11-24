@@ -22,6 +22,7 @@
     "parts": "Dalys",
     "otherParts": "Kitos dalys",
     "groupSubtotal": "{group} – tarpinė suma",
+    "otherJobLines": "Kita",
     "partNumber": "Dalies Nr.",
     "description": "Aprašymas",
     "qty": "Kiekis",

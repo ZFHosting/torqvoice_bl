@@ -42,6 +42,13 @@ import {
 } from '../Lib/sectionFields'
 import { type StylingGroupId, stylingGroupTitleKey } from '../Lib/designerSearch'
 import type { DesignerTemplate } from './types'
+// fork (M9): grouping by job
+import {
+  groupByFor,
+  groupingOptions,
+  groupingValue,
+  offersGrouping,
+} from '@/features/fork-records/Lib/designerJobGrouping'
 
 /** Sections whose body is a table, and so offer line controls. */
 const TABLE_SECTIONS = new Set([
@@ -408,6 +415,7 @@ export function DesignerInspector({
   onOrgNumberLabel,
   telegramBotLink,
   signatureSet,
+  workshopUsesJobs = false, // fork (M9)
   found,
 }: {
   layout: InvoiceLayoutConfig
@@ -443,6 +451,8 @@ export function DesignerInspector({
   telegramBotLink?: string
   /** Whether the person designing has saved a signature, or the canvas shows a stand-in. */
   signatureSet: boolean
+  /** fork (M9): the workshop has jobs, so the line tables offer grouping by job. */
+  workshopUsesJobs?: boolean
   /**
    * What the designer's search just led to: the `data-search-target` of a
    * row, note, chip or group in this panel. A new `nonce` is a new arrival,
@@ -454,6 +464,7 @@ export function DesignerInspector({
   const isMarine = useServiceType() === 'marine'
   const tSection = useTranslations('settings.layoutEditor.sections')
   const tField = useTranslations('settings.layoutEditor.fields')
+  const tj = useTranslations('workJobs') // fork (M9)
   /** A field's name, whether it is one of ours or one the workshop defined. */
   const fieldName = (fieldId: string, sectionId?: string) =>
     designerFieldName(tField, isMarine, customFields, fieldId, sectionId)
@@ -853,21 +864,23 @@ export function DesignerInspector({
                 {section.id === 'items_table' ? t('itemsTableHint') : t('tablesExclusiveHint')}
               </p>
             )}
-            {GROUPABLE_SECTIONS.has(section.id) && (
+            {/* fork (M9): by job too, and on the labor table, for a workshop that has jobs */}
+            {offersGrouping(section.id, GROUPABLE_SECTIONS.has(section.id), workshopUsesJobs) && (
               <div>
                 <div className="mb-1.5 text-[13px] font-medium">{t('groupLines')}</div>
                 <Choice
-                  value={section.groupBy ?? 'none'}
-                  options={[
-                    { value: 'none', label: t('groupLinesOff') },
-                    { value: 'category', label: t('groupLinesCategory') },
-                  ]}
+                  value={groupingValue(section.groupBy, workshopUsesJobs)}
+                  options={groupingOptions(section.id, workshopUsesJobs, {
+                    none: t('groupLinesOff'),
+                    category: t('groupLinesCategory'),
+                    job: tj('designerByJob'),
+                  })}
                   onChange={(v) =>
-                    onSection(section.id, { groupBy: v === 'category' ? 'category' : undefined })
+                    onSection(section.id, { groupBy: groupByFor(v, workshopUsesJobs) })
                   }
                 />
                 <p className="mt-1.5 text-[11.5px] leading-snug text-[#8a8f97]">
-                  {t('groupLinesHint')}
+                  {workshopUsesJobs ? tj('designerByJobHint') : t('groupLinesHint')}
                 </p>
               </div>
             )}

@@ -106,8 +106,13 @@ export const invoiceSectionSchema = z.object({
    * easier to read when brakes, service and tyres are added up on their own.
    * Only the items and parts tables offer it; labor lines have no category
    * and print after the parts in their own group. Unset prints one flat list.
+   *
+   * fork (M9): `job` prints each job (a Shopmonkey service) as its name, its
+   * lines and its subtotal, on the labor table too; `none` is flat said out
+   * loud. Unset, a document with jobs prints by job and one without prints
+   * flat (fork-records/Lib/printJobGroups.ts).
    */
-  groupBy: z.enum(['category']).optional(),
+  groupBy: z.enum(['category', 'job', 'none']).optional(),
   /**
    * Which list the Equipment section prints: `job` is the items the job or
    * the quote works on, `vehicle` everything fitted to the vehicle now. Unset
