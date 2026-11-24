@@ -1,16 +1,16 @@
 /**
  * fork: the Shopmonkey importer's command line (docs/fork/milestones/M3-extract-and-stage.md, task 7).
  *
- *   npx tsx --conditions=react-server scripts/shopmonkey/run.ts extract --connection <id> \
+ *   npx tsx --import ./scripts/shopmonkey/register.mjs scripts/shopmonkey/run.ts extract --connection <id> \
  *     [--tables customer,order] [--since 2026-01-01T00:00:00Z] [--restart]
  *
  * Drives the same extract steps the job queue runs, in-process and without the queue's pauses, saving
  * the checkpoint after every unit: stop it at any time and run it again to carry on. It takes over from
  * a run the queue was driving (that run's next save fails, and it stops). Reads Shopmonkey only; writes the
  * workshop's own archive (`SourceRecord`) and the staging folder, in whatever database DATABASE_URL names.
- * `--conditions=react-server` lets it load the app's server-only modules outside Next.js.
+ * `--import ./scripts/shopmonkey/register.mjs` lets it load the app's server-only modules outside Next.js.
  *
- *   npx tsx --conditions=react-server scripts/shopmonkey/run.ts load --connection <id> \
+ *   npx tsx --import ./scripts/shopmonkey/register.mjs scripts/shopmonkey/run.ts load --connection <id> \
  *     [--dry-run] [--apply-numbering] [--apply-settings] [--user <id>]
  *
  * Loads the archive into the workshop (M5): every record in its own transaction, idempotent, undoable by its run
@@ -18,17 +18,17 @@
  * settings it proposes are applied only with `--apply-numbering` / `--apply-settings`. Writes to whatever database
  * DATABASE_URL names: point it at the workshop's own database, never at one you aren't migrating.
  *
- *   npx tsx --conditions=react-server scripts/shopmonkey/run.ts undo --connection <id> --run <run id> [--user <id>]
+ *   npx tsx --import ./scripts/shopmonkey/register.mjs scripts/shopmonkey/run.ts undo --connection <id> --run <run id> [--user <id>]
  *
  * Removes what that load created (and nothing the workshop uses since); settings it applied stay.
  *
- *   npx tsx --conditions=react-server scripts/shopmonkey/run.ts reconcile --connection <id> [--json]
+ *   npx tsx --import ./scripts/shopmonkey/register.mjs scripts/shopmonkey/run.ts reconcile --connection <id> [--json]
  *
  * Reconciles the import (M6): every staged record accounted for, money per work order and by month, receivables,
  * spot checks, warnings and unmapped fields, and the gates cutover waits on. Kept as the connection's
  * `state.lastReconciliation`; `--json` prints the whole report. Exits 2 when a gate fails. Writes nothing else.
  *
- *   npx tsx --conditions=react-server scripts/shopmonkey/run.ts cutover --connection <id> --shop-stopped \
+ *   npx tsx --import ./scripts/shopmonkey/register.mjs scripts/shopmonkey/run.ts cutover --connection <id> --shop-stopped \
  *     [--dry-run] [--user <id>]
  *
  * Ends the sync window (M7, docs/fork/CUTOVER.md): a final delta and load, the reconciliation (stops on a failing
@@ -53,6 +53,7 @@ import { extractDepsFor, recordExtractFinished } from '@/integrations/shopmonkey
 import { formatCutoverResult, parseCutoverArgs } from '@/integrations/shopmonkey/sync/cli'
 import { runCutover } from '@/integrations/shopmonkey/sync/cutover'
 import { db } from '@/lib/db'
+import { endProcess } from './exit'
 
 async function load() {
   const args = parseLoadArgs(process.argv.slice(2))
@@ -183,4 +184,5 @@ main()
     console.error(err instanceof Error ? err.message : err)
     process.exitCode = 1
   })
-  .finally(() => db.$disconnect())
+  // The realtime bus keeps the process open after a load or an undo: end it here (exit.ts).
+  .finally(() => endProcess(() => db.$disconnect()))

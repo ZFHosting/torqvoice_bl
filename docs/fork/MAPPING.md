@@ -370,8 +370,8 @@ in RESULTS T1.
 **Proposed, not applied (M5).** Every load works this out from the workshop's highest plain job number
 (imported or not: the next number has to clear all of them) and reports it: `workshop.invoicePrefix` → `''`,
 and `workshop.invoiceStartNumber` → highest + 1 (only when the format changes, or a different start is set).
-The CLI applies it with `--apply-numbering`, the M8 screen later; a dry run proposes the same and writes
-nothing. Quotes need nothing: a new quote is numbered `QT-` after the newest quote's digits, which no
+The CLI applies it with `--apply-numbering`, and the cutover (§13) as its step 4; the import screen's loads don't
+(M8). A dry run proposes the same and writes nothing. Quotes need nothing: a new quote is numbered `QT-` after the newest quote's digits, which no
 imported number (unprefixed) can collide with.
 
 ### 9.1 Settings a load proposes (M5)
@@ -441,8 +441,15 @@ differs from the workshop's, never applied: renaming the workshop is the operato
 - **Undo and converted quotes.** A quote converted into a work order an undo removes (that run's, or a later
   run's on that run's vehicle) is put back to `accepted` with no pointer, so the app can convert it; the next
   load converts it again while Shopmonkey has the order as a repair order.
-- **Not guarded yet (M8):** two loads of one connection at once; a dry run holds one transaction for the whole
-  run (up to an hour), which can make the app wait on the same unique keys (customer numbers) meanwhile. Each
+- **Guarded since M7/M8:** two loads of one connection at once (the load lock, §13; a dry run from the import screen
+  takes it too, a CLI or cutover dry run doesn't), and a second load or cutover queued from the import screen while
+  one is queued or running (refused). A run from the screen renews its job's lock every minute, so the queue's
+  ten-minute stuck recovery never starts it again while it runs; a copy it does start (the worker crashed, so the run
+  stopped beating) marks the run failed instead of running it, and a run whose job is gone shows as interrupted.
+  The screen also refuses a load until an extract has finished, an undo while a load or the cutover runs, and a new
+  extract while the ten-minute sync reads.
+  Still so: a dry run holds one transaction for the
+  whole run (up to an hour), which can make the app wait on the same unique keys (customer numbers) meanwhile. Each
   committed record also wakes the workshop's open screens once (the realtime extension in `src/lib/db.ts`), so a
   large load is best run outside opening hours.
 - **Files.** A placed file is named from the workshop, its record and its content (UUID-shaped, so the file
@@ -637,8 +644,8 @@ it is listed again). The webhook covers both, so a workshop that relies on polli
 Shopmonkey deleted during the sync window.
 
 **When the sync loads**: only after the operator's first load (`state.lastLoad`), never while another extract runs,
-never after cutover. As the member who made the connection (while still a member), with the default status and
-technician mappings (the import screen, M8, saves the operator's for every load). Every load holds the connection's load lock (a PostgreSQL session advisory lock on a connection of
+never after cutover. As the member who made the connection (while still a member), with the status and technician
+mappings saved on the import screen (`state.mapping`, M8; the defaults for any it doesn't name), as every load uses. Every load holds the connection's load lock (a PostgreSQL session advisory lock on a connection of
 its own): a second load is refused (`LoadBusy`), and the sync tries again a minute later (`sync.load`). While a
 connection that hears invoices is on (accounting), the sync stages but doesn't load (M5's guard), and says so in the
 log. The sync's loads are full loads (unchanged records skipped by their hash); one that wrote nothing records no

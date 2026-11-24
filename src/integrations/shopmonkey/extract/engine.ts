@@ -16,7 +16,7 @@ import {
   PagingStalled,
   pageContinues,
   ReadOnlyViolation,
-  SHOPMONKEY_BASE_URL,
+  shopmonkeyBaseUrl,
   type ShopmonkeyClient,
   ShopmonkeyError,
   where,
@@ -720,7 +720,7 @@ async function stageFile(
   let staged: StagedFile | null
   if (typeof url !== 'string' || !url) {
     staged = { skipped: 'not_found' }
-  } else if (url.startsWith(`${SHOPMONKEY_BASE_URL}/`)) {
+  } else if (url.startsWith(`${shopmonkeyBaseUrl()}/`)) {
     // On Shopmonkey's API itself: through the read-only client, with the key, read into memory (capped).
     const link = new URL(url)
     try {

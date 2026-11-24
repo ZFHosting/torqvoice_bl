@@ -1,4 +1,6 @@
 import { workshopTaxOffer } from '@/features/settings/Lib/workshopTaxOffer'
+import { ShopmonkeySyncBanner } from '@/features/shopmonkey-import/Components/ShopmonkeySyncBanner'
+import { shopmonkeySyncNotice } from '@/features/shopmonkey-import/Lib/syncNotice.server'
 import { jobMeterViews } from '@/features/meters/Lib/meters.server'
 import { jobEquipmentView } from '@/features/equipment/Lib/equipment.server'
 import { resolveCurrencyCode } from '@/lib/currencies'
@@ -467,9 +469,17 @@ export async function ServiceRecordPage({
       })
     : []
 
+  // fork: imported from Shopmonkey and still synced from it (M7/M8).
+  const syncNotice = await shopmonkeySyncNotice(organizationId, 'ServiceRecord', serviceId)
+
   return (
     <div className="flex h-svh flex-col overflow-hidden">
       <PageHeader />
+      {syncNotice && (
+        <div className="px-4 pb-2">
+          <ShopmonkeySyncBanner lastSyncAt={syncNotice.lastSyncAt} />
+        </div>
+      )}
       <ServicePageClient
         record={result.data}
         videoCall={

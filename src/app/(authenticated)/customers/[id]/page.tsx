@@ -1,4 +1,6 @@
 import { getTranslations } from 'next-intl/server'
+import { ShopmonkeySyncBanner } from '@/features/shopmonkey-import/Components/ShopmonkeySyncBanner'
+import { shopmonkeySyncNotice } from '@/features/shopmonkey-import/Lib/syncNotice.server'
 import {
   getCustomer,
   getCustomerInvoices,
@@ -107,10 +109,17 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
     }
   }
 
+  // fork: imported from Shopmonkey and still synced from it (M7/M8).
+  const syncNotice =
+    layoutData.status === 'ok'
+      ? await shopmonkeySyncNotice(layoutData.organizationId, 'Customer', id)
+      : null
+
   return (
     <>
       <PageHeader />
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        {syncNotice && <ShopmonkeySyncBanner lastSyncAt={syncNotice.lastSyncAt} />}
         <CustomerDetailClient
           customer={{
             ...result.data,
