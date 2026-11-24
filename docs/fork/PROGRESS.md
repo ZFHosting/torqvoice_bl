@@ -30,7 +30,7 @@ resolved.
 | M5 | provisional | fork/M5-load | Merged 40e49b36. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 4 passes. Evidence in the Decisions log (M5 provisional). |
 | A3 | done | fork/A3-read-endpoints | Merged c7770ecc. Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (A3 done). |
 | A4 | done | fork/A4-write-endpoints | Merged c28b98d4. Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (A4 done). |
-| M6 | todo | | |
+| M6 | in_progress | fork/M6-reconcile | |
 | M7 | todo | | |
 | M8 | todo | | |
 | A5 | todo | | |
@@ -69,10 +69,45 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**Next: M6 (reconcile)**, from `fork/integration` after A4's merge. Its plan goes here when it starts. Found while
-A4 ran (read-only): the M5 load still loads orders created before `historyFrom` (staged without services,
-payments or files), as header-only work orders that would read unpaid; the setting's help text ("Leave empty to
-import everything") and M6's skip bucket say they aren't imported. M6 fixes that first.
+**M6 (reconcile), in progress** on `fork/M6-reconcile` (from `fork/integration` at 12dea9dc; the upstream merge still
+conflicts, B15, same upstream commit). Built on M5's synthetic fixtures, so it ends `provisional` (B1). Plan:
+0. [x] (06f8b1a1) The load leaves out orders created before `historyFrom` (staged without children; "Leave empty to import
+   everything"): counted skipped, kept in the archive. Same date rule as the extract (`beforeHistory`).
+1. [x] (d550ae71, 06f8b1a1; `db/shopmonkey-load-skips.db.test.ts`, 3 passing) Why a record wasn't loaded, recorded where the load decides it: `SourceRecord.loadSkip` (reason code; migration
+   `fork_source_load_skip`), set for history, deleted, transform and rule skips and failures, cleared when the record
+   is linked. The load's warnings (by code, count and first 20 examples), failures and counts kept in the
+   connection's `state.lastLoad`.
+2. [x] (35c1945b) `src/integrations/shopmonkey/reconcile/`: counts per table (Shopmonkey's `meta.total` and the extract's
+   location skips from `state.extract`; staged; loaded = linked row present; missing = linked row gone; skipped by
+   reason; archive-only and folded tables; unaccounted = none of these, named); money per work order (Torqvoice's
+   counted lines, MAPPING §6.3, vs Shopmonkey's subtotal; the stored total vs `totalCostCents`; what the app counts
+   as paid vs `paidCostCents`; balance vs `remainingCostCents`; an estimate's total; over $0.01 listed; explained only
+   by a rule named in MAPPING §12 and in code); by month on the workshop's clock (invoiced, tax, discounts, payments,
+   open receivables at month end, both sides); 25 spot checks (seeded); warnings; unmapped fields (TABLE_SPECS /
+   NESTED_SPECS); gates (counts accounted, no unexplained money difference, receivables to the cent, no failed
+   orders).
+3. [x] (35c1945b) Stored as `state.lastReconciliation`; `scripts/shopmonkey/run.ts reconcile --connection <id> [--json]`.
+4. [x] (35c1945b; `db/shopmonkey-reconcile.db.test.ts` 3 passing, `db/shopmonkey-reconcile-scale.db.test.ts` 1 passing,
+   `features/integrations/shopmonkey/reconcile.test.ts` 16 passing) Tests (db): the fixture set passes every gate; a corrupted line total fails the money gate naming the order; a
+   deleted imported customer fails the count gate naming it; 50,000 generated orders reconcile in under a minute.
+5. [ ] MAPPING (§1 historyFrom, §12 reconciliation), DoD, reviewer, merge. Reviewer pass 1 (on 39caeb0a): needs
+   changes, 4 must-fix, all fixed: (1) inspection photos had no bucket (now `folded` into a loaded inspection; the
+   fixture test stages real files: order file `loaded`, photo `folded`); (2) `money_mismatch` explained any lines
+   difference on any warned order (now only the `subtotal` warning, and only while the lines are what the load
+   wrote, `state.lastLoad.mismatchedLines`; a test corrupts a warned order's line); (3) payment reasons were never
+   cleared (now cleared when its row is written, payments marked after the unit every run; the reconcile ignores an
+   imported payment's old reason); (4) the failures gate missed orders past the 500 named and failed re-loads (now
+   uncapped counts and `state.lastLoad.counts.order.failed`, tested). Should-fix done: invoice PDF parent; one-key
+   `jsonb_set` state writes (no clobbered `extract`); receivables report open balances not imported and loaded
+   orders deleted in Shopmonkey since, `manuallyPaid` counted; invoices by the transform's rule; PROVISIONAL markers
+   on the SQL counting rule and refund sign; folded children take their parent's fate; gate codes and values for M8;
+   estimates' totals compared; delta-phase totals not held to; exhaustive model switch; archive backup test seeds and
+   checks `loadSkip`; §1 note on setting `historyFrom` after a load; symmetric cent rounding; the scale test's
+   orders carry ~2 KB of incompressible payload and a service each (7.9 s for 50,000). DoD at 5bad7498: `tsc` 0,
+   Biome 14, `test:db` 33 files / 204 tests (50,000 orders 8.1 s). Reviewer pass 2: **ready for PR**, no must-fix.
+   Next (while `npm test` chunks run at 5bad7498): its should-fixes (payment and refund warnings pushed after the
+   unit, so a re-run keeps them; `money_mismatch` also bound to Shopmonkey's subtotal at load; `tvCents` via
+   `roundMoney`; an orphan child `unaccounted`; a deleted order's payments `deleted`), Shopmonkey tests, merge.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
@@ -130,7 +165,7 @@ M0 acceptance:
 | B12 | M1 (and everything after it) | ~~Re-run M1's checks.~~ **Resolved 2026-11-22:** rerunning `/autopilot` was the go-ahead; the checks ran one at a time in the foreground with two test workers, and pass (Current step). | 2026-11-22 |
 | B13 | All (not blocking) | **Upgrade Node on this machine to 22.23.4** (what CI, the Dockerfile and the devcontainer pin), or at least ≥22.19. With the installed 22.14, `npm test` silently runs only 141 of 775 test files: `jsdom` 30 pulls `undici` 8, which needs `zlib.createZstdDecompress`, and the other 634 files' workers crash on start without counting as failures. The build carries on with a checksum-verified portable Node 22.23.4 in the session scratchpad, so nothing waits on this. | 2026-11-22 |
 | B14 | None (local housekeeping) | **Reset or drop the old local databases** `torqvoice` (what `.env`'s `DATABASE_URL` points at) and `torqvoice_test` in the `torqvoice-bl-db` container: they hold the pre-review version of M1's migration, so `prisma migrate dev` against them now wants a reset, and Prisma refuses `migrate reset` from an AI agent without your explicit consent. Either run `npx prisma migrate reset` against each yourself, or tell me to, or point `.env` at `torqvoice_fork_test`. Tests already use `torqvoice_fork_test`, so nothing waits on this. | 2026-11-22 |
-| B15 | All (not blocking) | **Upstream merge conflict.** `git merge upstream/main` at the start of A3 (upstream f620cbda, "Refuse an uploaded backup whose record ids cannot sit in a link", #672) conflicts in `src/app/api/protected/backup/import/route.ts`, where M3 marked its archive edits. Aborted, per the rules; the fork carries on without it. The conflict is small (an import line and one `assertUrlSafeIds(backup.data)` call next to the fork's archive lines): merge it by hand, or tell me to resolve conflicts that are this mechanical. | 2026-11-23 |
+| B15 | All (not blocking) | **Upstream merge conflict.** `git merge upstream/main` at the start of A3 (upstream f620cbda, "Refuse an uploaded backup whose record ids cannot sit in a link", #672) conflicts in `src/app/api/protected/backup/import/route.ts`, where M3 marked its archive edits. Aborted, per the rules; the fork carries on without it. Still the same conflict at the start of M6 (2026-11-23). The conflict is small (an import line and one `assertUrlSafeIds(backup.data)` call next to the fork's archive lines): merge it by hand, or tell me to resolve conflicts that are this mechanical. | 2026-11-23 |
 
 ## Re-verify with real Shopmonkey data
 
@@ -175,6 +210,9 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | S4 | A vehicle's `mileageUnit` is `Mile` or `Kilometer` (the unit system proposed from the oldest vehicle) | `load/proposals.ts` (`unitSystemOf`); MAPPING §9.1 |
 | S4 | Order file entries carry no visibility flag, so imported order files are `includeInInvoice: true` (shown on the share page, like an upload in the app); if recorded files have one (internal vs customer-visible), map it | `load/files.ts` (`attachOrderFiles`); MAPPING §9.2 |
 | S6 | Shop supplies (and EPA) taxability decides `workshop.taxAppliesToShopFee` | `load/proposals.ts` (`taxSettings`); MAPPING §9.1 |
+| S5 | Shopmonkey's `paidCostCents` nets refunds (a refund lowers it) and leaves out failed charges, so it equals the sum of imported payments; `remainingCostCents` = total − paid | `reconcile/money.ts` (`compareOrder`); MAPPING §12 |
+| S5 | An order's per-category cents (`laborCents` … `shopSuppliesCents`) add up to the services that count, so they compare with the work order's counted lines | `reconcile/money.ts` (`readShopmonkeyOrders`); MAPPING §6.1, §12 |
+| S12 | `meta.total` on a list's first page is the whole table, so the extract reading fewer means it stopped early (the count gate's second half) | `reconcile/engine.ts`; MAPPING §12 |
 
 ## Decisions log
 
@@ -284,3 +322,7 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | A4 review passes 1-2, in the shared services (`// fork:`): a work order's, quote's or preset's part may not name another workshop's inventory part (an id that names no part, a part deleted since, is kept as before: lines have no foreign key and the forms send it back on every save); a line added through `/lines` must name an existing part of the workshop's; work order writes call `assertOwnUploads`; a technician's new `userId` must be a member (an existing link to someone who has left stays). | Upstream holes reachable by API keys. Pass 1's strict check refused every save of a document whose part had been deleted (pass 2 must-fix); now tested through the app's own actions (`public-api-write-orders` "a part deleted from the inventory"). Worth reporting upstream. |
 | 2026-11-23 | A4 review pass 1, left: audit `details` (sentences) for `contact.*`, `job.*`, `shift.*`, `time_entry.start` go with A5, which turns them into webhook events and needs their summaries in 14 locales; an idempotent replay carries no `ETag` (documented; A1's stored format holds the body only); a chunked upload without `Content-Length` is read before its size is checked, and two concurrent stock adjustments can lose one (upstream's read-then-set): both for A6. | Each is documented in API.md §3.1 or here; none is a wrong answer to a single request. |
 | 2026-11-23 | **A4 done.** DoD at b0f3a9db: `tsc` exit 0; Biome 14 (baseline, LF worktree); `test:db` 30 files / 195 tests on `torqvoice_fork_test`; `npm test` in chunks: 835 files at b0f3a9db; failing only the Windows baseline files (api/health, photo-handoff, portal-upload, equipment-gates, meters-gates, portal-file-route, lib/backup/engine, restic, files/manager, only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access), lib/backup-manifest and features/ai/workshop-columns (both pass alone: load, and the CRLF schema), and workorders/create-workorder (its Prisma mock lacked inventoryPart.count; fixed in 5f1f22ed, workorders 7 files / 108 passing). Reviewer: needs changes (pass 1, 6 must-fix; pass 2, 1 must-fix), ready for PR (pass 3; its one doc nit fixed after). Merged at c28b98d4. | Acceptance evidence: parity for create customer (`public-api-write-people` "makes the same customer…"), create work order, labor line with a technician, payment and quote conversion (`public-api-write-orders`); 409 `document_locked` with `details.reason` (orders "an issued invoice"); idempotent replay and conflict (people; the upload replay in `public-api-write-other`); stale `If-Match` 412 (people, orders); tenant isolation over every write endpoint, a vehicle moved to another workshop's customer included (`public-api-write-tenancy`: 58 writes with workshop B's ids → 404, nothing changed in either workshop, a check that the table names every write route, and 403 from every write for a read-only key). |
+| 2026-11-23 | M6: the load leaves out orders created before `historyFrom` (it loaded them as header-only work orders: no lines, no payments, so unpaid history). Same rule as the extract (`createdBeforeHistory`); their payments and files are left out with them. MAPPING §1. | The setting's help text ("Leave empty to import everything") and the M6 brief's skip bucket "filtered by historyFrom" say they aren't imported; loading them would have failed the money and receivables gates on every shop that sets it. |
+| 2026-11-23 | M6: the load writes why it left each record out on `SourceRecord.loadSkip` (migration `fork_source_load_skip`), where it decides, and clears it when the record is linked; the report reads it rather than repeating the load's rules. Its warnings by code (20 examples each), every order warned `money_mismatch`, and its failures are kept in `state.lastLoad`. Deleted records come from `remoteDeletedAt` (the load never reads them). | One source of truth for why: a second copy of the rules in the report would drift from the load. The examples are what the brief's report shows; the full `money_mismatch` list is what explains money differences. |
+| 2026-11-23 | M6: a money difference is explained only by `money_mismatch` (lines) and by payments left out as `payment_type_unsupported`/`payment_missing_date` when they come to the difference to the cent (paid, balance). Receivables compare invoices only (an invoice date on either side). Unmapped fields are read from the 2,000 most recently updated records of each table. The count gate also requires that the extract read every record Shopmonkey listed (`steps[table].skip >= total`). MAPPING §12. | The brief: explained differences come from a rule in MAPPING and referenced by code. A field that matters is in most recent records; reading every payload of 50,000 orders would cost the minute the report has. |
+| 2026-11-23 | M6 (environment): `scratchpad/run-db.sh` gives the schema files their CRs back with `sed` instead of `git checkout`, which had thrown away an uncommitted `fork.prisma` edit (caught at once and re-applied before its commit). | Never discard uncommitted work to restore line endings. |

@@ -73,7 +73,21 @@ export async function extractInto(
   for (let i = 0; i < 2_000; i++) {
     const result = await engine.extractStep(deps, state)
     state = result.state
-    if (result.done) return
+    if (result.done) {
+      // fork (M6): kept on the connection as the CLI and the job keep it: the reconciliation reads its totals.
+      const { db } = await import('@/lib/db')
+      const connection = await db.integrationConnection.findUniqueOrThrow({
+        where: { id: scope.connectionId },
+        select: { state: true },
+      })
+      await db.integrationConnection.update({
+        where: { id: scope.connectionId },
+        data: {
+          state: { ...((connection.state as object) ?? {}), extract: state } as object,
+        },
+      })
+      return
+    }
   }
   throw new Error('The extract did not finish')
 }

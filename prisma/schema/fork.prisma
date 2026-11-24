@@ -33,6 +33,10 @@ model SourceRecord {
   localEntity     String?
   localId         String?
   loadedHash      String?
+  /// Why the last load left this record out (M6): a reason code (`deleted`, `history`, `failed`, or a MAPPING §6.6
+  /// warning code), so the reconciliation can account for every staged record. Null when it was loaded, or never
+  /// looked at (an archive-only table).
+  loadSkip        String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

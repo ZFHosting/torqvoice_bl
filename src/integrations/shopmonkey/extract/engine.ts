@@ -156,10 +156,18 @@ function invoiceWanted(order: Row, settings: ExtractSettings, now: Date): boolea
 }
 
 function beforeHistory(order: Row, settings: ExtractSettings): boolean {
-  if (!settings.historyFrom) return false
+  return createdBeforeHistory(order, settings.historyFrom)
+}
+
+/**
+ * An order created before the connection's `historyFrom` (an instant: that day's workshop midnight): staged without
+ * its children here, and left out of the load (M6). One rule, so the two never disagree on an order.
+ */
+export function createdBeforeHistory(order: Row, historyFrom: string | null): boolean {
+  if (!historyFrom) return false
   const created = order.createdDate ?? order.orderCreatedDate
   const time = typeof created === 'string' ? new Date(created).getTime() : Number.NaN
-  return !Number.isNaN(time) && time < new Date(settings.historyFrom).getTime()
+  return !Number.isNaN(time) && time < new Date(historyFrom).getTime()
 }
 
 /** The children to fetch for this parent under these settings. */

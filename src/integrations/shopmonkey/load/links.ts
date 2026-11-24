@@ -330,6 +330,12 @@ export async function markLoaded(
       table: input.table,
       remoteId: input.remoteId,
     },
-    data: { localEntity: input.model, localId: input.localId, loadedHash: input.hash },
+    // M6: loaded now, so no longer left out for whatever reason an earlier run had.
+    data: {
+      localEntity: input.model,
+      localId: input.localId,
+      loadedHash: input.hash,
+      loadSkip: null,
+    },
   })
 }

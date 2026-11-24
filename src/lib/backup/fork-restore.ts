@@ -248,6 +248,7 @@ export function sourceRecordColumns(r: Row, organizationId: string) {
     localEntity: text(r.localEntity),
     localId: text(r.localId),
     loadedHash: text(r.loadedHash),
+    loadSkip: text(r.loadSkip),
     createdAt: date(r.createdAt) ?? undefined,
     updatedAt: date(r.updatedAt) ?? undefined,
   }

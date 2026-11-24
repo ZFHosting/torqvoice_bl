@@ -70,7 +70,10 @@ All three adapters write the same thing: one `SourceRecord` row per Shopmonkey o
 - Location: records whose `locationId` (or `locationIds`) names another location are left out, checked on
   every record because GET lists were reported to ignore `where`.
 - Messages are archived whatever `includeMessages` says; the setting decides whether M5 loads them (B4).
-- Orders created before `historyFrom` are staged, but their services, payments, files and PDFs aren't fetched.
+- Orders created before `historyFrom` are staged, but their services, payments, files and PDFs aren't fetched, and
+  the load leaves them out (M6): they stay in the archive, with `SourceRecord.loadSkip = history`, and so do any of
+  their payments and files staged before the setting was set. One rule decides both (`createdBeforeHistory`).
+  Set after a load, it leaves the orders loaded earlier as they are: linked and in Torqvoice, no longer updated.
 - A child no longer returned by its parent (a service removed from an order) keeps its row, with
   `remoteDeletedAt` set.
 
@@ -535,3 +538,66 @@ the fields the importer reads plus a few around them; recorded fixtures will add
 | `inspection_template.items[]` | `createdDate`, `inspectionTemplateId`, `recommendedCannedServiceIds`, `status` |
 | `inspection.items[]` | `createdDate`, `inspectionDate`, `inspectionId`, `inspectorUserId`, `publicId`, `recommendedCannedServiceIds`, `reviewStatus` |
 | `files[]` | `thumbnailUrl` |
+
+## 12. Reconciliation (M6)
+
+`src/integrations/shopmonkey/reconcile/`, run by `scripts/shopmonkey/run.ts reconcile --connection <id> [--json]`
+and kept as the connection's `state.lastReconciliation` (each gate with a `code` and `values` for the import page to
+word, and an English `summary` for the command line). It explains; people decide.
+
+**Every staged record lands in exactly one bucket** (`reconcile/tables.ts` `place`), checked in this order:
+
+| Bucket | When |
+| --- | --- |
+| `loaded` | Its link (`SourceRecord.localEntity/localId`) names a row that exists in the workshop; for a payment, a `Payment` with its `externalId` |
+| `missing` | Its link names a row that is gone (deleted in the app): **named, count gate fails** |
+| `deleted` | Shopmonkey deleted it (`remoteDeletedAt`, which the extract sets for a payload marked deleted) |
+| `failed` | The load's unit for it threw (`loadSkip = failed`) |
+| `skipped` | The load left it out, for the reason it wrote on `SourceRecord.loadSkip` (below), or a reason worked out here |
+| `archive` | An archive-only table (§3, §11) |
+| `settings` | Read whole into settings and fields: `tax_config`, `labor_rate`, `workflow`, `referral_source`, `label` |
+| `folded` | Part of a loaded parent's rows: an order's `order_service` (a deferred one is linked to its finding) and `authorization`, a vehicle's `vehicle_owner`, an inspection's photos (`inspection_file`, placed in its items' `imageUrls`). A child of a parent that isn't loaded takes its parent's fate: `deleted` with it, or `skipped` as `parent_not_loaded`; a child whose parent isn't in the archive at all is `unaccounted` |
+| `unaccounted` | None of these: **named, count gate fails** |
+
+**Why a record was left out** (`SourceRecord.loadSkip`, written by the load where it decides; cleared when the
+record is linked, or for a payment when its row is written): `history` (an order created before `historyFrom`, §1);
+a transform's warning code from §6.6 (`payment_type_unsupported`, `payment_missing_date`, `appointment_missing_start`,
+`inspection_vehicle_unresolved`, `timesheet_missing_clock_in`, …); `payment_not_succeeded` (§6.5);
+`payment_order_not_loaded` (its order isn't a loaded work order: a quote, a skipped or failed order);
+`files_not_on_work_order` (a quote's or a skipped order's files); `user_not_referenced` (a Shopmonkey user no order,
+timesheet or appointment names, and the operator didn't map); `not_imported` (a transform left it out without a
+warning). Worked out in the report, not written: `file_not_staged` (the extract didn't download it,
+`_staged.skipped`) and `parent_not_loaded`. A deleted order's payments are `deleted` with it. A payment's reason is written every run, after its order's unit, so an
+archive loaded before M6 has them after one more load.
+
+**Money**, in cents, over a cent. Per imported work order: Torqvoice's counted lines (§6.3: not under a Declined or
+deferred job) against Shopmonkey's subtotal (§6.1's categories); its stored total against `totalCostCents`; what the
+app counts as paid (its payments, or the whole total when marked paid by hand) against `paidCostCents`; its balance
+against `remainingCostCents`. Per imported estimate: its total against `totalCostCents`. A difference is
+**explained** only by:
+
+| Rule | Explains |
+| --- | --- |
+| `money_mismatch` (§6.6) | A lines difference on an order the load warned about on `subtotal` (Shopmonkey's own lines and subtotal disagree), while the work order's lines and Shopmonkey's subtotal are both, to the cent, what they were then (`state.lastLoad.mismatchedLines`). A change on either side since is unexplained |
+| `payment_type_unsupported`, `payment_missing_date` (§6.5, §6.6) | A paid (and the matching balance) difference that comes, to the cent, to the payments the load left out for those reasons and hasn't imported since |
+
+Anything else is unexplained and fails the money gate: a line changed or broken since the load, a payment added
+in the app during the sync window (M7 brings those over), a total edited by hand.
+
+**Invoices** are as the transform has them: an order with `status: Invoice` and an `invoicedDate` (a RepairOrder
+carrying an `invoicedDate` stays an open work order, §6.6).
+
+**Gates** (all must pass for cutover):
+- counts: no `missing` or `unaccounted`, and the extract read every record Shopmonkey listed in its last whole read
+  of each table (a `--since` delta's count is only what changed, and isn't held to it);
+- money: no unexplained difference;
+- receivables: what the imported invoices still have open equals Shopmonkey's `remainingCostCents` for them, to the
+  cent. A balance difference a rule explains still fails it: the shop decides. Open balances on Shopmonkey invoices
+  that weren't imported (`historyFrom`, failed) are reported beside it, not compared, and so is the number of
+  imported work orders Shopmonkey has deleted since (still in Torqvoice, counted on both sides);
+- failures: no order failed to load, in the archive (`loadSkip = failed`) or in the last load (an order whose update
+  failed keeps its link: `state.lastLoad.counts.order.failed`).
+
+By month, on the workshop's clock, both sides: invoiced, tax, discounts (by invoice date), payments (by payment date),
+and what was open at each month's end. 25 invoices picked at random (seeded) are listed with both totals for a person
+to compare. Unmapped fields are read from the 2,000 most recently updated records of each table.

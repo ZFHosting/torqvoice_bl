@@ -13,7 +13,17 @@ import { transformOrder } from '../transform/order'
 import { type PaymentRow, refundWarnings, transformPayment } from '../transform/payment'
 import { userName } from '../transform/staff'
 import type { Row } from '../transform/types'
-import { clientOf, countsFor, type LoadContext, loadOne, type Tx } from './context'
+import { createdBeforeHistory } from '../extract/engine'
+import { orderSubtotalCents } from '../money'
+import {
+  clientOf,
+  type LoadContext,
+  loadOne,
+  markSkip,
+  skipReason,
+  skipRecord,
+  type Tx,
+} from './context'
 import { attachOrderFiles, indexOrderFiles } from './files'
 import { findLoaded, foreignKeys, linkedRow, markLoaded } from './links'
 import { staged, stagedAll, writeCustomFields } from './people'
@@ -151,7 +161,22 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
   )
   let createdServiceRecords = 0
 
+  /** An order that isn't a work order here keeps its payments and files in the archive: said so (M6). */
+  const notOnWorkOrder = (orderId: string) => {
+    for (const p of index.payments.get(orderId) ?? [])
+      markSkip(lc, 'payment', p.remoteId, 'payment_order_not_loaded')
+    for (const f of fileIndex.get(orderId) ?? [])
+      markSkip(lc, 'order_file', f, 'files_not_on_work_order')
+    markSkip(lc, 'invoice_pdf', orderId, 'files_not_on_work_order')
+  }
+
   for (const order of orders) {
+    // Created before `historyFrom`: staged without its children, and kept in the archive only (M6).
+    if (createdBeforeHistory(order.payload, lc.historyFrom)) {
+      skipRecord(lc, 'order', order.remoteId, 'history')
+      notOnWorkOrder(order.remoteId)
+      continue
+    }
     const children = (map: ChildIndex['services']) =>
       (map.get(order.remoteId) ?? []).sort((a, b) => (a.remoteId < b.remoteId ? -1 : 1))
     const vehicleRemote =
@@ -177,8 +202,25 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
     )
     lc.warnings.push(...result.warnings)
     const rows = result.rows
+    // M6: Shopmonkey's own lines and subtotal disagree: what the lines came to here is what a later difference
+    // may be explained by, and nothing else.
+    if (
+      rows?.kind === 'serviceRecord' &&
+      result.warnings.some((w) => w.code === 'money_mismatch' && w.field === 'subtotal')
+    ) {
+      lc.mismatchedLines.set(order.remoteId, {
+        lines: Math.round(rows.record.subtotal * 100),
+        subtotal: orderSubtotalCents(order.payload),
+      })
+    }
     if (!rows) {
-      countsFor(lc, 'order').skipped++
+      skipRecord(
+        lc,
+        'order',
+        order.remoteId,
+        skipReason(lc, 'order', order.remoteId, order.payload)
+      )
+      notOnWorkOrder(order.remoteId)
       continue
     }
     // Everything the rows depend on: the order, its children, the vehicle's owner, its status's stage, and the
@@ -351,13 +393,11 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
 
       // Payments (§6.5): idempotent on (serviceRecordId, provider, externalId); one removed in Shopmonkey goes.
       const kept: string[] = []
-      const written: PaymentRow[] = []
       for (const p of paymentRows) {
         const payment = transformPayment(p, lc.transform)
-        lc.warnings.push(...payment.warnings)
+        // Why it's out is noted after the unit, every run (below).
         if (!payment.rows) continue
         kept.push(payment.rows.externalId)
-        written.push(payment.rows)
         await tx.payment.upsert({
           where: {
             serviceRecordId_provider_externalId: {
@@ -378,7 +418,6 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
       await tx.payment.deleteMany({
         where: { serviceRecordId: localId, provider: 'shopmonkey', externalId: { notIn: kept } },
       })
-      lc.warnings.push(...refundWarnings(order.remoteId, written))
 
       // Findings (§6.4): one per deferred service, linked so a later order can resolve it.
       if (record.vehicleId) {
@@ -433,6 +472,32 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
       await writeCustomFields(tx, lc, localId, rows.customFields)
       return outcome
     })
+    if (rows.kind === 'quote') notOnWorkOrder(order.remoteId)
+    else if (committed) {
+      // M6: each of a work order's payments, loaded or left out and why. After the unit and every run, so an
+      // unchanged order (its unit returns before its payments) and a payment loaded since are both said.
+      // Their warnings too, here rather than in the unit: an unchanged order's would drop out of the report.
+      const kept: PaymentRow[] = []
+      for (const p of paymentRows) {
+        const id = String(p.id)
+        const payment = transformPayment(p, lc.transform)
+        lc.warnings.push(...payment.warnings)
+        if (payment.rows) {
+          kept.push(payment.rows)
+          lc.loadedUnlinked.push({ table: 'payment', remoteId: id })
+        } else {
+          markSkip(
+            lc,
+            'payment',
+            id,
+            p.status !== 'Succeeded'
+              ? 'payment_not_succeeded'
+              : (payment.warnings.at(-1)?.code ?? 'not_imported')
+          )
+        }
+      }
+      lc.warnings.push(...refundWarnings(order.remoteId, kept))
+    }
     if (committed) {
       lc.placedFiles.push(...pending)
       if (invoiceId) lc.toIssue.push(invoiceId)

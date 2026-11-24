@@ -21,6 +21,12 @@
  *   npx tsx --conditions=react-server scripts/shopmonkey/run.ts undo --connection <id> --run <run id> [--user <id>]
  *
  * Removes what that load created (and nothing the workshop uses since); settings it applied stay.
+ *
+ *   npx tsx --conditions=react-server scripts/shopmonkey/run.ts reconcile --connection <id> [--json]
+ *
+ * Reconciles the import (M6): every staged record accounted for, money per work order and by month, receivables,
+ * spot checks, warnings and unmapped fields, and the gates cutover waits on. Kept as the connection's
+ * `state.lastReconciliation`; `--json` prints the whole report. Exits 2 when a gate fails. Writes nothing else.
  */
 import { randomUUID } from 'node:crypto'
 import { loadConnection } from '@/features/integrations/Lib/connections'
@@ -33,6 +39,8 @@ import {
   parseUndoArgs,
 } from '@/integrations/shopmonkey/load/cli'
 import { runLoad } from '@/integrations/shopmonkey/load/run'
+import { reconcile } from '@/integrations/shopmonkey/reconcile/engine'
+import { formatReport, parseReconcileArgs } from '@/integrations/shopmonkey/reconcile/format'
 import { undoLoad } from '@/integrations/shopmonkey/load/undo'
 import { extractDepsFor, recordExtractFinished } from '@/integrations/shopmonkey/server'
 import { db } from '@/lib/db'
@@ -82,8 +90,27 @@ async function undo() {
   for (const line of formatUndoSummary(args.run, result)) console.log(line)
 }
 
+async function reconcileCommand() {
+  const args = parseReconcileArgs(process.argv.slice(2))
+  const connection = await db.integrationConnection.findUnique({
+    where: { id: args.connection },
+    select: { id: true, organizationId: true, connectorId: true },
+  })
+  if (!connection || connection.connectorId !== 'shopmonkey') {
+    throw new Error('That connection is not a Shopmonkey connection')
+  }
+  const report = await reconcile({
+    organizationId: connection.organizationId,
+    connectionId: connection.id,
+  })
+  if (args.json) console.log(JSON.stringify(report, null, 2))
+  else for (const line of formatReport(report)) console.log(line)
+  if (!report.passed) process.exitCode = 2
+}
+
 async function main() {
   if (process.argv[2] === 'load') return load()
+  if (process.argv[2] === 'reconcile') return reconcileCommand()
   if (process.argv[2] === 'undo') return undo()
   const args = parseExtractArgs(process.argv.slice(2))
   const { ctx } = await loadConnection(args.connection)

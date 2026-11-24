@@ -10,7 +10,7 @@ import {
   transformInventoryItem,
 } from '../transform/catalog'
 import type { PresetRows } from '../transform/catalog'
-import { clientOf, countsFor, type LoadContext, loadOne, type Tx } from './context'
+import { clientOf, type LoadContext, loadOne, type Tx, skipReason, skipRecord } from './context'
 import { foreignKeys } from './links'
 import { stagedAll } from './people'
 import { upsertLinked } from './upsert'
@@ -59,7 +59,12 @@ export async function loadInventory(lc: LoadContext): Promise<void> {
     lc.warnings.push(...result.warnings)
     const rows = result.rows
     if (!rows) {
-      countsFor(lc, item.table).skipped++
+      skipRecord(
+        lc,
+        item.table,
+        item.remoteId,
+        skipReason(lc, item.table, item.remoteId, item.payload)
+      )
       continue
     }
     const { barcodeCandidate, ...part } = rows.part
@@ -170,7 +175,12 @@ export async function loadPresets(lc: LoadContext): Promise<void> {
     lc.warnings.push(...result.warnings)
     const rows = result.rows
     if (!rows) {
-      countsFor(lc, source.table).skipped++
+      skipRecord(
+        lc,
+        source.table,
+        source.remoteId,
+        skipReason(lc, source.table, source.remoteId, source.payload)
+      )
       continue
     }
     await loadOne(lc, source.table, source.remoteId, async (tx) => {

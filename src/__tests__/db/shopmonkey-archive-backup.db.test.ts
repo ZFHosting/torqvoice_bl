@@ -58,6 +58,8 @@ async function seedArchive() {
           localEntity: n % 2 ? 'ServiceRecord' : null,
           localId: n % 2 ? `sr-${stamp}-${n}` : null,
           loadedHash: n % 2 ? `loaded-${n}` : null,
+          // fork (M6): why a load left the rest out.
+          loadSkip: n % 2 ? null : 'history',
         }
       }),
     })
@@ -131,6 +133,13 @@ describe('a workshop whose import archive is larger than the data file a restore
     const after = await db.sourceRecord.findFirst({
       where: { organizationId, remoteId: `syn_ord_${stamp}_7` },
     })
+    // fork (M6): a record left out keeps why.
+    expect(
+      await db.sourceRecord.findFirst({
+        where: { organizationId, remoteId: `syn_ord_${stamp}_8` },
+        select: { loadSkip: true, localId: true },
+      })
+    ).toEqual({ loadSkip: 'history', localId: null })
     expect(after).toMatchObject({
       id: before?.id,
       payload: before?.payload,
