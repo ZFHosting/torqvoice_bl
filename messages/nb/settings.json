@@ -598,7 +598,8 @@
     "noAccessBody": "Kontoen din tilhører {workshop}, men den har ikke fått en rolle ennå, så det er ingenting her du kan åpne. Be en eier eller administrator på verkstedet om å gi deg en.",
     "setupPageInstall": "Last ned fra Google Play",
     "setupPageInstallIos": "Last ned fra App Store",
-    "invalidInviteEmail": "Sjekk e-postadressen. Den skal se ut som navn@eksempel.no."
+    "invalidInviteEmail": "Sjekk e-postadressen. Den skal se ut som navn@eksempel.no.",
+    "apiKeyBadge": "API-nøkkel"
   },
   "invoice": {
     "title": "Faktura og tilbud",

@@ -53,17 +53,30 @@ export async function getOrganization() {
       const memberUserIds = membership.organization.members.map((m) => m.userId)
       const users = await db.user.findMany({
         where: { id: { in: memberUserIds } },
-        select: { id: true, name: true, email: true, phone: true },
+        // fork (A6): an API key's service user, shown as the key it is
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          apiKey: { select: { id: true, name: true } },
+        },
       })
       const userMap = new Map(users.map((u) => [u.id, u]))
 
-      const membersWithUsers = membership.organization.members.map((m) => ({
-        id: m.id,
-        role: m.role,
-        roleId: m.roleId,
-        customRoleName: m.customRole?.name || null,
-        user: userMap.get(m.userId) || { id: m.userId, name: 'Unknown', email: '', phone: null },
-      }))
+      const membersWithUsers = membership.organization.members.map((m) => {
+        const found = userMap.get(m.userId)
+        return {
+          id: m.id,
+          role: m.role,
+          roleId: m.roleId,
+          customRoleName: m.customRole?.name || null,
+          user: found
+            ? { id: found.id, name: found.name, email: found.email, phone: found.phone }
+            : { id: m.userId, name: 'Unknown', email: '', phone: null },
+          apiKey: found?.apiKey ?? null, // fork (A6)
+        }
+      })
 
       return {
         organization: {

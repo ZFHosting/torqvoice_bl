@@ -598,7 +598,8 @@
     "noAccessBody": "Профилът Ви е част от {workshop}, но все още няма зададена роля, затова няма достъпно съдържание. Помолете собственик или администратор на сервиза да Ви зададе роля.",
     "setupPageInstall": "Изтеглете от Google Play",
     "setupPageInstallIos": "Изтегляне от App Store",
-    "invalidInviteEmail": "Проверете имейл адреса. Той трябва да изглежда като name@example.com."
+    "invalidInviteEmail": "Проверете имейл адреса. Той трябва да изглежда като name@example.com.",
+    "apiKeyBadge": "API ключ"
   },
   "invoice": {
     "title": "Фактури и оферти",

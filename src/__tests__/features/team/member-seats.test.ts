@@ -37,7 +37,8 @@ describe('memberSeats', () => {
 
     await expect(memberSeats('org-1')).resolves.toEqual({ used: 1, limit: 1, full: true })
     expect(db.organizationMember.count).toHaveBeenCalledWith({
-      where: { organizationId: 'org-1' },
+      // fork (A6): an API key's service user is a member, not a seat
+      where: { organizationId: 'org-1', user: { apiKey: null } },
     })
     expect(getFeatures).toHaveBeenCalledWith('org-1')
   })

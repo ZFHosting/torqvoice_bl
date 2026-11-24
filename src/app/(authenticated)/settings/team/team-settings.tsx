@@ -75,6 +75,7 @@ import {
   Users,
   X,
 } from 'lucide-react'
+import { KeyRound } from 'lucide-react' // fork (A6)
 import { handleGated } from '@/components/upgrade-gate'
 
 interface Member {
@@ -83,6 +84,8 @@ interface Member {
   roleId: string | null
   customRoleName: string | null
   user: { id: string; name: string; email: string; phone?: string | null }
+  /** fork (A6): the API key this member is the service user of. */
+  apiKey?: { id: string; name: string } | null
 }
 
 interface Organization {
@@ -579,6 +582,17 @@ export function TeamSettings({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-sm">{member.user.name}</p>
+                {/* fork (A6): a key, not a person: its role is set here, the key itself in Settings → API keys */}
+                {member.apiKey && (
+                  <Badge
+                    variant="outline"
+                    className="mt-0.5 text-xs"
+                    data-testid="team-member-api-key"
+                  >
+                    <KeyRound className="mr-1 h-3 w-3" />
+                    {t('team.apiKeyBadge')}
+                  </Badge>
+                )}
                 {/* The mobile for a mechanic set up at the counter, whose
                     address is a placeholder nobody can act on, and the email
                     for everybody else. Whichever one identifies them. */}
@@ -684,7 +698,8 @@ export function TeamSettings({
                     <span className="ml-1 capitalize">{member.customRoleName || member.role}</span>
                   </Badge>
                 )}
-                {isAdmin && member.role !== 'owner' && (
+                {/* fork (A6): a key is revoked in Settings → API keys, not removed here */}
+                {isAdmin && member.role !== 'owner' && !member.apiKey && (
                   <Button
                     variant="ghost"
                     size="icon"
