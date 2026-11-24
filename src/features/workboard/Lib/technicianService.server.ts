@@ -64,6 +64,8 @@ export async function updateTechnicianService(ctx: ServiceCtx, input: unknown) {
   const { id, skills, ...rest } = data
   // An emptied field means "no skills line", not a line of nothing.
   const updates = { ...rest, ...(skills !== undefined ? { skills: skills || null } : {}) }
+  // fork (A6): an emptied login means no login, as null does (it reached the database as a user id: a 500)
+  if (updates.userId === '') updates.userId = null
 
   // Prevent linking a user that's already linked to another technician
   if (updates.userId) {

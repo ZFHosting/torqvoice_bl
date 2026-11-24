@@ -55,6 +55,8 @@ export async function createCustomerService(ctx: ServiceCtx, input: unknown) {
   }
 
   const { customFields, ...data } = createCustomerSchema.parse(input)
+  // fork (A6): an emptied design means the workshop's default, as null does (it reached the database as an id)
+  if (data.invoiceDesignId === '') data.invoiceDesignId = null
   await assertInvoiceDesign(organizationId, data.invoiceDesignId)
   // The workshop's own fields, when the form sent them: checked first, so
   // a required one left empty stops the customer being made at all.
@@ -118,6 +120,8 @@ export async function createCustomerService(ctx: ServiceCtx, input: unknown) {
 export async function updateCustomerService(ctx: ServiceCtx, input: unknown) {
   const { userId, organizationId } = ctx
   const { id, customFields, ...data } = updateCustomerSchema.parse(input)
+  // fork (A6): an emptied design means the workshop's default, as null does (it reached the database as an id)
+  if (data.invoiceDesignId === '') data.invoiceDesignId = null
   await assertInvoiceDesign(organizationId, data.invoiceDesignId)
   await dropPoRequiredWhenOff(organizationId, data)
   // The workshop's own fields, when the form sent them: checked before
