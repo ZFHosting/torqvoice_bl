@@ -87,6 +87,14 @@ ends `provisional` (B1). Plan:
    `scratchpad/e2e-m8.sh` (own database `torqvoice_fork_e2e` migrated with `migrate dev` and seeded, own server,
    `E2E_SKIP_SEED=1`: the suite's reset is `prisma migrate reset`, which an agent may not run without consent).
 5. [ ] MAPPING/brief notes, DoD, reviewer, merge.
+Reviewer pass 1 (8574d8ff): needs changes (2 must-fix: long jobs run twice under the queue's ten-minute stuck
+recovery; the portal half of acceptance 3) and 12 should-fix; fixed in eea4f0f4 (one run at a time, a token per run,
+liveness from the job queue, TanStack Query, the workshop clock, Stop/Resume rules, `extract` written alone, e2e waits,
+locale check and cleanup; the portal check waits on B10, brief and Decisions log). The first e2e attempt found that
+the Shopmonkey CLI never started outside Next (`server-only`): fixed in a46fda71 (`scripts/shopmonkey/register.mjs`).
+Playwright here: this machine can't download Playwright's Chromium, so the run uses the installed Edge
+(`scratchpad/pw-edge.config.ts`, the repo config with `channel: 'msedge'`). Now: rebuild, rerun the spec, reviewer
+pass 2.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
