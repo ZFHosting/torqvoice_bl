@@ -71,15 +71,17 @@ Environment (local, Windows):
 
 **A6 (hardening), in progress** on `fork/A6-hardening` (from `fork/integration` after A5; the upstream merge still
 conflicts, B15). Plan, from the brief:
-1. [ ] Playwright `e2e/specs/public-api.spec.ts`: a key made in Settings, then customer → work order → lines → payment
-   over HTTP; the UI shows them, and the webhook delivery log has the events.
+1. [ ] Playwright `e2e/specs/public-api/public-api.spec.ts` (written; a folder per area, as the suite keeps): a key made
+   in Settings, then customer → vehicle → work order → line → payment over HTTP; the UI shows them, the webhook's
+   delivery log has the events, revoking stops the key. Fixtures by `e2e/support/public-api-fixtures.ts`. Build
+   running (a type error in the bounded upload, fixed in 229b0561, failed the first).
 2. [x] Contract tests (`public-api-contract.db.test.ts`, fast-check now a declared dev dependency): every endpoint of
    `RESOURCES`, nothing 500s, successes match their schemas, every read asked plainly once. Found and fixed two 500s
    (an emptied `userId` on a technician, an emptied `invoiceDesignId` on a customer). 98371497.
 3. [x] Isolation sweep (`public-api-isolation.db.test.ts`): every route with an id, found on disk, every method:
    404 for A's key and B's ids. 988b98d6.
-4. [ ] Load check on the local test database only: 20 rps on the list endpoints over 50,000 work orders for two minutes,
-   p95 under 500 ms; indexes where needed (a `fork_` migration if any).
+4. [ ] Load check (`scripts/load-check/seed.ts` and `run.ts`): local database `torqvoice_fork_load` made and seeded
+   (5,000 customers, 10,000 vehicles, 50,000 work orders, 20,000 payments, 12 keys); the run waits for the build.
 5. [x] `docs/fork/SECURITY-REVIEW.md`: no open high finding. Fixed on the way: error objects in logs, unbounded
    uploads without a Content-Length, allowlist spellings, the purge test's reach (8fa94409, 988b98d6).
 6. [x] `docs/fork/API-GUIDE.md` (2f043085).
