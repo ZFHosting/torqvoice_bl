@@ -2,7 +2,7 @@
  * fork (A5) `?include=source` (docs/fork/API.md §4, "Source records"): the record an imported row came from, as the
  * importer archived it. The archive says which local row each record was loaded as (`SourceRecord.localEntity` and
  * `localId`, set by the load and cleared by an undo), so a page's sources are one query, scoped by workshop, and stay
- * there after the connection is removed. A row made in Torqvoice has `source: null`; the archive itself is at
+ * there after the connection is removed. A row made in Torqvoice has `sourceRecord: null`; the archive itself is at
  * `/api/v1/source-records`.
  */
 import 'server-only'

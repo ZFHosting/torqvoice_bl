@@ -451,15 +451,15 @@
     "shopmonkey_cutover": "Shopmonkey'den geçiş: Torqvoice artık onu takip etmiyor",
     "shopmonkey_sync_delete": "Shopmonkey'de silinen {records} kayıt silindi (senkronizasyon dönemi)",
     "platform_revokeSuperAdmin": "{name} ({email}) kullanıcısının süper yöneticiliği kaldırıldı",
-    "contact_create": "Added a customer contact",
-    "contact_update": "Changed a customer contact",
-    "contact_delete": "Removed a customer contact",
-    "job_create": "Added a job",
-    "job_update": "Changed a job",
-    "job_delete": "Removed a job",
-    "shift_create": "Recorded a shift",
-    "shift_update": "Changed a shift",
-    "shift_delete": "Removed a shift",
-    "time_entry_start": "Started a clock on a job"
+    "contact_create": "Müşteri iletişim bilgisi eklendi",
+    "contact_update": "Müşteri iletişim bilgisi değiştirildi",
+    "contact_delete": "Müşteri iletişim bilgisi kaldırıldı",
+    "job_create": "İş eklendi",
+    "job_update": "İş değiştirildi",
+    "job_delete": "İş kaldırıldı",
+    "shift_create": "Vardiya kaydedildi",
+    "shift_update": "Vardiya değiştirildi",
+    "shift_delete": "Vardiya kaldırıldı",
+    "time_entry_start": "Bir işte saat başlatıldı"
   }
 }

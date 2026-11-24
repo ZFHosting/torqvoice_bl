@@ -451,15 +451,15 @@
     "shopmonkey_cutover": "Migración desde Shopmonkey completada: Torqvoice ya no lo sigue",
     "shopmonkey_sync_delete": "Eliminados {records} registros que Shopmonkey eliminó (periodo de sincronización)",
     "platform_revokeSuperAdmin": "Rol de superadministrador retirado a {name} ({email})",
-    "contact_create": "Added a customer contact",
-    "contact_update": "Changed a customer contact",
-    "contact_delete": "Removed a customer contact",
-    "job_create": "Added a job",
-    "job_update": "Changed a job",
-    "job_delete": "Removed a job",
-    "shift_create": "Recorded a shift",
-    "shift_update": "Changed a shift",
-    "shift_delete": "Removed a shift",
-    "time_entry_start": "Started a clock on a job"
+    "contact_create": "Contacto de cliente añadido",
+    "contact_update": "Contacto de cliente modificado",
+    "contact_delete": "Contacto de cliente eliminado",
+    "job_create": "Trabajo añadido",
+    "job_update": "Trabajo modificado",
+    "job_delete": "Trabajo eliminado",
+    "shift_create": "Turno registrado",
+    "shift_update": "Turno modificado",
+    "shift_delete": "Turno eliminado",
+    "time_entry_start": "Reloj iniciado en un trabajo"
   }
 }

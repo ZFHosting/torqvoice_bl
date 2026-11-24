@@ -181,7 +181,7 @@ export const SAMPLE_PAYLOADS: SamplePayload[] = [
     description: 'An invoice was issued: its lines and totals are now the customer’s document.',
     data: {
       id: 'svc_R8c9',
-      number: '1043',
+      invoiceNumber: '1043',
       status: 'completed',
       issuedAt: '2026-04-29T09:58:00.000Z',
     },

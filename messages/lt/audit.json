@@ -451,15 +451,15 @@
     "shopmonkey_cutover": "Perėjimas iš Shopmonkey: Torqvoice jo nebeseka",
     "shopmonkey_sync_delete": "Ištrinti {records} įrašai, ištrinti Shopmonkey (sinchronizacijos laikotarpis)",
     "platform_revokeSuperAdmin": "Atimtos vyriausiojo administratoriaus teisės iš {name} ({email})",
-    "contact_create": "Added a customer contact",
-    "contact_update": "Changed a customer contact",
-    "contact_delete": "Removed a customer contact",
-    "job_create": "Added a job",
-    "job_update": "Changed a job",
-    "job_delete": "Removed a job",
-    "shift_create": "Recorded a shift",
-    "shift_update": "Changed a shift",
-    "shift_delete": "Removed a shift",
-    "time_entry_start": "Started a clock on a job"
+    "contact_create": "Pridėtas kliento kontaktas",
+    "contact_update": "Pakeistas kliento kontaktas",
+    "contact_delete": "Pašalintas kliento kontaktas",
+    "job_create": "Pridėtas darbas",
+    "job_update": "Pakeistas darbas",
+    "job_delete": "Pašalintas darbas",
+    "shift_create": "Užregistruota pamaina",
+    "shift_update": "Pakeista pamaina",
+    "shift_delete": "Pašalinta pamaina",
+    "time_entry_start": "Paleistas darbo laikmatis"
   }
 }

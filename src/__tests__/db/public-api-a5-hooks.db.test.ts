@@ -14,7 +14,7 @@ const url = guardTestDatabase()
 let db: typeof import('@/lib/db')['db']
 let shop: Shop
 
-const session = vi.hoisted(() => ({ organizationId: '', userId: '' }))
+const session = vi.hoisted(() => ({ organizationId: '', userId: '', technicianId: '' }))
 vi.mock('@/lib/cached-session', () => ({
   getCachedSession: async () => ({ user: { id: session.userId, name: 'Owner', email: null } }),
   getCachedMembership: async () => ({
@@ -35,6 +35,21 @@ vi.mock('next/headers', () => ({
   cookies: async () => ({ get: () => undefined }),
 }))
 vi.mock('next/cache', () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined }))
+// The technician app's auth, as its token would give it: the owner, as the workshop's technician.
+vi.mock('@/lib/with-api-auth', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/lib/with-api-auth')>()
+  return {
+    ...real,
+    withApiAuth: async (_request: Request, fn: (ctx: unknown) => Promise<Response>) =>
+      fn({
+        organizationId: session.organizationId,
+        userId: session.userId,
+        technicianIds: [session.technicianId],
+        isAdmin: true,
+        role: 'owner',
+      }),
+  }
+})
 
 const ids: Record<string, string> = {}
 
@@ -107,6 +122,7 @@ beforeAll(async () => {
       select: { id: true },
     })
   ).id
+  session.technicianId = ids.technician
 }, 120_000)
 
 afterAll(async () => {
@@ -140,8 +156,34 @@ describe('the app’s own clock', () => {
     // The start on job B names the clock it closed (job A's).
     const second = started.find((p) => p.data.workOrderId === ids.jobB)
     expect(second.entity).toBe('time_entry')
-    expect(second.data).toMatchObject({ workOrderId: ids.jobB, closedEntryId: expect.any(String) })
+    const jobAEntry = await db.timeEntry.findFirstOrThrow({
+      where: { serviceRecordId: ids.jobA, organizationId: shop.org },
+      select: { id: true },
+    })
+    expect(second.data).toMatchObject({ workOrderId: ids.jobB, closedEntryId: jobAEntry.id })
     expect(started.find((p) => p.data.workOrderId === ids.jobA).data.closedEntryId).toBeUndefined()
+  })
+})
+
+describe('the technician app finishing a job', () => {
+  it('sends a time_entry.stop for each clock it stops', async () => {
+    const before = (await eventsOf(shop.org, 'timeEntry.update')).audits.length
+    const { startMyClock } = await import('@/features/time-tracking/Actions/timeClockActions')
+    expect((await startMyClock({ serviceRecordId: ids.jobA })).success).toBe(true)
+    const { PATCH } = await import('@/app/api/v1/tech/jobs/[id]/status/route')
+    const res = await PATCH(
+      new Request('http://localhost/api/v1/tech/jobs/x/status', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: 'completed' }),
+      }),
+      { params: Promise.resolve({ id: ids.jobA }) }
+    )
+    expect(res.status).toBe(200)
+    expect(await db.timeEntry.count({ where: { serviceRecordId: ids.jobA, endedAt: null } })).toBe(
+      0
+    )
+    expect((await audits('timeEntry.update', before + 1)).audits).toHaveLength(before + 1)
   })
 })
 

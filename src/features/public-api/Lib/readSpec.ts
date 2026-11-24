@@ -18,8 +18,9 @@ export interface ReadSpec<Out> {
   /** What may be named in `?include=` (comma separated). */
   includes?: readonly string[]
   /**
-   * fork (A5): the `IntegrationLink` entity type an imported row of this resource is linked by (`Customer`,
-   * `ServiceRecord`, ...). It adds `source` to the includes: the archived record the row came from.
+   * fork (A5): the model an imported row of this resource is (`Customer`, `ServiceRecord`, ...), as the archive names
+   * the row a record was loaded as (`SourceRecord.localEntity`). It adds `source` to the includes: the archived
+   * record the row came from, as `sourceRecord`.
    */
   sourceModel?: string
   response: z.ZodType<Out>

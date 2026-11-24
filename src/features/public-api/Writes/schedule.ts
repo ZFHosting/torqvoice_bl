@@ -26,7 +26,7 @@ import {
   deleteShiftService,
   updateShiftService,
 } from '@/features/fork-records/Lib/forkRecordServices.server'
-import { getOpenEntry, startEntry } from '@/features/time-tracking/Lib/timeEntries'
+import { startEntry } from '@/features/time-tracking/Lib/timeEntries'
 import {
   createTimeEntryEvent,
   deleteTimeEntryEvent,
@@ -210,7 +210,6 @@ export const startTimeEntryPOST = writeRoute('POST', {
       where: { id: technicianId, organizationId: svc.organizationId },
     })
     if (!technician) throw new Error('Technician not found')
-    const open = await getOpenEntry(svc.organizationId, [technicianId])
     const started = await startEntry({
       organizationId: svc.organizationId,
       technicianId,
@@ -225,7 +224,8 @@ export const startTimeEntryPOST = writeRoute('POST', {
       technicianId,
       serviceRecordId: workOrderId,
       closedEntryId: started.closed?.id ?? null,
-      running: open?.serviceRecordId === workOrderId,
+      // A5: from what startEntry did (two starts at once can't both look fresh).
+      running: started.fresh === false,
     }
   },
   audit: (result) => (result.running ? null : timeEntryStartEvent(result)),

@@ -850,6 +850,7 @@ export async function listImportBatches(limit = 20) {
 export async function undoImportBatch(batchId: string) {
   if (!batchId) return invalid('Import not found')
   return withAuth(
+    // fork (A5): userId, the reset marker's actor
     async ({ organizationId, userId }) => {
       demoGuard()
       const batch = await db.importBatch.findFirst({ where: { id: batchId, organizationId } })

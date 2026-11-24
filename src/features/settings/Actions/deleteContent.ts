@@ -45,6 +45,7 @@ const deleteContentSchema = z.object({
 
 export async function deleteContent(input: unknown) {
   return withAuth(
+    // fork (A5): userId, the reset marker's actor
     async ({ organizationId, userId, isAdmin }) => {
       demoGuard()
       // Wiping the workshop's records is an owner's or admin's call, whatever

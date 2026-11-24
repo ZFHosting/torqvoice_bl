@@ -86,7 +86,15 @@ Environment (local, Windows):
    pass); db (`public-api-a5.db.test.ts` 12/12 at c82a0cde: reports against the screen in Pacific/Auckland, tenant
    isolation and permissions of `/deleted` and `/source-records`, `include=source`, markers, `restore.complete`, an
    event from the app's booking action and from the API); `tsc` exit 0; Biome 14 (baseline) in the LF worktree.
-6. [ ] Full unit suite and `test:db` (running), reviewer pass 1 (running), merge.
+6. [ ] Reviewer pass 1 (c82a0cde): needs changes (5 must-fix: parent ids on contact/job events; the app's and the
+   technician app's clocks sent no events; `?entityType=` hid the markers; an appointment turned into a work order
+   left no tombstone; upstream edits untested) and 11 should-fixes, fixed in 4977b6ff/d48bf10b (the dispatcher reads
+   only for subscribers and never drops a delivery, `include=source` reads the archive by local row as `sourceRecord`,
+   samples for all 22 events, audit sentences, stricter report queries, `public-api-a5-hooks.db.test.ts`). The
+   restore marker made the round-trip and tenancy tests see one new row: they now set the restore's own rows aside and
+   assert them (c2e26b32). At d48bf10b: `tsc` 0, Biome 14 (baseline); the affected unit folders 128 files / 1940
+   tests; the A5 and restore db files 4 / 28. Now: full unit suite and `test:db` (running), reviewer pass 2
+   (running), merge.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one

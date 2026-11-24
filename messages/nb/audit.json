@@ -451,15 +451,15 @@
     "shopmonkey_cutover": "Byttet over fra Shopmonkey: Torqvoice følger den ikke lenger",
     "shopmonkey_sync_delete": "Slettet {records} poster som ble slettet i Shopmonkey (synkroniseringsperioden)",
     "platform_revokeSuperAdmin": "Fjernet superadmin fra {name} ({email})",
-    "contact_create": "Added a customer contact",
-    "contact_update": "Changed a customer contact",
-    "contact_delete": "Removed a customer contact",
-    "job_create": "Added a job",
-    "job_update": "Changed a job",
-    "job_delete": "Removed a job",
-    "shift_create": "Recorded a shift",
-    "shift_update": "Changed a shift",
-    "shift_delete": "Removed a shift",
-    "time_entry_start": "Started a clock on a job"
+    "contact_create": "La til en kundekontakt",
+    "contact_update": "Endret en kundekontakt",
+    "contact_delete": "Fjernet en kundekontakt",
+    "job_create": "La til en jobb",
+    "job_update": "Endret en jobb",
+    "job_delete": "Fjernet en jobb",
+    "shift_create": "Registrerte et skift",
+    "shift_update": "Endret et skift",
+    "shift_delete": "Fjernet et skift",
+    "time_entry_start": "Startet en klokke på en jobb"
   }
 }

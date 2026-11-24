@@ -453,7 +453,11 @@ describe('a fork event', () => {
     })
     expect(res.status).toBe(201)
     const created = (await res.json()).data
-    const events = await eventsOf(a.org, 'appointment.create')
+    // The delivery follows the audit row: waited for.
+    let events = await eventsOf(a.org, 'appointment.create')
+    for (let i = 0; i < 20 && events.deliveries === 0; i++) {
+      events = await eventsOf(a.org, 'appointment.create')
+    }
     expect(events.deliveries).toBe(1)
     const sent = await db.webhookDelivery.findFirstOrThrow({
       where: { webhook: { organizationId: a.org }, event: 'appointment.create' },

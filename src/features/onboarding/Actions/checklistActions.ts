@@ -139,6 +139,7 @@ export async function dismissOnboardingChecklist() {
  */
 export async function removeSampleData() {
   return withAuth(
+    // fork (A5): userId, the reset marker's actor
     async ({ organizationId, userId }) => {
       const row = await db.appSetting.findFirst({
         where: { organizationId, key: SAMPLE_DATA_IDS_KEY },
