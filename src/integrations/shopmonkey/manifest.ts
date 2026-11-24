@@ -18,8 +18,19 @@ export const manifest: ConnectorManifest = {
     type: 'api-key',
     fields: [
       { key: 'apiKey', label: 'apiKey', type: 'password', required: true, help: 'apiKeyHelp' },
+      // M7: signs the webhook Shopmonkey sends while the shop still works in it. Without one, the
+      // ten-minute check alone keeps Torqvoice current.
+      {
+        key: 'webhookSecret',
+        label: 'webhookSecret',
+        type: 'password',
+        required: false,
+        help: 'webhookSecretHelp',
+      },
     ],
   },
+  // M7: the backstop for a webhook that never came (a no-op until the first load, and after cutover).
+  schedules: [{ job: 'sync.delta', everyMinutes: 10 }],
   capabilities: ['import.shopmonkey'],
   settings: [
     {

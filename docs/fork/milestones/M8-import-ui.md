@@ -15,6 +15,13 @@ Everything is on the Shopmonkey connector's page, in panels shown according to w
 3. **Run:** buttons for Extract, Dry-run load and Load, each queuing the matching jobs. Progress per table (done/total, rate, estimated time left) by polling a server action every few seconds. A Stop button that pauses the queue at the next page.
 4. **Report:** the M6 report: gates at the top (pass/fail), then counts, money differences, spot checks with links, warnings and unmapped fields.
 5. **Sync and cutover:** the webhook URL to paste into Shopmonkey (Settings → Webhooks) and its secret field; last delta time; a Cutover button that runs M7's flow with a confirmation dialog listing the steps.
+   - From M7 (Decisions log): the webhook URL is `/api/integrations/shopmonkey/<connection id>/webhook`, and the
+     secret is the connection's `webhookSecret` credential. The last sync is `state.lastSync`, with the deletes
+     the sync kept (`keptDeletes`: edited in Torqvoice, a locked invoice, or a record it never deletes): list them.
+   - The banner on imported records until cutover, "Synced from Shopmonkey until <date>" (moved here from M7
+     task 4): shown while the connection has no `state.cutover`, gone once it has.
+   - The status and technician mappings (task 2) are stored on the connection and passed to every load, the
+     sync's own (`sync/jobs.ts`, `syncLoad`) included: until then the sync loads with the defaults, as the CLI does.
 6. **Undo:** per run, using ImportBatch. Disabled after cutover.
 
 All strings in `messages/en/shopmonkeyImport.json`. Server actions in `src/features/shopmonkey-import/Actions/`,

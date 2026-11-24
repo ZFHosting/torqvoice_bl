@@ -22,6 +22,7 @@ import {
 } from './context'
 import { loadInventory, loadPresets } from './catalog'
 import { removePlaced } from './files'
+import { withLoadLock } from './lock'
 import { recordSkips, saveLastLoad } from './outcome'
 import {
   assertNoInvoiceListeners,
@@ -41,7 +42,7 @@ import {
 } from './people'
 import { applySettingChanges, type Proposals, proposeNumbering, proposeSettings } from './proposals'
 import { importLabeler } from './labels'
-import type { LoadScope } from './links'
+import { type LoadScope, stampLinks } from './links'
 import { loadResolver } from './resolver'
 
 export interface LoadOptions {
@@ -62,6 +63,8 @@ export interface LoadOptions {
   statusStageMap?: Record<string, Stage>
   technicianMap?: Record<string, string | 'create'>
   now?: Date
+  /** M7: a sync's load. When it writes nothing it records no audit event (a sync loads every ten minutes). */
+  quiet?: boolean
 }
 
 export interface LoadSummary {
@@ -114,7 +117,16 @@ function countWarnings(warnings: Warning[]): Record<string, number> {
   return out
 }
 
+/**
+ * A load. A real one holds the connection's load lock (M7: the sync's jobs, the CLI and the cutover never load at
+ * once); `LoadBusy` when another holds it. A dry run writes nothing and needs no lock.
+ */
 export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
+  if (options.dryRun) return loadUnlocked(options)
+  return withLoadLock(options.connectionId, () => loadUnlocked(options))
+}
+
+async function loadUnlocked(options: LoadOptions): Promise<LoadSummary> {
   const scope = {
     organizationId: options.organizationId,
     connectionId: options.connectionId,
@@ -127,10 +139,14 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
       organizationId: scope.organizationId,
       connectorId: 'shopmonkey',
     },
-    select: { id: true, settings: true },
+    select: { id: true, settings: true, state: true },
   })
   if (!connection)
     throw new LoadRefused([], 'That is not a Shopmonkey connection of this workshop.')
+  // M7: after cutover the workshop is the system of record: nothing from Shopmonkey overwrites it any more.
+  if ((connection.state as { cutover?: unknown } | null)?.cutover) {
+    throw new LoadRefused([], 'The import is cut over: nothing more is loaded from Shopmonkey.')
+  }
   // Issuing an imported invoice notifies whatever hears `service.update`: nothing is written while one is on.
   if (!options.dryRun) await assertNoInvoiceListeners(scope.organizationId)
   const resolver = await loadResolver(scope)
@@ -156,9 +172,16 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
       remoteId,
       message: `Its ${model} was deleted in Torqvoice and is created again.`,
     })
+  const warnOverwritten: NonNullable<LoadScope['onOverwrite']> = (table, model, remoteId) =>
+    lc.warnings.push({
+      code: 'local_edit_overwritten',
+      table,
+      remoteId,
+      message: `Its ${model} was edited in Torqvoice since the last sync; Shopmonkey's change overwrote it.`,
+    })
   const timeZone = options.timeZone ?? (await workshopTimeZone(scope.organizationId))
   const lc = createLoadContext({
-    scope: { ...scope, onRecreate: warnRecreated },
+    scope: { ...scope, onRecreate: warnRecreated, onOverwrite: warnOverwritten },
     runUserId: options.runUserId,
     resolver,
     timeZone,
@@ -220,19 +243,22 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
   }
   const issue =
     options.dryRun || listeners.length
-      ? { issued: 0, failed: 0 }
+      ? { issued: 0, failed: 0, ids: [] }
       : await issueInvoices(scope.organizationId, lc.toIssue)
   if (!options.dryRun) {
+    // M7: an invoice issued just now, after its order's unit, isn't an edit made in Torqvoice either.
+    await stampLinks(db as unknown as Tx, scope, 'ServiceRecord', issue.ids)
     const records = Object.values(lc.counts).reduce((a, c) => a + c.created + c.updated, 0)
-    await recordLoad(scope.organizationId, options.runUserId, {
-      connectionId: scope.connectionId,
-      runId: scope.runId,
-      records,
-      counts: lc.counts,
-      issued: issue.issued,
-      issueFailed: issue.failed,
-      applied,
-    })
+    if (!(options.quiet && records === 0))
+      await recordLoad(scope.organizationId, options.runUserId, {
+        connectionId: scope.connectionId,
+        runId: scope.runId,
+        records,
+        counts: lc.counts,
+        issued: issue.issued,
+        issueFailed: issue.failed,
+        applied,
+      })
     await saveLastLoad(scope, lc, {
       runId: scope.runId,
       issued: issue.issued,

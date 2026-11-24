@@ -36,6 +36,8 @@ export interface MockOptions {
   missing?: string[]
   /** Extra generated records per table, to make lists span pages. */
   extra?: Record<string, number>
+  /** M7: GET lists answer in id order even when asked for `orderby=updatedDate desc`. */
+  ignoreOrderby?: boolean
 }
 
 function json(status: number, body: unknown) {
@@ -46,6 +48,9 @@ function json(status: number, body: unknown) {
 }
 
 const byId = (a: Row, b: Row) => String(a.id).localeCompare(String(b.id))
+/** Newest first by `updatedDate`, then by id (M7: a delta's `orderby=updatedDate desc`). */
+const newestFirst = (a: Row, b: Row) =>
+  String(b.updatedDate ?? '').localeCompare(String(a.updatedDate ?? '')) || byId(a, b)
 
 export function createMockShopmonkey(options: MockOptions = {}) {
   const data = loadFixtures()
@@ -127,7 +132,9 @@ export function createMockShopmonkey(options: MockOptions = {}) {
       if (options.missing?.includes(table)) {
         return json(404, { success: false, code: 'API-404', message: 'Not found' })
       }
-      return page(rows(table), skip, limit)
+      const recent =
+        !options.ignoreOrderby && parsed.searchParams.get('orderby') === 'updatedDate desc'
+      return page(recent ? rows(table).sort(newestFirst) : rows(table), skip, limit)
     }
     if (table === 'company' && parts.length === 2) {
       const company = rows('company').find((c) => c.id === id)
@@ -192,6 +199,13 @@ export function createMockShopmonkey(options: MockOptions = {}) {
       const index = list.findIndex((row) => row.id === id)
       if (index < 0) throw new Error(`mock: no ${table} ${id}`)
       list[index] = { ...list[index], ...patch, updatedDate: '2026-01-01T00:00:00.000Z' }
+    },
+    /** M7: change a record as an edit at `updatedDate` would (a later one than `change` uses). */
+    changeAt(table: string, id: string, updatedDate: string, patch: Row) {
+      const list = data[table] ?? []
+      const index = list.findIndex((row) => row.id === id)
+      if (index < 0) throw new Error(`mock: no ${table} ${id}`)
+      list[index] = { ...list[index], ...patch, updatedDate }
     },
     remove(table: string, id: string) {
       data[table] = (data[table] ?? []).filter((row) => row.id !== id)

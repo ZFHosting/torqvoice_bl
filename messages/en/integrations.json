@@ -1158,7 +1158,9 @@
       "description": "Bring a workshop's history over from Shopmonkey: customers, vehicles, orders, invoices, payments, inspections and files. Read-only: nothing is ever changed in Shopmonkey.",
       "fields": {
         "apiKey": "Shopmonkey API key",
-        "apiKeyHelp": "A Shopmonkey admin creates it under Settings, Integration, API Keys. It acts with that person's access, so they need every location you import."
+        "apiKeyHelp": "A Shopmonkey admin creates it under Settings, Integration, API Keys. It acts with that person's access, so they need every location you import.",
+        "webhookSecret": "Webhook signing secret",
+        "webhookSecretHelp": "Optional. Shopmonkey shows it when you add a webhook for this connection under Settings, Integration, Webhooks; it starts with whsec_. Without it, Torqvoice still checks Shopmonkey for changes every 10 minutes, but only the webhook tells it about deletions."
       },
       "settings": {
         "locationId": "Location",

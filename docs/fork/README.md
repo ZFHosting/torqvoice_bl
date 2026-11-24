@@ -7,6 +7,7 @@ docs/fork/FORK.md            rules Claude Code loads every session (via CLAUDE.m
 docs/fork/PLAN.md            the plan: architecture, milestones, order, risks, open questions
 docs/fork/MAPPING.md         Shopmonkey → Torqvoice, field by field, with schema extensions X1–X6
 docs/fork/API.md             the public API contract
+docs/fork/CUTOVER.md         the runbook for switching a workshop off Shopmonkey (M7)
 docs/fork/milestones/*.md    one brief per milestone (M0–M9 import, A1–A6 API)
 .claude/commands/milestone.md   /milestone <id>: starts a milestone from its brief
 .claude/agents/migration-reviewer.md   pre-PR review against the brief and rules

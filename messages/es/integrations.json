@@ -1158,7 +1158,9 @@
       "description": "Trae el historial de un taller desde Shopmonkey: clientes, vehículos, órdenes, facturas, pagos, inspecciones y archivos. Solo lectura: nunca se cambia nada en Shopmonkey.",
       "fields": {
         "apiKey": "Clave de API de Shopmonkey",
-        "apiKeyHelp": "La crea un administrador de Shopmonkey en Settings, Integration, API Keys. Actúa con los permisos de esa persona, que necesita acceso a cada ubicación que importes."
+        "apiKeyHelp": "La crea un administrador de Shopmonkey en Settings, Integration, API Keys. Actúa con los permisos de esa persona, que necesita acceso a cada ubicación que importes.",
+        "webhookSecret": "Secreto de firma del webhook",
+        "webhookSecretHelp": "Opcional. Shopmonkey lo muestra al añadir un webhook para esta conexión en Settings, Integration, Webhooks; empieza por whsec_. Sin él, Torqvoice sigue comprobando los cambios en Shopmonkey cada 10 minutos, pero solo el webhook le avisa de las eliminaciones."
       },
       "settings": {
         "locationId": "Ubicación",

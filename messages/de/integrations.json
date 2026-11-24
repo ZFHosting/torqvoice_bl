@@ -1158,7 +1158,9 @@
       "description": "Übernehmen Sie die Historie einer Werkstatt aus Shopmonkey: Kunden, Fahrzeuge, Aufträge, Rechnungen, Zahlungen, Prüfungen und Dateien. Nur lesend: In Shopmonkey wird nie etwas geändert.",
       "fields": {
         "apiKey": "Shopmonkey-API-Schlüssel",
-        "apiKeyHelp": "Ein Shopmonkey-Administrator erstellt ihn unter Settings, Integration, API Keys. Er handelt mit den Rechten dieser Person, die daher Zugriff auf jeden importierten Standort braucht."
+        "apiKeyHelp": "Ein Shopmonkey-Administrator erstellt ihn unter Settings, Integration, API Keys. Er handelt mit den Rechten dieser Person, die daher Zugriff auf jeden importierten Standort braucht.",
+        "webhookSecret": "Webhook-Signaturgeheimnis",
+        "webhookSecretHelp": "Optional. Shopmonkey zeigt es an, wenn Sie unter Settings, Integration, Webhooks einen Webhook für diese Verbindung anlegen; es beginnt mit whsec_. Ohne es prüft Torqvoice Shopmonkey trotzdem alle 10 Minuten auf Änderungen, von Löschungen erfährt es aber nur über den Webhook."
       },
       "settings": {
         "locationId": "Standort",

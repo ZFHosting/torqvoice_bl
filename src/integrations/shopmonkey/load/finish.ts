@@ -53,7 +53,7 @@ export async function assertNoInvoiceListeners(organizationId: string): Promise<
 export async function issueInvoices(
   organizationId: string,
   ids: string[]
-): Promise<{ issued: number; failed: number }> {
+): Promise<{ issued: number; failed: number; ids: string[] }> {
   const pending: string[] = []
   for (let i = 0; i < ids.length; i += 1000) {
     const rows = await db.serviceRecord.findMany({
@@ -62,16 +62,16 @@ export async function issueInvoices(
     })
     pending.push(...rows.map((r) => r.id))
   }
-  let issued = 0
   let failed = 0
+  const issued: string[] = []
   for (const id of pending) {
     try {
-      if (await issueInvoice(id, organizationId, 'backfill')) issued++
+      if (await issueInvoice(id, organizationId, 'backfill')) issued.push(id)
     } catch {
       failed++
     }
   }
-  return { issued, failed }
+  return { issued: issued.length, failed, ids: issued }
 }
 
 /** The run's one audit event (`shopmonkey.import` isn't a webhook event, so no webhook fires). */

@@ -1,6 +1,7 @@
 import type {
   ConnectorContext,
   ConnectorServer,
+  JobHandler,
   SettingOption,
 } from '@/features/integrations/Lib/types'
 import { saveExtractState } from '@/features/shopmonkey-import/Lib/extractState.server'
@@ -137,6 +138,16 @@ async function extractStepJob(ctx: ConnectorContext, payload: Record<string, unk
   }
 }
 
+/** M7: a sync job, its module loaded on its first run (the registry loads every connector's server). */
+function syncJob(kind: 'refetch' | 'sync.delta' | 'sync.load'): JobHandler {
+  return async (ctx, payload) => {
+    const { createSyncJobs } = await import('./sync/jobs')
+    return createSyncJobs({ depsFor: extractDepsFor, extractFinished: recordExtractFinished })[
+      kind
+    ](ctx, payload)
+  }
+}
+
 export const connector: ConnectorServer = {
   manifest,
 
@@ -183,5 +194,13 @@ export const connector: ConnectorServer = {
 
   jobs: {
     'extract.step': extractStepJob,
+    // M7: the sync window (webhook refetches, the ten-minute delta, a load put off).
+    refetch: syncJob('refetch'),
+    'sync.delta': syncJob('sync.delta'),
+    'sync.load': syncJob('sync.load'),
+  },
+  // Loaded when a delivery comes: the registry loads every connector's server, so this one stays light.
+  webhook: {
+    receive: async (request, ctx) => (await import('./webhook')).receive(request, ctx),
   },
 }

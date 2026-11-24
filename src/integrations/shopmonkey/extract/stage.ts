@@ -104,6 +104,8 @@ export interface SourceStore {
   markChildrenFetched(table: string, remoteId: string, hash: string): Promise<void>
   /** Forget every parent's children fetch for a table: what its children are has changed (a setting). */
   resetChildren(table: string): Promise<void>
+  /** M7: a record Shopmonkey no longer has (a refetch answered 404), marked deleted at `at`. False if not staged. */
+  markDeleted(table: string, remoteId: string, at: Date): Promise<boolean>
   /**
    * Children that came back from a parent before and don't now (a service removed from an order):
    * marked deleted at `at`, never removed. Returns how many.
@@ -226,6 +228,14 @@ export function prismaSourceStore(
         where: { organizationId, source: SOURCE, table, childrenHash: { not: null } },
         data: { childrenHash: null },
       })
+    },
+
+    async markDeleted(table, remoteId, at) {
+      const result = await client.sourceRecord.updateMany({
+        where: { organizationId, source: SOURCE, table, remoteId, remoteDeletedAt: null },
+        data: { remoteDeletedAt: at },
+      })
+      return result.count > 0
     },
 
     async markGone(table, parentPath, parentId, keep, at) {

@@ -22,6 +22,8 @@ import { releaseFiles } from '@/lib/files/manager'
 import { SOURCE } from '../extract/stage'
 import { recordUndo } from './finish'
 import type { LocalModel } from './links'
+import { withLoadLock } from './lock'
+import { mergeState } from './outcome'
 
 export interface UndoResult {
   removed: Record<string, number>
@@ -152,13 +154,28 @@ async function clearDangling(tx: TxClient, organizationId: string, connectionId:
   }
 }
 
-export async function undoLoad(input: {
+export interface UndoInput {
   organizationId: string
   connectionId: string
   runId: string
   /** The member undoing it: the audit event's user. */
   userId: string
-}): Promise<UndoResult> {
+}
+
+/**
+ * Undoes a load, holding the connection's load lock (M7: never beside a sync's load). Afterwards the connection has
+ * no last load (`state.lastLoad`), so the sync stops loading until the operator loads again: otherwise its next load
+ * would create what the undo removed.
+ */
+export async function undoLoad(input: UndoInput): Promise<UndoResult> {
+  return withLoadLock(input.connectionId, async () => {
+    const result = await undoUnlocked(input)
+    await mergeState(input, { lastLoad: null })
+    return result
+  })
+}
+
+async function undoUnlocked(input: UndoInput): Promise<UndoResult> {
   const { organizationId, connectionId, runId } = input
   // Links have no workshop column: the connection has to be this workshop's before its links decide anything.
   const connection = await db.integrationConnection.findFirst({

@@ -237,6 +237,8 @@
     "shopmonkey_extract": "Gauta iš Shopmonkey",
     "shopmonkey_import": "Importuota iš Shopmonkey",
     "shopmonkey_import_undo": "Importas iš Shopmonkey atšauktas",
+    "shopmonkey_cutover": "Perėjimas iš Shopmonkey",
+    "shopmonkey_sync_delete": "Ištrinta Shopmonkey sinchronizacijos",
     "contact_create": "Kontaktas pridėtas",
     "contact_update": "Kontaktas pakeistas",
     "contact_delete": "Kontaktas pašalintas",
@@ -444,6 +446,8 @@
     "shopmonkey_extract": "Iš Shopmonkey gauta naujų ar pakeistų įrašų: {records} ({count} API užklausų)",
     "shopmonkey_import": "Iš Shopmonkey importuota naujų ar pakeistų įrašų: {records}",
     "shopmonkey_import_undo": "Atšauktas importas iš Shopmonkey: pašalinta įrašų: {records}",
+    "shopmonkey_cutover": "Perėjimas iš Shopmonkey: Torqvoice jo nebeseka",
+    "shopmonkey_sync_delete": "Ištrinti {records} įrašai, ištrinti Shopmonkey (sinchronizacijos laikotarpis)",
     "platform_revokeSuperAdmin": "Atimtos vyriausiojo administratoriaus teisės iš {name} ({email})"
   }
 }

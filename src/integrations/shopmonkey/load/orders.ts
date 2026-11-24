@@ -25,7 +25,14 @@ import {
   type Tx,
 } from './context'
 import { attachOrderFiles, indexOrderFiles } from './files'
-import { findLoaded, foreignKeys, linkedRow, markLoaded } from './links'
+import {
+  editedBeforeWrite,
+  findLoaded,
+  foreignKeys,
+  linkedRow,
+  markLoaded,
+  noteWritten,
+} from './links'
 import { staged, stagedAll, writeCustomFields } from './people'
 import { upsertLinked } from './upsert'
 
@@ -340,10 +347,12 @@ export async function loadOrders(lc: LoadContext): Promise<OrdersResult> {
       // An estimate that became a repair order (Shopmonkey's usual flow during the sync window): its quote is
       // converted into this work order, as the app's own conversion does, instead of staying a second document.
       if (quoteId) {
-        await tx.quote.updateMany({
+        const edited = await editedBeforeWrite(tx, lc.scope, 'Quote', quoteId)
+        const converted = await tx.quote.updateMany({
           where: { id: quoteId, organizationId, convertedToId: null },
           data: { status: 'converted', convertedToId: localId },
         })
+        if (converted.count && !edited) noteWritten(lc.scope, 'Quote', quoteId)
       }
       // Every imported invoice is offered for issuing, changed or not: one a past run didn't get to is issued now.
       if (rows.issueAsInvoice) invoiceId = localId

@@ -4,6 +4,7 @@
  * scoped by the workshop, inside the caller's transaction, and recorded with `markLoaded`.
  */
 import type { Prisma } from '@/generated/prisma/client'
+import { editedSince } from './edits'
 import { findLoaded, type LoadScope, type LocalModel, markLoaded } from './links'
 
 export type UpsertResult = 'created' | 'updated' | 'unchanged'
@@ -17,6 +18,14 @@ export async function upsertLinked(
   const found = await findLoaded(tx, scope, record.table, record.model, record.remoteId)
   if (found && found.hash === record.hash) return { localId: found.localId, result: 'unchanged' }
   if (found) {
+    // M7: Shopmonkey is the source of truth until cutover; an edit made in Torqvoice since is overwritten, warned.
+    if (
+      scope.onOverwrite &&
+      found.syncedAt &&
+      (await editedSince(tx, record.model, found.localId, scope.organizationId, found.syncedAt))
+    ) {
+      scope.onOverwrite(record.table, record.model, record.remoteId)
+    }
     await write.update(found.localId)
     await markLoaded(tx, scope, { ...record, localId: found.localId, created: false })
     return { localId: found.localId, result: 'updated' }
