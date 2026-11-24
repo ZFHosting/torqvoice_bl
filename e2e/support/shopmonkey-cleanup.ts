@@ -13,12 +13,15 @@ async function main() {
   const email = process.env.E2E_USER_EMAIL ?? 'demo@torqvoice.com'
   const user = await db.user.findFirst({ where: { email }, select: { id: true } })
   if (!user) return
-  const member = await db.organizationMember.findFirst({
+  // Every workshop the suite's user is in, not whichever membership comes first.
+  const memberships = await db.organizationMember.findMany({
     where: { userId: user.id },
     select: { organizationId: true },
   })
-  if (!member) return
-  const organizationId = member.organizationId
+  for (const { organizationId } of memberships) await cleanUp(organizationId, user.id)
+}
+
+async function cleanUp(organizationId: string, userId: string) {
   const connection = await db.integrationConnection.findFirst({
     where: { organizationId, connectorId: 'shopmonkey' },
     select: { id: true },
@@ -40,7 +43,7 @@ async function main() {
     for (const audit of audits) {
       const runId = (audit.metadata as { runId?: string } | null)?.runId
       if (!runId || undone.has(runId)) continue
-      await undoLoad({ organizationId, connectionId: connection.id, runId, userId: user.id })
+      await undoLoad({ organizationId, connectionId: connection.id, runId, userId })
     }
   }
   await db.sourceRecord.deleteMany({ where: { organizationId, source: 'shopmonkey' } })

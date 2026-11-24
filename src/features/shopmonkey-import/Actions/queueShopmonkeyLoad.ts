@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { enqueueJob } from '@/features/integrations/Lib/jobs'
 import { mergeState } from '@/integrations/shopmonkey/load/outcome'
+import { extractBlocker } from '@/integrations/shopmonkey/sync/runs'
 import { shopmonkeyConnection, withImportAuth } from '../Lib/importAuth.server'
 import { liveJobs } from '../Lib/liveJobs.server'
 
@@ -25,6 +26,9 @@ export async function queueShopmonkeyLoad(input: unknown) {
       const live = await liveJobs(organizationId, connection.id)
       if (live.load || live.cutover)
         throw new Error('A load or the cutover is already queued or running.')
+      // The archive is whole only once an extract has finished; another tab's screen may not know it hasn't.
+      const blocked = extractBlocker(connection.state)
+      if (blocked) throw new Error(blocked)
       const token = randomUUID()
       await mergeState(scope, {
         loadRun: { status: 'queued', dryRun, at: new Date().toISOString(), token },

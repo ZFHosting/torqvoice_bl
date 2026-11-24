@@ -3,7 +3,9 @@
  *
  * fork (M8 acceptance): every action of the Shopmonkey import screen is the owner's or an admin's. A member gets
  * `forbidden`, whatever their role's permissions; reads need the settings read permission and everything else the
- * settings update permission; the connection is always the caller's own workshop's.
+ * settings update permission; the connection is always the caller's own workshop's. A load waits for a finished
+ * extract, and an undo for the load or cutover under way. On a plan without integrations, what changes anything is
+ * refused as `gated`; the screen can still be read.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   findUnique: vi.fn(),
   jobs: vi.fn(),
   technicians: vi.fn(),
+  features: { integrations: true } as Record<string, boolean>,
 }))
 
 vi.mock('@/lib/with-auth', () => ({
@@ -27,6 +30,14 @@ vi.mock('@/lib/with-auth', () => ({
     try {
       return { success: true, data: await fn(mocks.ctx) }
     } catch (err) {
+      // As the real one: a plan refusal comes back as `gated`.
+      if (err instanceof Error && err.name === 'FeatureGatedError') {
+        return {
+          success: false,
+          error: err.message,
+          gated: { feature: (err as { feature?: string }).feature },
+        }
+      }
       return { success: false, error: err instanceof Error ? err.message : String(err) }
     }
   },
@@ -38,9 +49,23 @@ vi.mock('@/lib/db', () => ({
     sourceRecord: { findMany: vi.fn(async () => []) },
     technician: { findMany: mocks.technicians },
     integrationJob: { findMany: mocks.jobs },
+    // The import view's load lists.
+    $queryRaw: vi.fn(async () => []),
   },
 }))
 vi.mock('@/lib/demo', () => ({ demoGuard: () => undefined }))
+vi.mock('@/lib/features', () => {
+  class FeatureGatedError extends Error {
+    feature: string
+    limit?: number
+    constructor(feature: string, message?: string) {
+      super(message ?? feature)
+      this.name = 'FeatureGatedError'
+      this.feature = feature
+    }
+  }
+  return { FeatureGatedError, getFeatures: vi.fn(async () => mocks.features) }
+})
 vi.mock('@/features/integrations/Lib/jobs', () => ({ enqueueJob: vi.fn(async () => 'job-1') }))
 vi.mock('@/integrations/shopmonkey/load/outcome', () => ({
   mergeState: vi.fn(async () => undefined),
@@ -90,6 +115,7 @@ const WRITES: [string, () => Promise<{ success: boolean; forbidden?: boolean }>]
 
 beforeEach(() => {
   mocks.options.length = 0
+  mocks.features = { integrations: true }
   mocks.jobs.mockReset()
   mocks.jobs.mockResolvedValue([])
   mocks.technicians.mockReset()
@@ -166,6 +192,61 @@ describe('the Shopmonkey import actions', () => {
       success: false,
     })
     expect(await startShopmonkeyImportExtract()).toMatchObject({ success: false })
+  })
+
+  it('refuses a load until an extract has finished, whatever the screen in another tab shows', async () => {
+    mocks.ctx.isAdmin = true
+    // The fixture's extract is still running.
+    expect(await queueShopmonkeyLoad({ dryRun: false })).toMatchObject({
+      success: false,
+      error: expect.stringMatching(/extract has not finished/),
+    })
+    mocks.findUnique.mockResolvedValue({
+      id: 'conn-1',
+      status: 'active',
+      state: {},
+      createdById: 'user-1',
+    })
+    expect(await queueShopmonkeyLoad({ dryRun: true })).toMatchObject({
+      success: false,
+      error: expect.stringMatching(/Nothing has been extracted/),
+    })
+    mocks.findUnique.mockResolvedValue({
+      id: 'conn-1',
+      status: 'active',
+      state: { extract: { runId: 'run-1', finishedAt: '2026-01-01T01:00:00Z' } },
+      createdById: 'user-1',
+    })
+    expect(await queueShopmonkeyLoad({ dryRun: true })).toMatchObject({ success: true })
+  })
+
+  it('refuses an undo while a load or the cutover is queued or running', async () => {
+    mocks.ctx.isAdmin = true
+    const { undoLoad } = await import('@/integrations/shopmonkey/load/undo')
+    vi.mocked(undoLoad).mockClear()
+    for (const kind of ['load.run', 'cutover.run']) {
+      mocks.jobs.mockResolvedValueOnce([{ kind }])
+      expect(
+        await undoShopmonkeyLoad({ runId: '7f9c2ba4-e88f-4c3e-9f2f-0d1e2a3b4c5d' })
+      ).toMatchObject({ success: false, error: expect.stringMatching(/undo once it has finished/) })
+    }
+    expect(undoLoad).not.toHaveBeenCalled()
+    expect(
+      await undoShopmonkeyLoad({ runId: '7f9c2ba4-e88f-4c3e-9f2f-0d1e2a3b4c5d' })
+    ).toMatchObject({ success: true })
+    expect(undoLoad).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(WRITES)('%s is refused as gated on a plan without integrations', async (_n, call) => {
+    mocks.ctx.isAdmin = true
+    mocks.features = { integrations: false }
+    expect(await call()).toMatchObject({ success: false, gated: { feature: 'integrations' } })
+  })
+
+  it('still reads the import on a plan without integrations', async () => {
+    mocks.ctx.isAdmin = true
+    mocks.features = { integrations: false }
+    expect((await getShopmonkeyImport()).success).toBe(true)
   })
 
   it('refuses a mapping naming another workshop’s technician', async () => {

@@ -35,9 +35,9 @@ each wrapped in `withAuth` with `requiredPermissions` for settings management.
 - [ ] The same spec opens an imported vehicle with no year, make or model (shows "Unknown Unknown", no
       stray "0"), and a job billed to a vehicle's previous owner, on the work order and in the current
       owner's portal (M0 spikes T3, T4; blocker B10).
-      (Decisions log, M8: the portal half waits on B10. What the current owner's portal shows is upstream's
-      behaviour, which B10 asks the client to accept or have the import split by owner period; the spec checks the
-      work order, and the portal check is written once B10 is answered.)
+      (Decisions log, 2026-11-23, M8 acceptance 3: the spec checks the work order; the current owner's portal is
+      checked by a database test of the portal's own query, since the suite can't sign a customer into the portal.
+      It pins B10's default, upstream's behaviour: the job is listed there.)
 - [ ] Every action is owner/admin only. A member gets `forbidden`.
 
 ## Out of scope

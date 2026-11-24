@@ -1,10 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useTranslations } from 'next-intl'
 import { Loader2, Save, Workflow } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppCard } from '@/components/app-card'
+import { handleGated } from '@/components/upgrade-gate'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -33,31 +35,48 @@ const AUTO = 'auto'
 /**
  * fork (M8): what each Shopmonkey workflow status becomes (a stage) and who each Shopmonkey user becomes (an existing
  * technician, a new one, or the load's own choice: a new technician for a user the history names, none otherwise).
- * Saved on the connection for every load, the sync's included.
+ * Saved on the connection for every load, the sync's included. Read once per operator extract (`runKey`): the
+ * statuses and users come from the archive, and reading them scans it, so the screen's polling doesn't.
  */
-export function ImportMappingCard({ onSaved }: { onSaved: () => Promise<void> | void }) {
+export function ImportMappingCard({
+  runKey,
+  onSaved,
+}: {
+  runKey: string
+  onSaved: () => Promise<void> | void
+}) {
   const t = useTranslations('shopmonkeyImport.mapping')
   const ts = useTranslations('shopmonkeyImport.stages')
-  const [mapping, setMapping] = useState<MappingView | null>(null)
-  const [stages, setStages] = useState<Record<string, Stage>>({})
-  const [users, setUsers] = useState<Record<string, string>>({})
+  const query = useQuery<MappingView, Error>({
+    queryKey: ['shopmonkey-mapping', runKey],
+    queryFn: async () => {
+      const res = await getShopmonkeyMapping()
+      if (!res.success || !res.data) throw new Error(res.error ?? t('loadFailed'))
+      return res.data
+    },
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: false,
+  })
+  const mapping = query.data ?? null
+  const error = query.error?.message ?? null
+  // The operator's choices over what was saved.
+  const [stageEdits, setStages] = useState<Record<string, Stage>>({})
+  const [userEdits, setUsers] = useState<Record<string, string>>({})
+  const stages = useMemo<Record<string, Stage>>(
+    () => ({
+      ...Object.fromEntries((mapping?.statuses ?? []).map((s) => [s.id, s.stage])),
+      ...stageEdits,
+    }),
+    [mapping, stageEdits]
+  )
+  const users = useMemo<Record<string, string>>(
+    () => ({
+      ...Object.fromEntries((mapping?.users ?? []).map((u) => [u.id, u.choice || AUTO])),
+      ...userEdits,
+    }),
+    [mapping, userEdits]
+  )
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    const res = await getShopmonkeyMapping()
-    if (!res.success || !res.data) {
-      setError(res.error ?? t('loadFailed'))
-      return
-    }
-    setMapping(res.data)
-    setStages(Object.fromEntries(res.data.statuses.map((s) => [s.id, s.stage])))
-    setUsers(Object.fromEntries(res.data.users.map((u) => [u.id, u.choice || AUTO])))
-  }, [t])
-
-  useEffect(() => {
-    load()
-  }, [load])
 
   const save = async () => {
     setSaving(true)
@@ -68,7 +87,7 @@ export function ImportMappingCard({ onSaved }: { onSaved: () => Promise<void> | 
       toast.success(t('saved'))
       await onSaved()
     } else {
-      toast.error(res.error || t('saveFailed'))
+      if (!handleGated(res)) toast.error(res.error || t('saveFailed'))
     }
   }
 

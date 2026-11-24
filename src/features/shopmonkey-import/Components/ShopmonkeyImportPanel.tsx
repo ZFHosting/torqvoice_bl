@@ -26,6 +26,10 @@ class ImportReadError extends Error {
   }
 }
 
+/** Which extract the mapping was read for: the operator's run as it finished, or the sync's runs, all one. */
+const mappingKey = (view: ImportView) =>
+  view.extract?.sync ? 'sync' : (view.extract?.finishedAt ?? 'none')
+
 /**
  * fork (M8): the Shopmonkey import, on the connector's page under its connection settings. Panels in the order the
  * import goes: mapping, extract and load, the reconciliation report, the sync window and cutover, and the loads that
@@ -79,9 +83,10 @@ export function ShopmonkeyImportPanel() {
   }
   return (
     <div className="space-y-4" data-testid="shopmonkey-import">
-      {/* Read again once an extract finishes: the statuses and users come from it. */}
+      {/* Read again once the operator's extract finishes: the statuses and users come from it. The ten-minute sync's
+          runs replace the extract in the state; they don't read the mapping again (or lose unsaved choices). */}
       {!view.cutover && (
-        <ImportMappingCard key={view.extract?.finishedAt ?? 'none'} onSaved={refresh} />
+        <ImportMappingCard key={mappingKey(view)} runKey={mappingKey(view)} onSaved={refresh} />
       )}
       <ImportRunCard view={view} onChanged={refresh} />
       <ImportReportCard view={view} onChanged={refresh} />

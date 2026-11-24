@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { useFormatter, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import { DatabaseZap, Download, FlaskConical, Loader2, Pause, Play } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppCard } from '@/components/app-card'
-import { useDateSettings } from '@/components/date-settings-context'
+import { handleGated } from '@/components/upgrade-gate'
 import { useConfirm } from '@/components/confirm-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,7 @@ import { resumeShopmonkeyExtract } from '../Actions/resumeShopmonkeyExtract'
 import { startShopmonkeyImportExtract } from '../Actions/startShopmonkeyImportExtract'
 import { stopShopmonkeyExtract } from '../Actions/stopShopmonkeyExtract'
 import type { ImportView } from './types'
+import { useWorkshopTime } from './useWorkshopTime'
 
 type Counts = Record<string, { created: number; updated: number; failed: number }>
 
@@ -37,7 +38,6 @@ export function ImportRunCard({
   onChanged: () => Promise<void> | void
 }) {
   const t = useTranslations('shopmonkeyImport.run')
-  const format = useFormatter()
   const confirm = useConfirm()
   const [busy, setBusy] = useState<string | null>(null)
   const extract = view.extract
@@ -47,13 +47,7 @@ export function ImportRunCard({
   const loading = view.live.load
   // The sync's own runs are its to carry on; an operator's run its job stopped (or lost) can carry on.
   const resumable = !!extract && !extract.finishedAt && !extract.sync && !extracting
-  const { timezone } = useDateSettings()
-  const when = (iso: string) =>
-    format.dateTime(new Date(iso), {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-      timeZone: timezone || undefined,
-    })
+  const when = useWorkshopTime()
 
   const act = async (
     name: string,
@@ -64,7 +58,7 @@ export function ImportRunCard({
     const res = await call()
     setBusy(null)
     if (res.success) toast.success(done)
-    else toast.error(res.error || t('failed'))
+    else if (!handleGated(res)) toast.error(res.error || t('failed'))
     await onChanged()
   }
 
@@ -94,6 +88,7 @@ export function ImportRunCard({
     if (run.status === 'running') return t('loadRunning', { kind })
     if (run.status === 'done') return t('loadDone', { kind, time: when(run.at) })
     if (run.status === 'refused') return t('loadRefused', { kind, message: run.message ?? '' })
+    if (run.status === 'interrupted') return t('loadInterrupted', { kind })
     return t('loadFailed', { kind })
   })()
 

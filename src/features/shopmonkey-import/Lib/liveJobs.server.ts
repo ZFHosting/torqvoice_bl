@@ -6,8 +6,10 @@
 import { db } from '@/lib/db'
 
 export interface LiveJobs {
-  /** An extract being driven: the operator's (`extract.step`) or the ten-minute sync's (`sync.delta`). */
+  /** The operator's extract being driven (`extract.step`): what Stop, Resume and the busy polling go by. */
   extract: boolean
+  /** The ten-minute sync's read (`sync.delta`), which carries its own runs on and isn't stopped from the screen. */
+  sync: boolean
   /** A load or dry run the screen queued (`load.run`). */
   load: boolean
   /** A cutover or its dry run (`cutover.run`). */
@@ -26,7 +28,8 @@ export async function liveJobs(organizationId: string, connectionId: string): Pr
   })
   const kinds = new Set(rows.map((r) => r.kind))
   return {
-    extract: kinds.has('extract.step') || kinds.has('sync.delta'),
+    extract: kinds.has('extract.step'),
+    sync: kinds.has('sync.delta'),
     load: kinds.has('load.run'),
     cutover: kinds.has('cutover.run'),
   }

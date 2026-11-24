@@ -273,6 +273,7 @@ async function loadUnlocked(options: LoadOptions): Promise<LoadSummary> {
         issued: issue.issued,
         issueFailed: issue.failed,
         applied,
+        sync: options.quiet === true,
       })
     await saveLastLoad(scope, lc, {
       runId: scope.runId,

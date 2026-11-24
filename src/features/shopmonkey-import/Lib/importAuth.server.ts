@@ -1,8 +1,13 @@
 /**
  * fork: who may run the Shopmonkey import (docs/fork/milestones/M8-import-ui.md, Acceptance): the owner or an admin
  * of the workshop, with the settings permission on top. A member, whatever role they were given, gets `forbidden`:
- * an import rewrites the workshop's history, and a cutover ends the sync for good.
+ * an import rewrites the workshop's history, and a cutover ends the sync for good. What changes anything also needs a
+ * plan with the connector (as the job queue does, `connectionStillAllowed`): refused as `gated`, for the screen to offer
+ * the upgrade, rather than queued for the job to fail.
  */
+import { connectorAllowed } from '@/features/integrations/Lib/plan'
+import { getManifest } from '@/integrations/registry'
+import { FeatureGatedError, getFeatures } from '@/lib/features'
 import { type ActionResult, type AuthContext, withAuth } from '@/lib/with-auth'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
 
@@ -15,6 +20,15 @@ export async function withImportAuth<T>(
   const result = await withAuth(
     async (ctx) => {
       if (!ctx.isAdmin) throw new Error(NOT_ADMIN)
+      if (options.write) {
+        const manifest = getManifest('shopmonkey')
+        if (manifest && !connectorAllowed(manifest, await getFeatures(ctx.organizationId))) {
+          throw new FeatureGatedError(
+            manifest.plan ?? 'integrations',
+            `${manifest.name} is not included in your plan.`
+          )
+        }
+      }
       return fn(ctx)
     },
     {

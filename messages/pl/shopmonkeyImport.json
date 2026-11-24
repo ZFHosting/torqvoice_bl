@@ -48,6 +48,7 @@
     "loadDone": "{kind} done {time}.",
     "loadRefused": "{kind} refused: {message}",
     "loadFailed": "{kind} failed. The connection's activity log says why.",
+    "loadInterrupted": "{kind} stopped before it finished: its job is no longer queued. Run it again.",
     "confirmLoadTitle": "Load the import into the workshop?",
     "confirmLoadDescription": "Every record read from Shopmonkey is written into the workshop: customers, vehicles, work orders, invoices and payments. Run a dry run first. A load can be undone below.",
     "lastDryRun": "Last dry run {time}: {records} records would be written, {failures} would fail.",
@@ -155,6 +156,7 @@
     "stoppedAt": "Stopped at step {step}. Nothing after it was done.",
     "refused": "Refused: {message}",
     "failed": "The cutover did not finish. The connection's activity log says why.",
+    "interrupted": "The cutover stopped before it finished: its job is no longer queued. Run it again.",
     "step": {
       "stopped": "The shop has stopped editing Shopmonkey",
       "delta": "A last read of every change, and a load",
@@ -186,6 +188,7 @@
     "cutOver": "Cut over: loads can no longer be undone here.",
     "records": "{count, plural, one {# record} other {# records}}",
     "undoneBadge": "Undone",
+    "syncBadge": "Sync",
     "undo": "Undo",
     "cancel": "Cancel",
     "confirmTitle": "Undo this load?",

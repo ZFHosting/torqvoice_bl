@@ -51,6 +51,8 @@ export interface LoadRunView {
   at: string
   records: number
   undone: boolean
+  /** A load the ten-minute sync ran, not the operator. */
+  sync: boolean
 }
 
 export interface ImportView {
@@ -75,7 +77,48 @@ export interface ImportView {
   live: LiveJobs
 }
 
+/** The operator's loads listed (the sync's are listed apart, so they never push the first load and its undo out). */
 const RUNS_LISTED = 20
+const SYNC_RUNS_LISTED = 5
+/** Rows of each list in the report the screen shows; the whole report stays in the state, for the CLI and the API. */
+const REPORT_LISTED = 20
+
+/** The report as the screen shows it: polled every few seconds, so its long lists are cut to what the card lists. */
+function reportView(report: ReconciliationReport | undefined): ReconciliationReport | null {
+  if (!report) return null
+  return {
+    ...report,
+    countProblems: report.countProblems.slice(0, REPORT_LISTED),
+    money: { ...report.money, differences: report.money.differences.slice(0, REPORT_LISTED) },
+    spotChecks: report.spotChecks.slice(0, REPORT_LISTED),
+    warnings: Object.fromEntries(
+      Object.entries(report.warnings).map(([code, w]) => [code, { count: w.count, examples: [] }])
+    ),
+    failures: report.failures.slice(0, REPORT_LISTED),
+    unmapped: report.unmapped.slice(0, REPORT_LISTED),
+  }
+}
+
+/** A run the state says is queued or running, whose job the queue no longer has, stopped before it could say so. */
+function withLiveness<T extends { status: string }>(run: T | undefined, live: boolean): T | null {
+  if (!run) return null
+  return (run.status === 'queued' || run.status === 'running') && !live
+    ? ({ ...run, status: 'interrupted' } as T)
+    : run
+}
+
+type LoadAudit = { timestamp: Date; metadata: unknown }
+
+/** The newest loads of this connection, the operator's or the sync's (`metadata.sync`, M8). */
+function loadAudits(organizationId: string, connectionId: string, sync: boolean, take: number) {
+  return db.$queryRaw<LoadAudit[]>`
+    SELECT "timestamp", "metadata" FROM "public"."audit_logs"
+    WHERE "organizationId" = ${organizationId} AND "entityId" = ${connectionId}
+      AND "action" = 'shopmonkey.import'
+      AND (COALESCE("metadata"->>'sync', 'false') = 'true') = ${sync}
+    ORDER BY "timestamp" DESC
+    LIMIT ${take}`
+}
 
 function extractView(
   state: ExtractState | undefined,
@@ -149,44 +192,39 @@ export async function importView(
   const lastLoad = (state.lastLoad as LastLoad | undefined) ?? null
   const live = await liveJobs(organizationId, connection.id)
   const dry = state.lastDryRun as ImportView['lastDryRun'] | undefined
-  const audits = await db.auditLog.findMany({
-    where: {
-      organizationId,
-      entityId: connection.id,
-      action: { in: ['shopmonkey.import', 'shopmonkey.import_undo'] },
-    },
-    orderBy: { timestamp: 'desc' },
-    take: RUNS_LISTED * 2,
-    select: { action: true, timestamp: true, metadata: true, message: true },
-  })
-  const undone = new Set(
-    audits
-      .filter((a) => a.action === 'shopmonkey.import_undo')
-      .map((a) => (a.metadata as { runId?: string } | null)?.runId)
-  )
-  const runs = audits
-    .filter((a) => a.action === 'shopmonkey.import')
-    .slice(0, RUNS_LISTED)
+  const [operatorLoads, syncLoads, undos] = await Promise.all([
+    loadAudits(organizationId, connection.id, false, RUNS_LISTED),
+    loadAudits(organizationId, connection.id, true, SYNC_RUNS_LISTED),
+    db.auditLog.findMany({
+      where: { organizationId, entityId: connection.id, action: 'shopmonkey.import_undo' },
+      select: { metadata: true },
+    }),
+  ])
+  const undone = new Set(undos.map((a) => (a.metadata as { runId?: string } | null)?.runId))
+  const runs = [...operatorLoads, ...syncLoads]
     .map((a) => {
-      const meta = (a.metadata as { runId?: string; counts?: LastLoad['counts'] } | null) ?? {}
+      const meta =
+        (a.metadata as { runId?: string; counts?: LastLoad['counts']; sync?: boolean } | null) ?? {}
       const records = Object.values(meta.counts ?? {}).reduce(
         (n, c) => n + (c?.created ?? 0) + (c?.updated ?? 0),
         0
       )
       return {
         runId: meta.runId ?? '',
-        at: a.timestamp.toISOString(),
+        at: new Date(a.timestamp).toISOString(),
         records,
         undone: undone.has(meta.runId),
+        sync: meta.sync === true,
       }
     })
     .filter((r) => r.runId)
+    .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
   return {
     connectionId: connection.id,
     status: connection.status,
     webhookUrl: `${appUrl()}/api/integrations/shopmonkey/${connection.id}/webhook`,
     extract: extractView(state.extract as ExtractState | undefined, state.extractStop, live, now),
-    loadRun: (state.loadRun as LoadRunState | undefined) ?? null,
+    loadRun: withLiveness(state.loadRun as LoadRunState | undefined, live.load),
     lastDryRun: dry
       ? {
           at: dry.at,
@@ -204,9 +242,9 @@ export async function importView(
           issued: lastLoad.issued,
         }
       : null,
-    report: (state.lastReconciliation as ReconciliationReport | undefined) ?? null,
+    report: reportView(state.lastReconciliation as ReconciliationReport | undefined),
     lastSync: (state.lastSync as LastSync | undefined) ?? null,
-    cutoverRun: (state.cutoverRun as CutoverRunState | undefined) ?? null,
+    cutoverRun: withLiveness(state.cutoverRun as CutoverRunState | undefined, live.cutover),
     cutover: (state.cutover as CutoverState | undefined) ?? null,
     runs,
     live,

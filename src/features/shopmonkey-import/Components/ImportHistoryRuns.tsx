@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { History, Loader2, Undo2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppCard } from '@/components/app-card'
+import { handleGated } from '@/components/upgrade-gate'
 import { useConfirm } from '@/components/confirm-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -15,7 +16,8 @@ import { useWorkshopTime } from './useWorkshopTime'
 
 /**
  * fork (M8): the loads of this connection, newest first, each with an undo (M5: what that load created, and nothing
- * the workshop uses since). The sync's loads are listed too. No undo after cutover.
+ * the workshop uses since). The operator's loads, and the sync's newest few marked as the sync's (listed apart, so
+ * the sync never pushes the first load out). No undo after cutover, nor while a load or the cutover runs.
  */
 export function ImportHistoryRuns({
   view,
@@ -31,6 +33,8 @@ export function ImportHistoryRuns({
   const [busyId, setBusyId] = useState<string | null>(null)
   if (view.runs.length === 0) return null
   const cutOver = !!view.cutover
+  // Not under a load or the cutover (the action refuses too).
+  const busy = view.live.load || view.live.cutover
 
   const undo = async (runId: string, at: string, records: number) => {
     const ok = await confirm({
@@ -58,7 +62,7 @@ export function ImportHistoryRuns({
       toast.success(t('undone', { removed, kept }))
       router.refresh()
     } else {
-      toast.error(res.error || t('undoFailed'))
+      if (!handleGated(res)) toast.error(res.error || t('undoFailed'))
     }
     await onChanged()
   }
@@ -77,6 +81,11 @@ export function ImportHistoryRuns({
               <span className="ml-2 text-muted-foreground">
                 {t('records', { count: run.records })}
               </span>
+              {run.sync && (
+                <Badge variant="outline" className="ml-2 text-xs">
+                  {t('syncBadge')}
+                </Badge>
+              )}
               {run.undone && (
                 <Badge variant="secondary" className="ml-2 text-xs">
                   {t('undoneBadge')}
@@ -88,7 +97,7 @@ export function ImportHistoryRuns({
                 variant="outline"
                 size="sm"
                 className="h-8"
-                disabled={busyId !== null}
+                disabled={busyId !== null || busy}
                 onClick={() => undo(run.runId, run.at, run.records)}
               >
                 {busyId === run.runId ? (

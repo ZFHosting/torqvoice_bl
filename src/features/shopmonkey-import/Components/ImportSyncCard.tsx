@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { FlaskConical, Flag, Loader2, RefreshCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppCard } from '@/components/app-card'
+import { handleGated } from '@/components/upgrade-gate'
 import { useConfirm } from '@/components/confirm-dialog'
 import { CopyValue } from '@/components/copy-value'
 import { Badge } from '@/components/ui/badge'
@@ -61,7 +62,7 @@ export function ImportSyncCard({
     const res = await queueShopmonkeyCutover({ dryRun, shopStopped: true })
     setBusy(null)
     if (res.success) toast.success(dryRun ? t('dryQueued') : t('queued'))
-    else toast.error(res.error || t('failed'))
+    else if (!handleGated(res)) toast.error(res.error || t('failed'))
     await onChanged()
   }
 
@@ -126,7 +127,9 @@ export function ImportSyncCard({
                     : t('stoppedAt', { step: run.stoppedAt ?? 0 })
                   : run.status === 'refused'
                     ? t('refused', { message: run.message ?? '' })
-                    : t('failed')}
+                    : run.status === 'interrupted'
+                      ? t('interrupted')
+                      : t('failed')}
             </p>
             {run.steps && (
               <ol className="list-decimal space-y-0.5 pl-5">

@@ -441,9 +441,13 @@ differs from the workshop's, never applied: renaming the workshop is the operato
 - **Undo and converted quotes.** A quote converted into a work order an undo removes (that run's, or a later
   run's on that run's vehicle) is put back to `accepted` with no pointer, so the app can convert it; the next
   load converts it again while Shopmonkey has the order as a repair order.
-- **Guarded since M7/M8:** two loads of one connection at once (the load lock, §13; a dry run takes it too), and a
-  second load or cutover queued from the import screen while one is queued or running (refused; a copy of a running
-  job the queue starts again after ten minutes leaves it alone). Still so: a dry run holds one transaction for the
+- **Guarded since M7/M8:** two loads of one connection at once (the load lock, §13; a dry run from the import screen
+  takes it too, a CLI or cutover dry run doesn't), and a second load or cutover queued from the import screen while
+  one is queued or running (refused). A run from the screen renews its job's lock every minute, so the queue's
+  ten-minute stuck recovery never starts it again while it runs; a copy it does start (the worker crashed, so the run
+  stopped beating) marks the run failed instead of running it, and a run whose job is gone shows as interrupted.
+  The screen also refuses a load until an extract has finished, and an undo while a load or the cutover runs.
+  Still so: a dry run holds one transaction for the
   whole run (up to an hour), which can make the app wait on the same unique keys (customer numbers) meanwhile. Each
   committed record also wakes the workshop's open screens once (the realtime extension in `src/lib/db.ts`), so a
   large load is best run outside opening hours.

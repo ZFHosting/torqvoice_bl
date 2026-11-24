@@ -2,10 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useFormatter, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import { CheckCircle2, ClipboardCheck, Loader2, RefreshCw, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppCard } from '@/components/app-card'
+import { handleGated } from '@/components/upgrade-gate'
+import { useFormatCurrency } from '@/components/currency-settings-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -45,19 +47,19 @@ export function ImportReportCard({
   onChanged: () => Promise<void> | void
 }) {
   const t = useTranslations('shopmonkeyImport.report')
-  const format = useFormatter()
   const when = useWorkshopTime()
   const [running, setRunning] = useState(false)
   const report = view.report
-  const money = (cents: number) =>
-    format.number(cents / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  // In the workshop's currency (the import loads amounts as they are, in the workshop's own).
+  const currency = useFormatCurrency()
+  const money = (cents: number) => currency(cents / 100)
 
   const run = async () => {
     setRunning(true)
     const res = await reconcileShopmonkeyImport()
     setRunning(false)
     if (res.success && res.data) toast.success(res.data.passed ? t('passed') : t('notPassed'))
-    else toast.error(res.error || t('failed'))
+    else if (!handleGated(res)) toast.error(res.error || t('failed'))
     await onChanged()
   }
 

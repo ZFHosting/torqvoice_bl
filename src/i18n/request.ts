@@ -118,7 +118,7 @@ export default getRequestConfig(async () => {
       billing,
       reminders,
       audit,
-      shopmonkeyImport,
+      shopmonkeyImport, // fork
       aiChat,
       laborPresets,
       telegram,
