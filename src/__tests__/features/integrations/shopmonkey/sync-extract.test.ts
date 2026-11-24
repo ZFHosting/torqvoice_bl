@@ -106,6 +106,30 @@ describe('a delta of a large GET list', () => {
     expect([...h.memory.rows.values()].filter((r) => r.table === 'order')).toHaveLength(255)
   })
 
+  it('keeps reading newest first across pages when every record has its own date', async () => {
+    const h = harness({ extra: { order: 250 } })
+    // A minute apart, all on 1 January 2025: newest first, they never tie.
+    let minute = 0
+    for (const row of h.mock.data.order) {
+      if (String(row.id).includes('_gen_')) {
+        row.updatedDate = new Date(Date.UTC(2025, 0, 1) + minute++ * 60_000).toISOString()
+      }
+    }
+    const state = await h.run(
+      startState(null, {
+        runId: 'd5',
+        only,
+        sinceByTable: { order: '2024-12-01T00:00:00.000Z' },
+        now: NOW,
+      })
+    )
+    expect(
+      h.mock.calls.filter((c) => c.method === 'GET' && c.path === '/v3/order').map((c) => c.skip)
+    ).toEqual([0, 90, 180])
+    expect(state.steps.order.unordered).toBeUndefined()
+    expect(h.logs.some(([level]) => level === 'warn')).toBe(false)
+  })
+
   it('reads a backfill whole, in id order, whatever the table says', async () => {
     const h = harness({ extra: { order: 250 } })
     await h.run(startState(null, { runId: 'b1', only, now: NOW }))

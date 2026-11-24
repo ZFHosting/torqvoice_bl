@@ -637,8 +637,8 @@ it is listed again). The webhook covers both, so a workshop that relies on polli
 Shopmonkey deleted during the sync window.
 
 **When the sync loads**: only after the operator's first load (`state.lastLoad`), never while another extract runs,
-never after cutover. As the member who made the connection (while still a member), with the mapping saved on the
-import screen (M8). Every load holds the connection's load lock (a PostgreSQL session advisory lock on a connection of
+never after cutover. As the member who made the connection (while still a member), with the default status and
+technician mappings (the import screen, M8, saves the operator's for every load). Every load holds the connection's load lock (a PostgreSQL session advisory lock on a connection of
 its own): a second load is refused (`LoadBusy`), and the sync tries again a minute later (`sync.load`). While a
 connection that hears invoices is on (accounting), the sync stages but doesn't load (M5's guard), and says so in the
 log. The sync's loads are full loads (unchanged records skipped by their hash); one that wrote nothing records no
@@ -648,8 +648,8 @@ loads again (otherwise its next load would create what the undo removed).
 **Conflicts**: Shopmonkey wins until cutover. A row is edited in Torqvoice when its `updatedAt` is later than its
 link's `lastSyncedAt`. A load syncs the links of exactly the rows it wrote, at the end of the transaction that wrote them
 (the rows it touched in passing included: an appointment setting its work order's start, an inspection pointing its
-work order at it, an estimate converted), and the invoices it issued; so an edit made in Torqvoice, even while a load
-runs, stays an edit. A changed record overwriting an edited row warns `local_edit_overwritten` (in
+work order at it, an estimate converted, unless that row was edited in Torqvoice, which a write in passing doesn't
+overwrite), and the invoices it issued; so an edit made in Torqvoice, even while a load runs, stays an edit. A changed record overwriting an edited row warns `local_edit_overwritten` (in
 `state.lastLoad.warnings`).
 
 **Deletes** (after each sync load, `state.lastSync`):
@@ -658,7 +658,7 @@ runs, stays an edit. A changed record overwriting an edited row warns `local_edi
 | --- | --- |
 | A record only in the archive (never loaded, or left out) | Nothing; the archive keeps it, marked deleted. |
 | A loaded work order, quote or appointment, unchanged in Torqvoice since its last sync | Deleted, with its `DeletedRecord` tombstone (named after the member the sync loads as), its custom field values and files, and one `shopmonkey.sync_delete` audit event per run; its link and mapping go. A work order puts no stock back: its imported lines never took any (part counts come from Shopmonkey). |
-| The same, edited since: the row, or anything added to a work order (a payment, an attachment, time, a status report, equipment, a helper, a concern, a job) | Kept; listed (`keptDeletes`, reason `edited`). |
+| The same, edited since: the row (`updatedAt` past its link's sync), or anything the workshop added to a work order, told by kind and link, never by time: a status report or equipment, a payment that isn't Shopmonkey's, an attachment or time entry with no import link, a concern beside the complaint's, more jobs than Shopmonkey's services | Kept; listed (`keptDeletes`, reason `edited`). |
 | An invoice that is locked | Kept; listed (`locked`). |
 | Any other loaded record (customer, vehicle, part, technician, attachment) | Kept; listed (`policy`): removing it would take the history hanging off it (B16). |
 

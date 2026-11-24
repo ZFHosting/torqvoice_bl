@@ -10,6 +10,7 @@
  */
 import type { Prisma } from '@/generated/prisma/client'
 import { SOURCE } from '../extract/stage'
+import { editedSince } from './edits'
 
 export interface LoadScope {
   organizationId: string
@@ -28,9 +29,28 @@ export interface LoadScope {
   written?: { model: LocalModel; id: string }[]
 }
 
-/** M7: a row the unit of work wrote in passing, so its link is synced with the unit. */
+/** M7: a row the unit of work wrote, so its link is synced with the unit. */
 export function noteWritten(scope: LoadScope, model: LocalModel, id: string): void {
   scope.written?.push({ model, id })
+}
+
+/**
+ * M7: whether a row was edited in Torqvoice since its link's last sync, read before a write in passing (an appointment
+ * setting its work order's start): such a write doesn't overwrite the edit, so it mustn't sync the link either, or the
+ * edit would be forgotten.
+ */
+export async function editedBeforeWrite(
+  tx: Tx,
+  scope: LoadScope,
+  model: LocalModel,
+  id: string
+): Promise<boolean> {
+  const link = await tx.integrationLink.findFirst({
+    where: { connectionId: scope.connectionId, entityType: model, entityId: id },
+    select: { lastSyncedAt: true },
+  })
+  if (!link) return false
+  return editedSince(tx, model, id, scope.organizationId, link.lastSyncedAt)
 }
 
 /** M7: the links of the rows a unit wrote, synced as of now (its end). */
