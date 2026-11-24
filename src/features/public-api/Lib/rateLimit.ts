@@ -97,7 +97,11 @@ export function failedAuthRetryAfter(
   return blockedBy(window, now) && window ? retryAfter(window, now) : null
 }
 
-export function recordFailedAuth(address: string, prefix: string | null = null, now = Date.now()): void {
+export function recordFailedAuth(
+  address: string,
+  prefix: string | null = null,
+  now = Date.now()
+): void {
   tick(failures, addressKey(address), FAILED_AUTH_WINDOW_MS, now).count++
   if (prefix) tick(failures, pairKey(address, prefix), FAILED_AUTH_WINDOW_MS, now).count++
 }

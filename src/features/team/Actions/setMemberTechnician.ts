@@ -40,7 +40,10 @@ export async function setMemberTechnician(input: unknown) {
       })
       if (!member?.user) throw new Error('That person is not a member of this workshop.')
       // fork (A6): an API key's service user never works jobs, nor signs a phone in to the app
-      if (enabled && (await db.apiKey.findFirst({ where: { organizationId, serviceUserId: userId } })))
+      if (
+        enabled &&
+        (await db.apiKey.findFirst({ where: { organizationId, serviceUserId: userId } }))
+      )
         throw new Error('This is an API key, not a person.')
 
       const existing = await db.technician.findFirst({

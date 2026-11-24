@@ -598,7 +598,9 @@ export function TeamSettings({
                     for everybody else. Whichever one identifies them. */}
                 {/* fork (A6): a key's service user has a placeholder address, not a contact */}
                 {!member.apiKey && (
-                  <p className="truncate text-xs text-muted-foreground">{contactFor(member.user)}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {contactFor(member.user)}
+                  </p>
                 )}
               </div>
               <div className="flex items-center gap-2">

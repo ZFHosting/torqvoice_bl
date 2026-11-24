@@ -407,4 +407,3 @@ describe('a JSON body past the limit (A6, SECURITY-REVIEW.md item 7)', () => {
     expect(await db.customer.count({ where: { organizationId: A.org } })).toBe(before)
   })
 })
-

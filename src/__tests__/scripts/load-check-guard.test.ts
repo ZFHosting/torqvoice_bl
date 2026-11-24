@@ -19,7 +19,9 @@ describe('loadDatabaseRefusal', () => {
   })
 
   it('refuses a database on any other host, whatever its name', () => {
-    expect(loadDatabaseRefusal(url('db.example.com', 'torqvoice_fork_load'))).toMatch(/this machine/)
+    expect(loadDatabaseRefusal(url('db.example.com', 'torqvoice_fork_load'))).toMatch(
+      /this machine/
+    )
     expect(loadDatabaseRefusal(url('10.0.0.5', 'torqvoice_test'))).toMatch(/this machine/)
   })
 
