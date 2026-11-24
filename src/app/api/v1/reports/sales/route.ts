@@ -14,6 +14,9 @@ interface Totals {
   partsCost: number
   partsRevenue: number
   laborRevenue: number
+  fees: number
+  tax: number
+  discounts: number
 }
 
 const empty = (): Totals => ({
@@ -23,17 +26,23 @@ const empty = (): Totals => ({
   partsCost: 0,
   partsRevenue: 0,
   laborRevenue: 0,
+  fees: 0,
+  tax: 0,
+  discounts: 0,
 })
 
-const withProfit = (t: Totals) => ({
+// `laborRevenue` is labor without the shop fee lines, which are `fees`.
+const withProfit = ({ laborRevenue, ...t }: Totals) => ({
   ...t,
+  laborRevenue: laborRevenue - t.fees,
   outstanding: t.revenue - t.collected,
-  netProfit: t.partsRevenue - t.partsCost + t.laborRevenue,
+  netProfit: t.partsRevenue - t.partsCost + laborRevenue,
 })
 
 /**
  * fork (A5) `GET /api/v1/reports/sales?from=&to=&group=day|week|month&completedOnly=` (docs/fork/API.md §4): what the
- * work orders in the window came to, by period on the workshop's clock: the same records and figures as the reports
+ * work orders in the window came to (invoiced, collected, outstanding, tax, discounts, parts, labor, shop fees and the
+ * reports screen's profit), by period on the workshop's clock: the same records and figures as the reports
  * screen's revenue report (`features/reports/Lib/revenueRecords.server.ts`), so a month here is that screen's month.
  * Amounts are in the workshop's currency. Needs `read:reports`.
  */
@@ -59,6 +68,9 @@ export async function GET(request: Request) {
           into.partsCost += r.partsCost
           into.partsRevenue += r.partsRevenue
           into.laborRevenue += r.laborRevenue
+          into.fees += r.feeRevenue
+          into.tax += r.tax
+          into.discounts += r.discount
         }
         periods.set(key, t)
       }
