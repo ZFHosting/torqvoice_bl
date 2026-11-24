@@ -6,78 +6,29 @@ import { withAuth } from '@/lib/with-auth'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
 import { earnedLineTotal, netLineTotal, taxedNetAmountOf } from '@/lib/tax'
 import { TaxByRateTable } from '../Lib/taxByRate'
-import { zonedDate, zonedDayKey, zonedParts } from '@/lib/timezone'
-import { workshopDayRange, workshopMonthKey } from '@/lib/workshop-datetime'
+import { zonedDayKey, zonedParts } from '@/lib/timezone'
+import { workshopMonthKey } from '@/lib/workshop-datetime'
 import { isShopFeeLine } from '@/features/settings/Lib/shopFee'
 import { workshopTimeZone } from '@/lib/workshop-timezone'
 import { shareBilledHours } from '../Lib/sharedBilledHours'
+// fork (A5): the revenue report's records, the window and the status scope, shared with the public API's reports.
+import {
+  type ReportRange,
+  reportWindow,
+  revenueRecords,
+  statusScope,
+} from '../Lib/revenueRecords.server'
 
 /** Hours a labour line stands for. A shop fee line is one unit of a charge, not an hour. */
 const laborHours = (line: { hours: number; pricingType: string }) =>
   isShopFeeLine(line) ? 0 : line.hours
 
-/** The date range a report covers, and whether it counts finished work only. */
-interface ReportRange {
-  startDate?: string
-  endDate?: string
-  /** Only work orders marked completed; open ones are left out. */
-  completedOnly?: boolean
-}
-
-/**
- * Which work orders a report counts: every job in the window, or with the
- * switch on, only those marked completed. The stored status is one of the
- * four system values, whatever the workshop calls its own stages, so
- * `completed` is the same job for every workshop.
- */
-function statusScope(completedOnly?: boolean) {
-  return completedOnly ? { status: 'completed' } : {}
-}
-
-/**
- * The report window on the workshop's calendar. The picker sends bare
- * YYYY-MM-DD keys, so "to 31 Dec" must cover the whole of that day in the
- * workshop, and the default start is 1 January of the workshop's current
- * year, not the server's. `end` is exclusive: query with `lt`.
- */
-async function reportWindow(organizationId: string, params: ReportRange) {
-  const tz = await workshopTimeZone(organizationId)
-  const now = new Date()
-  const { gte, lt } = workshopDayRange(params.startDate, params.endDate, tz, {
-    start: zonedDate(zonedParts(now, tz).year, 1, 1, 0, 0, tz),
-    end: now,
-  })
-  return { tz, start: gte, end: lt }
-}
-
 export async function getRevenueReport(params: ReportRange) {
   return withAuth(
     async ({ organizationId }) => {
       const { tz, start, end } = await reportWindow(organizationId, params)
-
-      const records = await db.serviceRecord.findMany({
-        where: {
-          organizationId,
-          startDateTime: { gte: start, lt: end },
-          ...statusScope(params.completedOnly),
-        },
-        select: {
-          serviceDate: true,
-          startDateTime: true,
-          totalAmount: true,
-          cost: true,
-          type: true,
-          taxRate: true,
-          taxInclusive: true,
-          subtotal: true,
-          discountAmount: true,
-          manuallyPaid: true,
-          payments: { select: { amount: true } },
-          partItems: { select: { unitCost: true, quantity: true, total: true, taxable: true } },
-          laborItems: { select: { total: true, taxable: true } },
-        },
-        orderBy: [{ startDateTime: { sort: 'asc', nulls: 'last' } }, { serviceDate: 'asc' }],
-      })
+      // fork (A5): the query and each record's figures live in Lib, shared with the public API's sales report.
+      const records = await revenueRecords(organizationId, { start, end }, params.completedOnly)
 
       // Monthly breakdown.
       // `revenue` is the gross customer-facing total (what was charged).
@@ -106,19 +57,8 @@ export async function getRevenueReport(params: ReportRange) {
       const byType: Record<string, { revenue: number; count: number }> = {}
 
       for (const r of records) {
-        const total = r.totalAmount > 0 ? r.totalAmount : r.cost
-        const paid = r.manuallyPaid ? total : r.payments.reduce((s, p) => s + p.amount, 0)
-        const partsCost = r.partItems.reduce((s, p) => s + p.unitCost * p.quantity, 0)
-        const partsRevenue = r.partItems.reduce(
-          (s, p) => s + earnedLineTotal(p.total, r, p.taxable),
-          0
-        )
-        const laborRevenue = r.laborItems.reduce(
-          (s, l) => s + earnedLineTotal(l.total, r, l.taxable),
-          0
-        )
-        const _date = r.startDateTime ?? r.serviceDate
-        const month = workshopMonthKey(_date, tz)
+        const { total, paid, partsCost, partsRevenue, laborRevenue } = r
+        const month = workshopMonthKey(r.date, tz)
 
         if (!monthly[month])
           monthly[month] = {
