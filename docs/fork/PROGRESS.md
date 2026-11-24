@@ -80,9 +80,10 @@ ends `provisional` (B1). Plan:
    sync and cutover, loads with undo), polling while something runs; the "Synced from Shopmonkey" banner on imported
    work orders, customers and vehicles until cutover (moved here from M7). Strings in `messages/*/shopmonkeyImport.json`
    (English in every locale until translated).
-3. [ ] Typecheck, Biome, unit tests (`import-actions`, `import-view`, the extract stop) and the db test
-   (`shopmonkey-import-screen`).
-4. [ ] Playwright: `e2e/specs/shopmonkey/import.spec.ts` against `e2e/shopmonkey-standin.ts`, run with
+3. [x] Typecheck (exit 0), Biome (changed files clean; the connector page keeps upstream's lines, 8574d8ff), unit tests
+   (`import-actions` and `import-view`: 24; the Shopmonkey folder with the extract stop test; `registry` 3/3 alone) and
+   the db test (`shopmonkey-import-screen`: 3).
+4. [ ] (database `torqvoice_fork_e2e` migrated and seeded; build running) Playwright: `e2e/specs/shopmonkey/import.spec.ts` against `e2e/shopmonkey-standin.ts`, run with
    `scratchpad/e2e-m8.sh` (own database `torqvoice_fork_e2e` migrated with `migrate dev` and seeded, own server,
    `E2E_SKIP_SEED=1`: the suite's reset is `prisma migrate reset`, which an agent may not run without consent).
 5. [ ] MAPPING/brief notes, DoD, reviewer, merge.
