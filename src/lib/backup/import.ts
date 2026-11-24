@@ -66,6 +66,8 @@ import {
   RestoreRefusedError,
   sanitiseForeignIds,
 } from './tenancy'
+// fork (A5): restore markers and `restore.complete`
+import { announceRestore, recordReset } from '@/features/public-api/Lib/resets.server'
 
 /**
  * Putting a backup back into a workshop.
@@ -3157,6 +3159,8 @@ export async function restoreBackup(
   } finally {
     releaseRestoreLock(lock)
   }
+  // fork (A5): the restore marker API clients resync from (public-api/Lib/resets.server.ts)
+  await recordReset(ctx.organizationId, 'restore', ctx.userId)
 
   // The rows are committed by now. A failure here (a full disk, a folder
   // that cannot be written) leaves records from the backup beside files that
@@ -3171,6 +3175,7 @@ export async function restoreBackup(
       )
     }
   }
+  await announceRestore(ctx.organizationId, ctx.userId) // fork (A5): `restore.complete`
 
   return { redactedSettings }
 }

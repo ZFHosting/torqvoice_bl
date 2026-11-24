@@ -2251,7 +2251,8 @@
       "contacts": "Contatos de clientes",
       "appointments": "Agendamentos",
       "time": "Tempo e turnos",
-      "technicians": "Técnicos"
+      "technicians": "Técnicos",
+      "restores": "Restores"
     },
     "save": "Salvar",
     "cancel": "Cancelar",

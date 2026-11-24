@@ -2251,7 +2251,8 @@
       "contacts": "Kundenkontakte",
       "appointments": "Termine",
       "time": "Zeit und Schichten",
-      "technicians": "Mechaniker"
+      "technicians": "Mechaniker",
+      "restores": "Restores"
     },
     "save": "Speichern",
     "cancel": "Abbrechen",

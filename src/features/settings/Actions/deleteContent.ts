@@ -15,6 +15,7 @@ import {
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { demoGuard } from '@/lib/demo'
+import { recordReset } from '@/features/public-api/Lib/resets.server' // fork (A5)
 
 const deleteContentSchema = z.object({
   vehicles: z.boolean().default(false),
@@ -32,7 +33,7 @@ const deleteContentSchema = z.object({
 
 export async function deleteContent(input: unknown) {
   return withAuth(
-    async ({ organizationId, isAdmin }) => {
+    async ({ organizationId, userId, isAdmin }) => {
       demoGuard()
       // Wiping the workshop's records is an owner's or admin's call, whatever
       // permissions a custom role carries.
@@ -201,6 +202,8 @@ export async function deleteContent(input: unknown) {
       revalidatePath('/technicians')
       revalidatePath('/settings')
       revalidatePath('/settings/account')
+      // fork (A5): no tombstone per row; API clients resync in full (public-api/Lib/resets.server.ts)
+      await recordReset(organizationId, 'delete_content', userId)
 
       return { deleted }
     },

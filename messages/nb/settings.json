@@ -2251,7 +2251,8 @@
       "contacts": "Kundekontakter",
       "appointments": "Avtaler",
       "time": "Tid og skift",
-      "technicians": "Mekanikere"
+      "technicians": "Mekanikere",
+      "restores": "Restores"
     },
     "save": "Lagre",
     "cancel": "Avbryt",

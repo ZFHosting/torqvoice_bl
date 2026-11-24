@@ -2251,7 +2251,8 @@
       "contacts": "Customer contacts",
       "appointments": "Appointments",
       "time": "Time and shifts",
-      "technicians": "Technicians"
+      "technicians": "Technicians",
+      "restores": "Restores"
     },
     "save": "Save",
     "cancel": "Cancel",

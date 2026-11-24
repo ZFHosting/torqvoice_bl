@@ -2251,7 +2251,8 @@
       "contacts": "Контакты клиентов",
       "appointments": "Записи",
       "time": "Время и смены",
-      "technicians": "Механики"
+      "technicians": "Механики",
+      "restores": "Restores"
     },
     "save": "Сохранить",
     "cancel": "Отмена",

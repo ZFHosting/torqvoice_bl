@@ -2251,7 +2251,8 @@
       "contacts": "Müşteri iletişim bilgileri",
       "appointments": "Randevular",
       "time": "Zaman ve vardiyalar",
-      "technicians": "Teknisyenler"
+      "technicians": "Teknisyenler",
+      "restores": "Restores"
     },
     "save": "Kaydet",
     "cancel": "İptal",

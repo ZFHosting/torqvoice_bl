@@ -69,6 +69,8 @@ export const WEBHOOK_EVENTS = [
   'contact.create',
   'contact.update',
   'contact.delete',
+  // A restore replaced the workshop's records: resync in full (`GET /api/v1/deleted` has its marker).
+  'restore.complete',
 ] as const
 
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number] | '*'
@@ -153,4 +155,5 @@ export const WEBHOOK_EVENT_GROUPS: Array<{ key: string; events: readonly Webhook
     key: 'technicians',
     events: ['technician.create', 'technician.update', 'technician.delete'],
   },
+  { key: 'restores', events: ['restore.complete'] },
 ]

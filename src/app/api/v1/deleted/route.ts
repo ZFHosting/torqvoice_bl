@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { publicApiOk } from '@/features/public-api/Lib/errors'
 import { DEFAULT_LIMIT, decodeCursor, encodeCursor, MAX_LIMIT } from '@/features/public-api/Lib/pagination'
 import { queryObject } from '@/features/public-api/Lib/readResource'
+import { MARKER_TYPES } from '@/features/public-api/Lib/resets.server'
 import { withPublicApi } from '@/features/public-api/Lib/withPublicApi'
 import { db } from '@/lib/db'
 import { hasPermission, PermissionAction, PermissionSubject } from '@/lib/permissions'
@@ -53,10 +54,11 @@ export async function GET(request: Request) {
       hasPermission(permissions, read(READ_TO_SEE[type] ?? PermissionSubject.SETTINGS))
     const types = Object.keys(READ_TO_SEE).filter(may)
     const settings = may('__settings__')
-    // The kinds this key may see: those listed it may read, and every other kind with `read:settings`.
+    // The kinds this key may see: those listed it may read, and every other kind with `read:settings`. The restore
+    // and reset markers name no record: every key sees them, so every client knows to resync.
     const visible = settings
       ? { NOT: { entityType: { in: Object.keys(READ_TO_SEE).filter((t) => !may(t)) } } }
-      : { entityType: { in: types } }
+      : { entityType: { in: [...types, ...MARKER_TYPES] } }
     const and: Record<string, unknown>[] = [{ organizationId }, visible]
     if (query.entityType) and.push({ entityType: query.entityType })
     if (query.since) and.push({ deletedAt: { gte: new Date(query.since) } })

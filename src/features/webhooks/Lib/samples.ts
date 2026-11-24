@@ -53,6 +53,12 @@ export const SAMPLE_PAYLOADS: SamplePayload[] = [
     data: { id: 'job_5Tq1', name: 'Front brakes', authorizationStatus: 'approved', totalAmount: 4200 },
   },
   {
+    event: 'restore.complete',
+    description:
+      'A backup was restored: the workshop\'s records were replaced. Fetch everything again; GET /api/v1/deleted has a restore marker.',
+    data: { restoredAt: '2026-05-04T09:30:00.000Z' },
+  },
+  {
     event: 'contact.create',
     description: 'A phone number or email was added to a customer.',
     data: { id: 'con_9Hw2', kind: 'phone', value: '+4791234567', isPrimary: false },
