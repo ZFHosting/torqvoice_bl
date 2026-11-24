@@ -92,8 +92,10 @@ ends `provisional` (B1). Plan:
    descope unrecorded; re-run DoD and e2e), fixed in a6880c30 with most should-fixes (Decisions log, M8 rows; the rest
    moved to M9 in the carry-over notes); the spec passed at a6880c30 (3/3). Pass 3 (a6880c30): needs changes (3
    must-fix: DoD at the final HEAD plus a db test of the history SQL; the mapping cache; the portal can be checked in
-   the spec), fixed in 5c3e5a4e with should-fixes 1-6. Now: rebuild, spec at 5c3e5a4e (with the portal step),
-   reviewer pass 4 (running), then the full DoD (tsc, unit suite, test:db, Biome LF), merge.
+   the spec), fixed in 5c3e5a4e with should-fixes 1-6; the portal step needed the confirm button (10fce8e3), then the
+   spec passed 3/3 and `tsc` exited 0 at 10fce8e3. Pass 4 (5c3e5a4e): needs changes (1 must-fix: the DoD at the final
+   HEAD), should-fixes 1-9 fixed in edda89d8 (unit 42, db `shopmonkey-import-screen` 13 pass). Now: rebuild and spec
+   at edda89d8, reviewer pass 5 (running), full DoD (tsc, unit suite, test:db, Biome LF), merge.
 Reviewer pass 1 (8574d8ff): needs changes (2 must-fix), fixed in eea4f0f4; the first e2e attempt's `server-only` fix in
 a46fda71.
 

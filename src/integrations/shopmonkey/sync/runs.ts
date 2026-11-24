@@ -174,7 +174,7 @@ function refusal(err: unknown): string | null {
 }
 
 export function createRunJobs(deps: { depsFor(ctx: ConnectorContext): ExtractDeps }) {
-  /** `load.run`: `{ dryRun, userId }`. */
+  /** `load.run`: `{ dryRun, userId, token }`; the token names the run (the action's). */
   async function load(
     ctx: ConnectorContext,
     payload: Record<string, unknown>
@@ -254,7 +254,9 @@ export function createRunJobs(deps: { depsFor(ctx: ConnectorContext): ExtractDep
     }
   }
 
-  /** `cutover.run`: `{ dryRun, userId }`. The screen's confirmation is the operator's word that the shop stopped. */
+  /**
+   * `cutover.run`: `{ dryRun, userId, token }`. The screen's confirmation is the operator's word that the shop stopped.
+   */
   async function cutover(
     ctx: ConnectorContext,
     payload: Record<string, unknown>

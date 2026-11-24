@@ -4,8 +4,9 @@
  * an import rewrites the workshop's history, and a cutover ends the sync for good. What runs the connector (reading
  * Shopmonkey, or a job the queue would refuse on the plan: extract, resume, load, cutover) also needs a plan with it
  * (`plan: true`), refused as `gated` for the screen to offer the upgrade rather than queued for the job to fail. What
- * doesn't (the mapping, the reconciliation, stopping an extract, undoing a load) stays open on any plan, so a workshop
- * that downgraded can still take an import back out.
+ * doesn't (the mapping, the reconciliation, stopping an extract, undoing a load) stays open as an action on any plan;
+ * the connector's settings page itself is locked on such a plan, so the way out there is the CLI's undo (Decisions
+ * log, 2026-11-23, M8 plan gate).
  */
 import { connectorAllowed } from '@/features/integrations/Lib/plan'
 import { getManifest } from '@/integrations/registry'

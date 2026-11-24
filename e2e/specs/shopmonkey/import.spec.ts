@@ -26,17 +26,22 @@ const toast = (page: Page, text: string | RegExp) =>
 let portalWasOpen: boolean | undefined
 
 test.afterAll(async ({ browser }) => {
-  // The portal as it was found, from a page of its own: the test's may be gone after a timeout.
-  if (portalWasOpen !== undefined) {
-    const owner = await browser.newPage({ storageState: 'e2e/.auth/owner.json' })
-    await setPortal(owner, portalWasOpen).finally(() => owner.close())
-  }
-  // Whether or not the test got to its own undo: the loads undone, the archive gone, then the connection, even when
-  // the clean-up fails.
+  // The portal's switch (up to a minute) and the clean-up script (up to three) take longer than a hook's default.
+  test.setTimeout(300_000)
   try {
-    cleanUpShopmonkey()
+    // The portal as it was found, from a page of its own: the test's may be gone after a timeout.
+    if (portalWasOpen !== undefined) {
+      const owner = await browser.newPage({ storageState: 'e2e/.auth/owner.json' })
+      await setPortal(owner, portalWasOpen).finally(() => owner.close())
+    }
   } finally {
-    await forgetConnections(['shopmonkey'])
+    // Whether or not the test got to its own undo, or the portal could be put back: the loads undone, the archive
+    // gone, then the connection, even when the clean-up fails.
+    try {
+      cleanUpShopmonkey()
+    } finally {
+      await forgetConnections(['shopmonkey'])
+    }
   }
 })
 

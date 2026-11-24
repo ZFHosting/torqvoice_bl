@@ -46,6 +46,15 @@ export async function portalAs(
     .browser()
     ?.newPage({ storageState: { cookies: [], origins: [] } })
   if (!portal) throw new Error('no browser to open the portal with')
+  try {
+    return await signIn(portal, link)
+  } catch (err) {
+    await portal.close()
+    throw err
+  }
+}
+
+async function signIn(portal: Page, link: string): Promise<{ portal: Page; base: string }> {
   // The link only checks itself and leads to a page with a button (a mail scanner opening it signs nobody in); the
   // button signs the customer in.
   await portal.goto(link)

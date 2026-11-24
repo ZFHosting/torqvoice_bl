@@ -68,3 +68,6 @@ next-env.d.ts
 /playwright-report
 /blob-report
 /playwright/.cache
+
+# fork: the Shopmonkey extract's staged files (a shop's own documents)
+/data/shopmonkey-staging/

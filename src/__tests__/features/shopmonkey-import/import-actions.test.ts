@@ -5,7 +5,8 @@
  * `forbidden`, whatever their role's permissions; reads need the settings read permission and everything else the
  * settings update permission; the connection is always the caller's own workshop's. A load waits for a finished
  * extract, and an undo for the load or cutover under way. On a plan without integrations, what runs the connector
- * (extract, resume, load, cutover) is refused as `gated`; the screen can still be read, and an import taken back out.
+ * (extract, resume, load, cutover) is refused as `gated`; the rest stay open as actions (the page itself is locked on
+ * such a plan: Decisions log, M8 plan gate).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

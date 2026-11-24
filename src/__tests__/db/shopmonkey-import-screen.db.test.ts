@@ -381,7 +381,7 @@ describe('the import screen', () => {
     }
   })
 
-  it('takes a run whose beat is three heartbeats old, or that never beat, for crashed', async () => {
+  it('takes a run whose beat is older than three heartbeats, or that never beat, for crashed', async () => {
     const { mergeState } = await import('@/integrations/shopmonkey/load/outcome')
     const { copyOf } = await import('@/integrations/shopmonkey/sync/runs')
     const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString()
@@ -435,6 +435,7 @@ describe('the import screen', () => {
 
   it('runs no load or cutover job that names no run', async () => {
     const before = (await state()).loadRun
+    const cutoverBefore = (await state()).cutoverRun
     expect(await runs['load.run'](await ctx(), { dryRun: true, userId: shop.userId })).toEqual({
       summary: 'Load not run: the job names no run',
     })
@@ -442,6 +443,7 @@ describe('the import screen', () => {
       summary: 'Cutover not run: the job names no run',
     })
     expect((await state()).loadRun).toEqual(before)
+    expect((await state()).cutoverRun).toEqual(cutoverBefore)
   })
 
   it('refuses a load from the screen until an extract has finished', async () => {
