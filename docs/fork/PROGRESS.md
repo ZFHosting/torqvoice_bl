@@ -91,7 +91,11 @@ Plan (steps 1-7 built; commits 11d20515, f130e7b5, baf3d8b9, cbc6723f):
    `docs/fork/CUTOVER.md`.
 7. [x] Tests: `shopmonkey-delta.db.test.ts` (12), `shopmonkey-cutover.db.test.ts` (4), `sync-extract.test.ts` (10),
    `sync-cli.test.ts` (3). Also: the upstream schedule writer now sets only `state.scheduleRuns` (`// fork:`).
-Next: the definition of done, the reviewer, merge.
+Reviewer pass 1 (on 291780fc): needs changes (4 must-fix, 10 should-fix); all fixed in 3452c921 (Decisions log, "M7
+review, pass 1"). Shopmonkey db tests 14 files / 69 tests and `tsc` pass at 3452c921. Now: reviewer pass 2 and the full
+DoD (unit suite in chunks, then `test:db`) at 3452c921, then merge.
+M8 has started early in the LF worktree (`scratchpad/lf2`, branch `fork/M8-import-ui` from M7's head, M7's fixes merged
+in): actions, panels, banner, e2e stand-in and spec, untested; it gets `fork/integration` merged in once M7 lands.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
