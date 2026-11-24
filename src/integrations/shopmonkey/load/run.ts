@@ -59,7 +59,10 @@ export interface LoadOptions {
   timeZone?: string
   /** For phone numbers without one: the workshop's default country unless given, else US (Shopmonkey's market). */
   countryCode?: string
-  /** The operator's stage per workflow status (M8); the rest take the default (RESULTS S9). */
+  /**
+   * The operator's stage per workflow status; the rest take the default (RESULTS S9). Unless given, the mapping saved
+   * on the connection's import screen (M8, `state.mapping`), so every load (CLI, screen, sync) loads the same way.
+   */
   statusStageMap?: Record<string, Stage>
   technicianMap?: Record<string, string | 'create'>
   now?: Date
@@ -88,6 +91,17 @@ export interface LoadSummary {
 }
 
 class DryRunDone extends Error {}
+
+/** The mapping the operator saved on the import screen (M8): `state.mapping`. */
+export interface SavedMapping {
+  statusStageMap?: Record<string, Stage>
+  technicianMap?: Record<string, string | 'create'>
+}
+
+export function savedMapping(state: unknown): SavedMapping {
+  const mapping = (state as { mapping?: SavedMapping } | null)?.mapping
+  return mapping && typeof mapping === 'object' ? mapping : {}
+}
 
 async function stages(lc: LoadContext): Promise<{ mileageUnit: string | null }> {
   await openBatches(lc)
@@ -156,6 +170,7 @@ async function loadUnlocked(options: LoadOptions): Promise<LoadSummary> {
   })
   const statusStageMap: Record<string, Stage> = {
     ...Object.fromEntries(defaultStages(statuses.map((s) => s.payload as Record<string, unknown>))),
+    ...(savedMapping(connection.state).statusStageMap ?? {}),
     ...(options.statusStageMap ?? {}),
   }
   const country = await db.appSetting.findFirst({
@@ -190,7 +205,7 @@ async function loadUnlocked(options: LoadOptions): Promise<LoadSummary> {
       .historyFrom,
     countryCode: options.countryCode ?? (country?.value || 'US'),
     statusStageMap,
-    technicianMap: options.technicianMap,
+    technicianMap: options.technicianMap ?? savedMapping(connection.state).technicianMap,
     now: options.now,
     label: await importLabeler(scope.organizationId),
   })
@@ -258,6 +273,7 @@ async function loadUnlocked(options: LoadOptions): Promise<LoadSummary> {
         issued: issue.issued,
         issueFailed: issue.failed,
         applied,
+        sync: options.quiet === true,
       })
     await saveLastLoad(scope, lc, {
       runId: scope.runId,

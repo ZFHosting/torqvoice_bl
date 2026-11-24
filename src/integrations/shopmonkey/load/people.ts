@@ -22,7 +22,10 @@ export interface StagedRecord {
 }
 
 /** A table's staged records, a page at a time, in id order. Records Shopmonkey reports deleted are left out. */
-export async function* staged(lc: LoadContext, table: string): AsyncGenerator<StagedRecord> {
+export async function* staged(
+  lc: Pick<LoadContext, 'scope'>,
+  table: string
+): AsyncGenerator<StagedRecord> {
   let cursor: string | undefined
   for (;;) {
     const page = await db.sourceRecord.findMany({
@@ -115,7 +118,7 @@ export async function writeCustomFields(
 }
 
 /** The Shopmonkey users the history names: on labor lines, as assigned technicians, on timesheets, as inspectors. */
-export async function referencedUsers(lc: LoadContext): Promise<Set<string>> {
+export async function referencedUsers(lc: Pick<LoadContext, 'scope'>): Promise<Set<string>> {
   const ids = new Set<string>()
   const add = (v: unknown) => {
     if (typeof v === 'string' && v) ids.add(v)

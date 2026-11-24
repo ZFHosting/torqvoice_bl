@@ -88,6 +88,8 @@ export async function recordLoad(
     issueFailed: number
     /** The setting keys the run applied from its proposals. */
     applied: string[]
+    /** M8: a sync's load, which the import screen lists apart from the operator's. */
+    sync?: boolean
   }
 ): Promise<void> {
   await logAudit(
@@ -103,6 +105,7 @@ export async function recordLoad(
         issued: summary.issued,
         issueFailed: summary.issueFailed,
         applied: summary.applied,
+        ...(summary.sync ? { sync: true } : {}),
       },
     }
   )

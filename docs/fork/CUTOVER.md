@@ -8,8 +8,11 @@ the workshop's system and nothing is read from Shopmonkey again.
 Every command below runs on the server that hosts the workshop, against its own database:
 
 ```bash
-npx tsx --conditions=react-server scripts/shopmonkey/run.ts <command> --connection <connection id> ...
+npx tsx --import ./scripts/shopmonkey/register.mjs scripts/shopmonkey/run.ts <command> --connection <connection id> ...
 ```
+
+It needs Node 22.15 or later (the repo pins 22.23.4); an older Node stops with a message saying so. Each command
+ends its own process when it's done, once it has told any open import screen what changed.
 
 Nothing here ever writes to Shopmonkey: the client refuses anything but reads.
 

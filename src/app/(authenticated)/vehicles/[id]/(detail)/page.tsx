@@ -1,4 +1,6 @@
 import { resolveCurrencyCode } from '@/lib/currencies'
+import { ShopmonkeySyncBanner } from '@/features/shopmonkey-import/Components/ShopmonkeySyncBanner'
+import { shopmonkeySyncNotice } from '@/features/shopmonkey-import/Lib/syncNotice.server'
 import { activeMeterTypes, vehicleMeterViews } from '@/features/meters/Lib/meters.server'
 import { vehicleEquipmentView } from '@/features/equipment/Lib/equipment.server'
 import { workshopTimeZone } from '@/lib/workshop-timezone'
@@ -282,6 +284,9 @@ export default async function VehicleDetailPage({
     today,
   }
 
+  // fork: imported from Shopmonkey and still synced from it (M7/M8).
+  const syncNotice = orgId ? await shopmonkeySyncNotice(orgId, 'Vehicle', result.data.id) : null
+
   return (
     <>
       <PageHeader />
@@ -289,6 +294,7 @@ export default async function VehicleDetailPage({
           once nobody is left on it. */}
       <VehiclePageViewed vehicleId={result.data.id} layout={layout} chosen={layoutChosen} />
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        {syncNotice && <ShopmonkeySyncBanner lastSyncAt={syncNotice.lastSyncAt} />}
         {classic ? (
           <>
             <TryNewVehiclePageBanner />

@@ -223,6 +223,13 @@ describe('a webhook delivery', () => {
     })
     expect(record.title).toBe('Changed in Shopmonkey during the sync')
     expect((await state()).lastSync).toMatchObject({ deleted: 0, keptDeleteCount: 0 })
+    // M8: the sync's load is marked as the sync's, so the import screen lists it apart from the operator's.
+    const audit = await db.auditLog.findFirstOrThrow({
+      where: { organizationId: shop.organizationId, action: 'shopmonkey.import' },
+      orderBy: { timestamp: 'desc' },
+      select: { metadata: true },
+    })
+    expect(audit.metadata).toMatchObject({ sync: true })
   })
 
   it('loads once for a burst: the last refetch waiting loads what the others staged', async () => {

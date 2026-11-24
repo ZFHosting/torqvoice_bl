@@ -43,7 +43,8 @@ resumably, and without fetching the same unchanged record twice.
    templates → inspections → timesheets → archive-only tables (messages among them). Each table only starts
    when the one before it has finished. *(Corrected in M3: the brief put workflow statuses last.)*
 7. CLI `scripts/shopmonkey/run.ts extract --connection <id> [--tables a,b] [--since ISO] [--restart]`,
-   run with `npx tsx --conditions=react-server` (the app's server-only modules). It drives the same
+   run with `npx tsx --import ./scripts/shopmonkey/register.mjs` (the app's server-only modules; M8 found
+   `--conditions=react-server` never loaded them, Decisions log). It drives the same
    `extractStep` in-process, carries on an unfinished run, and prints progress (table, done/total from
    `meta.total`, calls per minute, estimated time left).
 8. *(Optional, if the shop has EDS)* `extract/eds.ts` reads EDS's Postgres tables and calls `stageRecord`.
