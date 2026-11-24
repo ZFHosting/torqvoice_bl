@@ -31,7 +31,7 @@ resolved.
 | A3 | done | fork/A3-read-endpoints | Merged c7770ecc. Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (A3 done). |
 | A4 | done | fork/A4-write-endpoints | Merged c28b98d4. Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (A4 done). |
 | M6 | provisional | fork/M6-reconcile | Merged fae66342. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M6 provisional). |
-| M7 | todo | | |
+| M7 | in_progress | fork/M7-delta-and-cutover | |
 | M8 | todo | | |
 | A5 | todo | | |
 | A6 | todo | | |
@@ -69,11 +69,31 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**Next: M7 (delta sync and cutover)**, from `fork/integration` after M6's merge. Its plan goes here when it
-starts. Notes gathered while M6 ran (read-only): the generic webhook route queues without an idempotency key, and
-the queue clears a key once a job is claimed, so a replay after the claim needs a store of delivered ids of its
-own; Xero's `webhook.receive` enqueues its own jobs, the pattern to follow; a refetch of one record shouldn't
-re-run the whole load (a scope of table and ids for `runLoad`).
+**M7 (delta sync and cutover), in progress** on `fork/M7-delta-and-cutover` (from `fork/integration` at b4d8a9d7; the
+upstream merge still conflicts, B15). Built on M6 (provisional) and the mock server, so it ends `provisional` (B1).
+Plan:
+1. [ ] `src/integrations/shopmonkey/webhook.ts`: Standard Webhooks verification (`webhook-id`, `webhook-timestamp`,
+   `webhook-signature` `v1,<base64>` space-separated; HMAC-SHA256 over `id.timestamp.body` with the `whsec_` secret;
+   constant-time; 5-minute tolerance) with unit tests for valid, tampered body, wrong secret, old timestamp, rotated
+   secret. The secret is a connection credential (`webhookSecret`).
+2. [ ] `receive`: dedupe on `webhook-id` in a table of delivered ids (`WebhookDelivery`, migration
+   `fork_webhook_deliveries`: the queue clears `idempotencyKey` when a job is claimed, so it can't remember a delivery);
+   queue a `refetch` job per `(table, id)` (coalesced by `idempotencyKey` while queued); answer 200 at once. Never
+   trusts the payload.
+3. [ ] `refetch` job: GET the record (and an order's children and refs) from Shopmonkey, stage it, then queue a
+   debounced `sync.load` (one load for a burst of changes). `DELETE`: `remoteDeletedAt`, then the delete policy (an
+   archive-only record: nothing; a loaded record untouched since its last sync: deleted, with its tombstone; touched:
+   kept and listed in `state.lastSync.keptDeletes` for the report).
+4. [ ] Polling backstop: a manifest schedule (every 10 minutes) runs `sync.delta`: a delta extract with each table's
+   watermark − 5 minutes, then `sync.load`. Skipped while an extract runs.
+5. [ ] Conflict policy: a load overwriting a Torqvoice edit to an imported row (row changed since its link's last
+   sync) warns `local_edit_overwritten`. The banner on imported records moves to M8 (UI).
+6. [ ] `cutover`: `scripts/shopmonkey/run.ts cutover --connection <id> --shop-stopped [--dry-run]`, steps 1-7 of the
+   brief (final delta, reconcile and stop on a failing gate, numbering, `state.cutover`, schedule and webhook off,
+   the reminder); `docs/fork/CUTOVER.md`.
+7. [ ] Tests (db): a replayed delivery queues nothing; a changed fixture order delivered by webhook is updated by the
+   refetch and the load it queues; polling catches a change without a webhook; a cutover dry run goes through every
+   step, and a forced money mismatch stops it at step 3. MAPPING, brief, DoD, reviewer, merge.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
