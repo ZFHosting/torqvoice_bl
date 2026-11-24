@@ -12,7 +12,7 @@ const querySchema = pageQuerySchema.extend({
   /** A Shopmonkey table name as staged: `order`, `customer`, `order_file`, … */
   table: z.string().regex(/^[a-z_]{1,64}$/).optional(),
   remoteId: z.string().min(1).max(200).optional(),
-})
+}).strict()
 
 /**
  * fork (A5) `GET /api/v1/source-records?table=&remoteId=&updatedSince=` (docs/fork/API.md §4, X1): every Shopmonkey

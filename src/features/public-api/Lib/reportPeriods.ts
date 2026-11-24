@@ -12,15 +12,18 @@ export type ReportGroup = (typeof REPORT_GROUPS)[number]
 const dayKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'A date as YYYY-MM-DD')
 
 /** A report's query: the window as workshop dates (both days included), how to group, finished work only. */
-export const reportQuerySchema = z.object({
-  from: dayKey.optional(),
-  to: dayKey.optional(),
-  group: z.enum(REPORT_GROUPS).default('month'),
-  completedOnly: z
-    .enum(['true', 'false'])
-    .optional()
-    .transform((v) => v === 'true'),
-})
+export const reportQuerySchema = z
+  .object({
+    from: dayKey.optional(),
+    to: dayKey.optional(),
+    group: z.enum(REPORT_GROUPS).default('month'),
+    completedOnly: z
+      .enum(['true', 'false'])
+      .optional()
+      .transform((v) => v === 'true'),
+  })
+  // An unknown parameter is a 400, as on every list: a misspelt filter silently ignored would answer the wrong thing.
+  .strict()
 
 export function periodKey(date: Date, timeZone: string, group: ReportGroup): string {
   if (group === 'month') return workshopMonthKey(date, timeZone)

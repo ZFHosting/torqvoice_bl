@@ -38,7 +38,7 @@ const querySchema = z.object({
   entityType: z.string().regex(/^[a-z_]{1,40}$/).optional(),
   limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT),
   cursor: z.string().min(1).max(512).optional(),
-})
+}).strict()
 
 /**
  * fork (A5) `GET /api/v1/deleted?since=&entityType=&cursor=&limit=` (docs/fork/API.md §4): the tombstones a delete
