@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { WEBHOOK_EVENTS } from '../Schema/webhookSchema'
 import { deliverOnce } from './deliver'
 import { getFeatures } from '@/lib/features'
+import { forkData, forkRename } from '@/features/public-api/Lib/eventHook' // fork (A5)
 
 const KNOWN = new Set<string>([...WEBHOOK_EVENTS, '*'])
 
@@ -24,17 +25,16 @@ export type DispatchInput = {
  * No-op for unknown events so we don't generate deliveries for noise like
  * `auth.permissionDenied` or future audit-only actions.
  */
+// fork: `original` (the audit event as logged) and `input` (as sent), for the fork's renamed events.
 export async function dispatchWebhookEvent(original: DispatchInput): Promise<void> {
   let input = original
   if (!input.event || !input.organizationId) return
   // A downgrade turns the endpoints off, not just the settings page.
   const features = await getFeatures(input.organizationId)
   if (!features.api) return
-  // fork: the public API's events (docs/fork/API.md §5) go out under the API's names, with the API's resource.
-  const fork = await import('@/features/public-api/Lib/eventData.server').then((m) =>
-    m.forkEvent(input)
-  )
-  if (fork) input = { ...input, event: fork.event, data: fork.data }
+  // fork: the public API's events (docs/fork/API.md §5) go out under the API's names (the resource is read below).
+  const fork = forkRename(input)
+  if (fork) input = fork
   if (!KNOWN.has(input.event)) return
 
   let webhooks: { id: string; events: string }[] = []
@@ -59,6 +59,8 @@ export async function dispatchWebhookEvent(original: DispatchInput): Promise<voi
     return subscribed.includes('*') || subscribed.includes(input.event)
   })
   if (matching.length === 0) return
+  // fork: the API's resource, read only now that someone subscribes
+  if (fork) input = { ...input, data: await forkData(input, original) }
 
   const payload = JSON.stringify({
     id: cryptoRandomId(),

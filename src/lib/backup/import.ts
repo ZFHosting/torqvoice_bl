@@ -3165,10 +3165,13 @@ export async function restoreBackup(
   // The rows are committed by now. A failure here (a full disk, a folder
   // that cannot be written) leaves records from the backup beside files that
   // are only partly from it, and the message has to say so.
+  // fork (A5): restore.complete once the files were tried, even when copying them failed: the records are replaced
+  // either way, and an API client has to resync them.
   if (files) {
     try {
       await restoreFiles(files, ctx.organizationId)
     } catch (err) {
+      await announceRestore(ctx.organizationId, ctx.userId)
       const reason = err instanceof Error ? err.message : String(err)
       throw new Error(
         `The records were put back, but copying the files failed: ${reason}. The workshop's records are now from the backup while its files are only partly from it; fix the cause and restore again.`

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
 import { apiError, apiOk, withApiAuth } from '@/lib/with-api-auth'
 import { startEntry, TimeEntryError } from '@/features/time-tracking/Lib/timeEntries'
+import { logClockStart } from '@/features/fork-records/Lib/clockEvents.server' // fork (A5)
 
 const bodySchema = z.object({
   serviceRecordId: z.string().min(1),
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
           serviceRecordId,
           source: 'app',
         })
+        await logClockStart(ctx, result) // fork (A5): the clock's webhook events
 
         return apiOk({
           entry: {

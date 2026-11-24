@@ -53,6 +53,7 @@ import {
   updateTimeEntrySchema,
 } from '../Schema/schedule'
 import { answerWith, deleted, withId } from './common'
+import { logClockStop } from '@/features/fork-records/Lib/clockEvents.server'
 
 /* ---------- appointments ---------- */
 
@@ -217,6 +218,8 @@ export const startTimeEntryPOST = writeRoute('POST', {
       serviceRecordId: workOrderId,
       source: 'api',
     })
+    // A5: the clock this start closed sends its stop (the start itself is logged below).
+    if (started.closed) await logClockStop(svc, started.closed.id)
     return {
       id: started.entry.id,
       technicianId,

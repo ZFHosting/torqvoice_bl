@@ -450,6 +450,16 @@
     "shopmonkey_import_undo": "Shopmonkey-import ongedaan gemaakt: {records} records verwijderd",
     "shopmonkey_cutover": "Overgestapt van Shopmonkey: Torqvoice volgt het niet meer",
     "shopmonkey_sync_delete": "{records} records verwijderd die in Shopmonkey zijn verwijderd (synchronisatieperiode)",
-    "platform_revokeSuperAdmin": "Superbeheerder ingetrokken voor {name} ({email})"
+    "platform_revokeSuperAdmin": "Superbeheerder ingetrokken voor {name} ({email})",
+    "contact_create": "Added a customer contact",
+    "contact_update": "Changed a customer contact",
+    "contact_delete": "Removed a customer contact",
+    "job_create": "Added a job",
+    "job_update": "Changed a job",
+    "job_delete": "Removed a job",
+    "shift_create": "Recorded a shift",
+    "shift_update": "Changed a shift",
+    "shift_delete": "Removed a shift",
+    "time_entry_start": "Started a clock on a job"
   }
 }

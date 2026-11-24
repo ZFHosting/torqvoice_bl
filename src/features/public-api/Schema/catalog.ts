@@ -3,6 +3,7 @@
  * (`?q=` over name, part number and barcode, `?category=`) (docs/fork/API.md §4).
  */
 import { z } from 'zod'
+import { sourceSchema } from './common'
 import {
   createInventoryPartSchema,
   updateInventoryPartSchema,
@@ -51,6 +52,8 @@ export const laborPresetSchema = z
     parts: z.array(laborPresetPartSchema),
     createdAt: z.string(),
     updatedAt: z.string(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'LaborPreset' })
 
@@ -75,6 +78,8 @@ export const inventoryPartSchema = z
     isArchived: z.boolean(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'InventoryPart' })
 

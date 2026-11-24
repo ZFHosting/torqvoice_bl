@@ -4,7 +4,6 @@
  * the route handlers (Lib/readResource.ts) are made from the same declaration.
  */
 import { z } from 'zod'
-import { sourceSchema } from '../Schema/common'
 import type { EndpointSpec } from './openapi'
 import { pageQuerySchema } from './pagination'
 
@@ -29,13 +28,6 @@ export interface ReadSpec<Out> {
 /** Everything `?include=` may name: the resource's own, and `source` where its rows can be imported. */
 export function allowedIncludes(spec: { includes?: readonly string[]; sourceModel?: string }) {
   return [...(spec.includes ?? []), ...(spec.sourceModel ? ['source'] : [])]
-}
-
-/** The response, with `source` where the resource has it (for the OpenAPI document). */
-function responseOf(spec: ReadSpec<unknown>): z.ZodType {
-  return spec.sourceModel && spec.response instanceof z.ZodObject
-    ? spec.response.extend({ source: sourceSchema.optional() })
-    : spec.response
 }
 
 /** `?include=a,b`, each one of `allowed`; an unknown one is a 400, not silently ignored. */
@@ -84,7 +76,7 @@ export function readEndpoints(spec: ReadSpec<unknown>): EndpointSpec[] {
       summary: `List ${spec.noun.many}`,
       tag: spec.tag,
       query: listQuerySchema(spec) as unknown as z.ZodObject,
-      response: responseOf(spec),
+      response: spec.response,
       paged: true,
     },
     {
@@ -93,7 +85,7 @@ export function readEndpoints(spec: ReadSpec<unknown>): EndpointSpec[] {
       summary: `Get one ${spec.noun.one}`,
       tag: spec.tag,
       query: getQuerySchema(allowedIncludes(spec)) as unknown as z.ZodObject,
-      response: responseOf(spec),
+      response: spec.response,
     },
   ]
 }

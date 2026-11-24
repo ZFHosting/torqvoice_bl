@@ -77,7 +77,8 @@ async function serializeAll<Row extends { id: string; updatedAt: Date }, Out>(
     resource.sourceModel,
     rows.map((r) => r.id)
   )
-  return out.map((o, i) => ({ ...o, source: sources.get(rows[i].id) ?? null }) as Out)
+  // `sourceRecord`, not `source`: a time entry's and a shift's `source` already says where they came from.
+  return out.map((o, i) => ({ ...o, sourceRecord: sources.get(rows[i].id) ?? null }) as Out)
 }
 
 /**

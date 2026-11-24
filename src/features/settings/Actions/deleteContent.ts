@@ -17,6 +17,18 @@ import { z } from 'zod'
 import { demoGuard } from '@/lib/demo'
 import { recordReset } from '@/features/public-api/Lib/resets.server' // fork (A5)
 
+/** fork (A5): the selections that remove records the public API serves. */
+const WIPES_API_RECORDS = [
+  'vehicles',
+  'customers',
+  'quotes',
+  'inventory',
+  'inspections',
+  'technicians',
+  'inspectionTemplates',
+  'customFields',
+] as const
+
 const deleteContentSchema = z.object({
   vehicles: z.boolean().default(false),
   customers: z.boolean().default(false),
@@ -202,8 +214,11 @@ export async function deleteContent(input: unknown) {
       revalidatePath('/technicians')
       revalidatePath('/settings')
       revalidatePath('/settings/account')
-      // fork (A5): no tombstone per row; API clients resync in full (public-api/Lib/resets.server.ts)
-      await recordReset(organizationId, 'delete_content', userId)
+      // fork (A5): no tombstone per row; API clients resync in full (public-api/Lib/resets.server.ts). Only when
+      // something the API serves went (not for notifications or messages alone).
+      if (WIPES_API_RECORDS.some((key) => selections[key])) {
+        await recordReset(organizationId, 'delete_content', userId)
+      }
 
       return { deleted }
     },

@@ -15,7 +15,7 @@ import { isDateKey, isTime } from '@/features/workshop-calendar/Lib/calendar'
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
 import { writeEndpoints } from '../Lib/writeSpec'
-import { rangeFilters } from './common'
+import { rangeFilters, sourceSchema } from './common'
 
 export const appointmentSchema = z
   .object({
@@ -28,6 +28,8 @@ export const appointmentSchema = z
     vehicleId: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'Appointment' })
 
@@ -44,6 +46,8 @@ export const timeEntrySchema = z
     editedAt: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'TimeEntry' })
 
@@ -58,6 +62,8 @@ export const shiftSchema = z
     source: z.string(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'Shift' })
 

@@ -450,6 +450,16 @@
     "shopmonkey_import_undo": "Shopmonkey-Import rückgängig gemacht: {records} Datensätze entfernt",
     "shopmonkey_cutover": "Umstieg von Shopmonkey abgeschlossen: Torqvoice folgt Shopmonkey nicht mehr",
     "shopmonkey_sync_delete": "{records} in Shopmonkey gelöschte Datensätze gelöscht (Synchronisierungszeitraum)",
-    "platform_revokeSuperAdmin": "{name} ({email}) den Super-Admin entzogen"
+    "platform_revokeSuperAdmin": "{name} ({email}) den Super-Admin entzogen",
+    "contact_create": "Added a customer contact",
+    "contact_update": "Changed a customer contact",
+    "contact_delete": "Removed a customer contact",
+    "job_create": "Added a job",
+    "job_update": "Changed a job",
+    "job_delete": "Removed a job",
+    "shift_create": "Recorded a shift",
+    "shift_update": "Changed a shift",
+    "shift_delete": "Removed a shift",
+    "time_entry_start": "Started a clock on a job"
   }
 }

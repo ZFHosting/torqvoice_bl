@@ -7,7 +7,7 @@ import { createVehicleSchema, updateVehicleSchema } from '@/features/vehicles/Sc
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
 import { patchBody, writeEndpoints } from '../Lib/writeSpec'
-import { customFieldValueSchema } from './common'
+import { customFieldValueSchema, sourceSchema } from './common'
 
 export const vehicleNoteSchema = z
   .object({
@@ -45,6 +45,8 @@ export const vehicleSchema = z
     updatedAt: z.string(),
     notes: z.array(vehicleNoteSchema).optional(),
     customFields: z.array(customFieldValueSchema).optional(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'Vehicle' })
 

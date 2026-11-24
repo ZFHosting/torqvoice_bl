@@ -1,4 +1,6 @@
+import { z } from 'zod'
 import { publicApiOk } from '@/features/public-api/Lib/errors'
+import { queryObject } from '@/features/public-api/Lib/readResource'
 import { withPublicApi } from '@/features/public-api/Lib/withPublicApi'
 import { db } from '@/lib/db'
 import { PermissionAction, PermissionSubject } from '@/lib/permissions'
@@ -32,6 +34,8 @@ export async function GET(request: Request) {
   return withPublicApi(
     request,
     async ({ organizationId }) => {
+      // It takes no parameters; one sent is a 400, as on every list (a misspelt filter would answer everything).
+      z.object({}).strict().parse(queryObject(request))
       const now = new Date()
       const tz = await workshopTimeZone(organizationId)
       const records = await db.serviceRecord.findMany({

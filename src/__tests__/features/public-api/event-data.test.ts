@@ -90,6 +90,38 @@ describe('forkEvent', () => {
     )
   })
 
+  it('carries the ids that find a contact or a job, on a change and on a delete, and the clock a start closed', async () => {
+    mocks.contact.mockResolvedValue(null)
+    expect(
+      await forkEvent({
+        event: 'contact.delete',
+        organizationId: 'org-1',
+        entityId: 'con-1',
+        data: { customerId: 'cus-1' },
+      })
+    ).toEqual({ event: 'contact.delete', data: { id: 'con-1', customerId: 'cus-1' } })
+    expect(
+      await forkEvent({
+        event: 'job.delete',
+        organizationId: 'org-1',
+        entityId: 'job-1',
+        data: { workOrderId: 'wo-1' },
+      })
+    ).toEqual({ event: 'job.delete', data: { id: 'job-1', workOrderId: 'wo-1' } })
+    mocks.readOne.mockResolvedValue({ data: { id: 'te-2', workOrderId: 'wo-2' }, etag: 'x' })
+    expect(
+      await forkEvent({
+        event: 'time_entry.start',
+        organizationId: 'org-1',
+        entityId: 'te-2',
+        data: { technicianId: 'tec-1', workOrderId: 'wo-2', closedEntryId: 'te-1' },
+      })
+    ).toEqual({
+      event: 'time_entry.start',
+      data: { id: 'te-2', workOrderId: 'wo-2', closedEntryId: 'te-1' },
+    })
+  })
+
   it('leaves every other event as it is', async () => {
     expect(
       await forkEvent({ event: 'customer.create', organizationId: 'org-1', entityId: 'c-1' })

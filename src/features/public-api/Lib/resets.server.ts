@@ -7,6 +7,7 @@
  * one resyncs in full. Written after the change commits, so its time is never earlier than a poll that couldn't see
  * the change yet.
  */
+import 'server-only'
 import { dispatchWebhookEvent } from '@/features/webhooks/Lib/dispatcher'
 import { db } from '@/lib/db'
 

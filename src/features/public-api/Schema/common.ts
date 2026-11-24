@@ -13,7 +13,7 @@ export const customFieldValueSchema = z
   })
   .meta({ id: 'CustomFieldValue' })
 
-/** fork (A5) `?include=source`: the archived source record an imported row came from (Lib/sources.server.ts). */
+/** fork (A5) `?include=source`, as `sourceRecord`: the archived record an imported row came from (Lib/sources.server.ts). */
 export const sourceSchema = z
   .object({
     source: z.string().describe('The source system: `shopmonkey`'),

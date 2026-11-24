@@ -450,6 +450,16 @@
     "shopmonkey_import_undo": "Импорт из Shopmonkey отменён: удалено записей: {records}",
     "shopmonkey_cutover": "Переход с Shopmonkey: Torqvoice больше его не отслеживает",
     "shopmonkey_sync_delete": "Удалено записей, удалённых в Shopmonkey: {records} (период синхронизации)",
-    "platform_revokeSuperAdmin": "С {name} ({email}) сняты права суперадмина"
+    "platform_revokeSuperAdmin": "С {name} ({email}) сняты права суперадмина",
+    "contact_create": "Added a customer contact",
+    "contact_update": "Changed a customer contact",
+    "contact_delete": "Removed a customer contact",
+    "job_create": "Added a job",
+    "job_update": "Changed a job",
+    "job_delete": "Removed a job",
+    "shift_create": "Recorded a shift",
+    "shift_update": "Changed a shift",
+    "shift_delete": "Removed a shift",
+    "time_entry_start": "Started a clock on a job"
   }
 }

@@ -7,7 +7,7 @@ import { createQuoteSchema, updateQuoteSchema } from '@/features/quotes/Schema/q
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
 import { documentBodySchema, patchBody, writeEndpoints } from '../Lib/writeSpec'
-import { customFieldValueSchema, jobSchema, lineSchema } from './common'
+import { customFieldValueSchema, jobSchema, lineSchema, sourceSchema } from './common'
 import { taxComponentAmountSchema, workOrderSchema } from './workOrders'
 
 export const quoteSchema = z
@@ -45,6 +45,8 @@ export const quoteSchema = z
     jobs: z.array(jobSchema).optional(),
     lines: z.array(lineSchema).optional(),
     customFields: z.array(customFieldValueSchema).optional(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'Quote' })
 

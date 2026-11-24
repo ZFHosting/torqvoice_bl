@@ -14,6 +14,8 @@ import {
 import { toSheetEntries } from '../Lib/serialize'
 import { canEditTimeEntries } from '../Lib/canEdit'
 import { workshopTimeZone } from '@/lib/workshop-timezone'
+// fork (A5): the clock's webhook events (API.md §5)
+import { logClockStart, logClockStop } from '@/features/fork-records/Lib/clockEvents.server'
 import type { SheetEntry } from '../Lib/timesheet'
 
 /**
@@ -73,6 +75,7 @@ export async function startMyClock(input: { serviceRecordId: string }) {
         serviceRecordId,
         source: 'web',
       })
+      await logClockStart(ctx, result) // fork (A5)
       return {
         startedAt: result.entry.startedAt.toISOString(),
         closed: result.closed
@@ -102,6 +105,7 @@ export async function stopMyClock(input: { note?: string } = {}) {
         throw new TimeEntryError('not_running', 'No clock is running.')
       }
       const entry = await stopEntry({ organizationId: ctx.organizationId, technicianIds, note })
+      await logClockStop(ctx, entry.id) // fork (A5)
       return { serviceRecordId: entry.serviceRecordId, minutes: entry.durationMinutes ?? 0 }
     },
     {

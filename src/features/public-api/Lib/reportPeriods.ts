@@ -24,6 +24,24 @@ export const reportQuerySchema = z
   })
   // An unknown parameter is a 400, as on every list: a misspelt filter silently ignored would answer the wrong thing.
   .strict()
+  // A day that doesn't exist (31 February) would fall back to the default window without a word; so would a window
+  // that ends before it starts.
+  .refine((q) => !q.from || isCalendarDay(q.from), {
+    message: 'Not a calendar day',
+    path: ['from'],
+  })
+  .refine((q) => !q.to || isCalendarDay(q.to), { message: 'Not a calendar day', path: ['to'] })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, {
+    message: 'Must not be after `to`',
+    path: ['from'],
+  })
+
+/** A `YYYY-MM-DD` that names a day the calendar has. */
+function isCalendarDay(key: string): boolean {
+  const [y, m, d] = key.split('-').map(Number)
+  const date = new Date(Date.UTC(y, m - 1, d))
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d
+}
 
 export function periodKey(date: Date, timeZone: string, group: ReportGroup): string {
   if (group === 'month') return workshopMonthKey(date, timeZone)

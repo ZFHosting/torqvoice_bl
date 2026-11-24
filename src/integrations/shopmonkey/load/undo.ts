@@ -171,9 +171,11 @@ export async function undoLoad(input: UndoInput): Promise<UndoResult> {
   return withLoadLock(input.connectionId, async () => {
     const result = await undoUnlocked(input)
     await mergeState(input, { lastLoad: null })
-    // A5: what the undo removed has no tombstone each; API clients resync in full.
-    const { recordReset } = await import('@/features/public-api/Lib/resets.server')
-    await recordReset(input.organizationId, 'shopmonkey_undo', input.userId)
+    // A5: what the undo removed has no tombstone each; API clients resync in full (when it removed anything).
+    if (Object.values(result.removed).some((n) => n > 0)) {
+      const { recordReset } = await import('@/features/public-api/Lib/resets.server')
+      await recordReset(input.organizationId, 'shopmonkey_undo', input.userId)
+    }
     return result
   })
 }

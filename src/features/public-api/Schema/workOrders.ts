@@ -12,7 +12,7 @@ import { createServiceSchema, updateServiceSchema } from '@/features/vehicles/Sc
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
 import { deletedSchema, documentBodySchema, patchBody, writeEndpoints } from '../Lib/writeSpec'
-import { customFieldValueSchema, jobSchema, lineSchema } from './common'
+import { customFieldValueSchema, jobSchema, lineSchema, sourceSchema } from './common'
 import { paymentSchema } from './records'
 import { timeEntrySchema } from './schedule'
 
@@ -124,6 +124,8 @@ export const workOrderSchema = z
     timeEntries: z.array(timeEntrySchema).optional(),
     meta: workOrderMetaSchema.nullable().optional(),
     customFields: z.array(customFieldValueSchema).optional(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'WorkOrder' })
 

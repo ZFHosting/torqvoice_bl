@@ -23,6 +23,7 @@ const read = (subject: PermissionSubject) => ({ action: PermissionAction.READ, s
 const READ_TO_SEE: Record<string, PermissionSubject> = {
   work_order: PermissionSubject.SERVICES,
   work_order_line: PermissionSubject.SERVICES,
+  work_job: PermissionSubject.SERVICES,
   attachment: PermissionSubject.SERVICES,
   appointment: PermissionSubject.SERVICES,
   payment: PermissionSubject.BILLING,
@@ -69,7 +70,10 @@ export async function GET(request: Request) {
       ? { NOT: { entityType: { in: Object.keys(READ_TO_SEE).filter((t) => !may(t)) } } }
       : { entityType: { in: [...types, ...MARKER_TYPES] } }
     const and: Record<string, unknown>[] = [{ organizationId }, visible]
-    if (query.entityType) and.push({ entityType: query.entityType })
+    // A kind asked for, and the markers whatever is asked: a client syncing one kind must still learn to resync.
+    if (query.entityType) {
+      and.push({ entityType: { in: [query.entityType, ...MARKER_TYPES] } })
+    }
     if (query.since) and.push({ deletedAt: { gte: new Date(query.since) } })
     if (query.cursor) {
       const { updatedAt, id } = decodeCursor(query.cursor)

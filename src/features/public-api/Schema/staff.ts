@@ -3,6 +3,7 @@
  * workshop's own work order statuses with the stage each is filed under.
  */
 import { z } from 'zod'
+import { sourceSchema } from './common'
 import {
   createTechnicianSchema,
   updateTechnicianSchema,
@@ -23,6 +24,8 @@ export const technicianSchema = z
     userId: z.string().nullable().describe('The login the technician has, if any'),
     createdAt: z.string(),
     updatedAt: z.string(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'Technician' })
 
@@ -37,6 +40,8 @@ export const workOrderStatusSchema = z
     archivedAt: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'WorkOrderStatus' })
 

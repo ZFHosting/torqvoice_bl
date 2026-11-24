@@ -109,7 +109,11 @@ export const techniciansReportSchema = z
 export const tombstoneSchema = z
   .object({
     id: z.string(),
-    entityType: z.string().describe('work_order, quote, customer, payment, …'),
+    entityType: z
+      .string()
+      .describe(
+        'work_order, quote, customer, payment, …; `restore` or `reset` for a marker (resync in full)'
+      ),
     entityId: z.string(),
     deletedAt: z.string(),
   })

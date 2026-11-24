@@ -1,8 +1,8 @@
 /**
  * fork (A5) `?include=source` (docs/fork/API.md §4, "Source records"): the record an imported row came from, as the
- * importer archived it. The row's `IntegrationLink` (entity type, connection of this workshop) names the source's
- * table and id (`<table>:<id>`); the archive (`SourceRecord`) holds the payload. A row with no link (made in
- * Torqvoice), or whose connection was removed since, has `source: null`; the archive itself stays reachable at
+ * importer archived it. The archive says which local row each record was loaded as (`SourceRecord.localEntity` and
+ * `localId`, set by the load and cleared by an undo), so a page's sources are one query, scoped by workshop, and stay
+ * there after the connection is removed. A row made in Torqvoice has `source: null`; the archive itself is at
  * `/api/v1/source-records`.
  */
 import 'server-only'
@@ -18,7 +18,7 @@ export interface SourceOut {
   remoteDeletedAt: string | null
 }
 
-/** The source of each row that has one, by row id: two queries for the page, scoped by workshop. */
+/** The source of each row that has one, by row id. A row loaded from two records (rare) gets the first fetched. */
 export async function sourcesOf(
   organizationId: string,
   entityType: string,
@@ -26,26 +26,11 @@ export async function sourcesOf(
 ): Promise<Map<string, SourceOut>> {
   const out = new Map<string, SourceOut>()
   if (ids.length === 0) return out
-  const links = await db.integrationLink.findMany({
-    where: { entityType, entityId: { in: ids }, connection: { organizationId } },
-    select: { entityId: true, remoteId: true, connection: { select: { connectorId: true } } },
-    orderBy: { createdAt: 'asc' },
-  })
-  const wanted = new Map<string, string>()
-  for (const link of links) {
-    const at = link.remoteId.indexOf(':')
-    if (at <= 0 || wanted.has(link.entityId)) continue
-    wanted.set(link.entityId, `${link.connection.connectorId}\u0000${link.remoteId}`)
-  }
-  if (wanted.size === 0) return out
-  const keys = [...new Set(wanted.values())].map((key) => {
-    const [source, ref] = key.split('\u0000')
-    const at = ref.indexOf(':')
-    return { source, table: ref.slice(0, at), remoteId: ref.slice(at + 1) }
-  })
   const records = await db.sourceRecord.findMany({
-    where: { organizationId, OR: keys },
+    where: { organizationId, localEntity: entityType, localId: { in: ids } },
+    orderBy: [{ fetchedAt: 'asc' }, { id: 'asc' }],
     select: {
+      localId: true,
       source: true,
       table: true,
       remoteId: true,
@@ -54,11 +39,9 @@ export async function sourcesOf(
       remoteDeletedAt: true,
     },
   })
-  const byKey = new Map(records.map((r) => [`${r.source}\u0000${r.table}:${r.remoteId}`, r]))
-  for (const [entityId, key] of wanted) {
-    const r = byKey.get(key)
-    if (!r) continue
-    out.set(entityId, {
+  for (const r of records) {
+    if (!r.localId || out.has(r.localId)) continue
+    out.set(r.localId, {
       source: r.source,
       table: r.table,
       remoteId: r.remoteId,

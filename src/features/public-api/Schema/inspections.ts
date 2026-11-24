@@ -3,6 +3,7 @@
  * was checked and what was found. Photos are counted, not served (the attachment download is work orders' only).
  */
 import { z } from 'zod'
+import { sourceSchema } from './common'
 import type { EndpointSpec } from '../Lib/openapi'
 import { type ReadSpec, readEndpoints } from '../Lib/readSpec'
 
@@ -42,6 +43,8 @@ export const inspectionSchema = z
     createdAt: z.string(),
     updatedAt: z.string(),
     items: z.array(inspectionItemSchema).optional(),
+    // fork (A5): with `include=source`
+    sourceRecord: sourceSchema.optional(),
   })
   .meta({ id: 'Inspection' })
 
