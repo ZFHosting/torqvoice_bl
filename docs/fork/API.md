@@ -5,7 +5,8 @@ integration) can read, sync and write without screen-scraping or a second system
 technician app's API under `/api/v1/` and follows the same response shapes (`apiOk` / `apiError` in
 `src/lib/with-api-auth.ts`), so the two feel like one API.
 
-Built in milestones A1–A6 (`docs/fork/milestones/`).
+Built in milestones A1–A6 (`docs/fork/milestones/`). For integrators, [API-GUIDE.md](API-GUIDE.md) is the short version: keys, paging, the sync
+loop, idempotency and errors, with curl examples.
 
 ---
 
