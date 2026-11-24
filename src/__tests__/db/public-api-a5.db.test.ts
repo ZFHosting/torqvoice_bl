@@ -60,6 +60,11 @@ beforeAll(async () => {
     { start: '2026-05-10T09:00:00.000Z', total: 800, paid: 800, due: '2026-05-20T00:00:00.000Z' },
     { start: '2026-03-31T10:00:00.000Z', total: 300, paid: 0, due: '2099-01-01T00:00:00.000Z' },
   ]
+  const technician = await db.technician.create({
+    data: { organizationId: a.org, name: 'Report Technician' },
+    select: { id: true },
+  })
+  a.ids.technician = technician.id
   for (const j of jobs) {
     const record = await db.serviceRecord.create({
       data: {
@@ -77,6 +82,26 @@ beforeAll(async () => {
       select: { id: true },
     })
     if (j.paid) await db.payment.create({ data: { serviceRecordId: record.id, amount: j.paid } })
+    // The May job: the technician's, two hours sold, an hour and a half clocked on it.
+    if (j.start.startsWith('2026-05-10')) {
+      await db.serviceRecord.update({
+        where: { id: record.id },
+        data: { technicianId: technician.id },
+      })
+      await db.serviceLabor.create({
+        data: { serviceRecordId: record.id, description: 'Brakes', hours: 2, rate: 0, total: 0 },
+      })
+      await db.timeEntry.create({
+        data: {
+          organizationId: a.org,
+          technicianId: technician.id,
+          serviceRecordId: record.id,
+          startedAt: new Date('2026-05-10T09:00:00.000Z'),
+          endedAt: new Date('2026-05-10T10:30:00.000Z'),
+          durationMinutes: 90,
+        },
+      })
+    }
   }
   await db.deletedRecord.createMany({
     data: [
@@ -154,6 +179,25 @@ describe('the reports', () => {
     const { getPastDueInvoicesReport } = await import('@/features/reports/Actions/reportActions')
     const screen = await getPastDueInvoicesReport()
     expect(body.totals.overdue).toBe(screen.data?.summary.totalAmountDue)
+  })
+
+  it('give each technician the hours sold and clocked the reports screen gives them', async () => {
+    const { GET } = await route('reports/technicians')
+    const body = (
+      await (await call(GET, a.key, 'GET', '/reports/technicians?from=2026-05-01&to=2026-05-31')).json()
+    ).data
+    const row = body.technicians.find((t: { technicianId: string }) => t.technicianId === a.ids.technician)
+    expect(row.total).toMatchObject({ soldHours: 2, clockedMinutes: 90, jobsCompleted: 1 })
+    expect(row.periods.map((p: { period: string }) => p.period)).toEqual(['2026-05'])
+    ctx.organizationId = a.org
+    ctx.userId = a.owner
+    const { getTechnicianTimeReport } = await import('@/features/reports/Actions/reportActions')
+    const screen = await getTechnicianTimeReport({ startDate: '2026-05-01', endDate: '2026-05-31' })
+    const own = screen.data?.technicians.find((t) => t.technicianId === a.ids.technician)
+    expect({ soldHours: own?.billedHours, clockedMinutes: own?.clockedMinutes }).toEqual({
+      soldHours: row.total.soldHours,
+      clockedMinutes: row.total.clockedMinutes,
+    })
   })
 
   it('refuse a key without reports permission, and an unknown parameter', async () => {
