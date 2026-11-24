@@ -47,9 +47,19 @@ export function ImportHistoryRuns({
       if (!res.success || !res.data) throw new Error(res.error ?? '')
       return res.data
     },
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
   })
   const runs = history.data ?? []
+  if (history.isError && runs.length === 0) {
+    return (
+      <AppCard icon={History} title={t('title')}>
+        <p className="text-sm text-muted-foreground" data-testid="shopmonkey-runs-error">
+          {t('loadFailed')}
+        </p>
+      </AppCard>
+    )
+  }
   if (runs.length === 0) return null
   const cutOver = !!view.cutover
   // Not under a load or the cutover (the action refuses too).

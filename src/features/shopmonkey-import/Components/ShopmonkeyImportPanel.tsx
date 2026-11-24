@@ -84,7 +84,8 @@ export function ShopmonkeyImportPanel() {
   return (
     <div className="space-y-4" data-testid="shopmonkey-import">
       {/* Read again once the operator's extract finishes: the statuses and users come from it. The ten-minute sync's
-          runs replace the extract in the state; they don't read the mapping again (or lose unsaved choices). */}
+          first run, replacing the extract in the state, reads it once more (unsaved choices go then); its later runs
+          don't. */}
       {!view.cutover && (
         <ImportMappingCard key={mappingKey(view)} runKey={mappingKey(view)} onSaved={refresh} />
       )}

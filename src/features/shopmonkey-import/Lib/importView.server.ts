@@ -1,7 +1,8 @@
 /**
  * fork: what the Shopmonkey import screen shows (docs/fork/milestones/M8-import-ui.md), read from the connection's
- * state and the archive. `importView` is polled every few seconds, so it reads only the state and a page of audit
- * rows; `mappingView` scans the archive for the users the history names, so it is read when the mapping opens.
+ * state and the archive. `importView` is polled every few seconds, so it reads only the state and the job queue;
+ * `loadHistory` reads the audit rows of the loads, when the screen opens and when a load or an undo ends;
+ * `mappingView` scans the archive for the users the history names, so it is read when the mapping opens.
  */
 import { appUrl } from '@/features/integrations/Lib/connections'
 import type { Stage } from '@/features/work-order-statuses/Lib/stages'

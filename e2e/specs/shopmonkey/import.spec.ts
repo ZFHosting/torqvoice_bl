@@ -22,7 +22,15 @@ test.describe.configure({ mode: 'serial' })
 const toast = (page: Page, text: string | RegExp) =>
   page.locator('[data-sonner-toast]').filter({ hasText: text }).first()
 
-test.afterAll(async () => {
+/** Whether the workshop's portal was on before the spec turned it on (undefined until then). */
+let portalWasOpen: boolean | undefined
+
+test.afterAll(async ({ browser }) => {
+  // The portal as it was found, from a page of its own: the test's may be gone after a timeout.
+  if (portalWasOpen !== undefined) {
+    const owner = await browser.newPage({ storageState: 'e2e/.auth/owner.json' })
+    await setPortal(owner, portalWasOpen).finally(() => owner.close())
+  }
   // Whether or not the test got to its own undo: the loads undone, the archive gone, then the connection, even when
   // the clean-up fails.
   try {
@@ -108,16 +116,17 @@ test.describe('the Shopmonkey import', () => {
 
     // The same job in the vehicle's current owner's portal (B10's default: listed there, spike T3). The portal is put
     // back as it was found.
-    const portalWasOpen = await setPortal(page, true)
+    portalWasOpen = await setPortal(page, true)
+    const owner = await customerOfVehicle(vehicle as string)
+    const { portal, base } = await portalAs(page, await ownerOrganizationId(), owner.email)
     try {
-      const owner = await customerOfVehicle(vehicle as string)
-      const { portal, base } = await portalAs(page, await ownerOrganizationId(), owner.email)
       await portal.goto(`${base}/vehicles/${vehicle}`)
       await expect(portal.locator(`a[href$="/invoices/${job}"]`).first()).toBeVisible()
-      await portal.close()
     } finally {
-      await setPortal(page, portalWasOpen)
+      await portal.close()
     }
+    await setPortal(page, portalWasOpen)
+    portalWasOpen = undefined
 
     // Undo the load: the workshop is as it was.
     await page.goto('/settings/integrations/shopmonkey')

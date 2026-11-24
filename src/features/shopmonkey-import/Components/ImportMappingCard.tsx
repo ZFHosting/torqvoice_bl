@@ -86,10 +86,12 @@ export function ImportMappingCard({
     setSaving(false)
     if (res.success) {
       toast.success(t('saved'))
-      // What was stored, read back, and the choices made here folded into it.
-      await query.refetch()
-      setStages({})
-      setUsers({})
+      // What was stored, read back; the choices made here are cleared only once it is (else they'd vanish from view).
+      const reread = await query.refetch()
+      if (reread.isSuccess) {
+        setStages({})
+        setUsers({})
+      }
       await onSaved()
     } else {
       if (!handleGated(res)) toast.error(res.error || t('saveFailed'))
@@ -105,7 +107,8 @@ export function ImportMappingCard({
         <Button
           size="sm"
           onClick={save}
-          disabled={!mapping || saving}
+          // Not while it reads again: what another tab saved isn't on screen yet, and this would write over it.
+          disabled={!mapping || saving || query.isFetching}
           data-testid="shopmonkey-mapping-save"
         >
           {saving ? (

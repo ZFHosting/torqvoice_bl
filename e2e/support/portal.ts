@@ -27,7 +27,7 @@ export async function setPortal(page: Page, open: boolean): Promise<boolean> {
 
 /**
  * A new page, with no workshop session, signed into the portal as the customer with this email. Returns the page and
- * the portal's base path (`/portal/<workshop>`), as the sign-in link landed on it.
+ * the portal's base address (`http://…/portal/<workshop>`), as the sign-in landed on it.
  */
 export async function portalAs(
   page: Page,

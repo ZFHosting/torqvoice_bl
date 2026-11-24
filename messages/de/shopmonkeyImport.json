@@ -194,7 +194,8 @@
     "confirmTitle": "Undo this load?",
     "confirmDescription": "What this load created is removed. Records the workshop has used since stay.",
     "undone": "Undone: {removed} removed, {kept} kept because they are in use.",
-    "undoFailed": "The load could not be undone."
+    "undoFailed": "The load could not be undone.",
+    "loadFailed": "The loads could not be read. Reload the page to try again."
   },
   "banner": {
     "synced": "Synced from Shopmonkey until cutover",

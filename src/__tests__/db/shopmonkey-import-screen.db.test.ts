@@ -93,7 +93,11 @@ afterAll(async () => {
 describe('the import screen', () => {
   it('records a dry run where the screen reads it, and writes nothing', async () => {
     const before = await db.customer.count({ where: { organizationId: shop.organizationId } })
-    const outcome = await runs['load.run'](await ctx(), { dryRun: true, userId: shop.userId })
+    const outcome = await runs['load.run'](await ctx(), {
+      dryRun: true,
+      userId: shop.userId,
+      token: 'dry-token-1',
+    })
     expect(outcome).toMatchObject({ summary: expect.stringMatching(/^Dry run .* done$/) })
     const s = await state()
     expect(s.loadRun).toMatchObject({ status: 'done', dryRun: true })
@@ -119,7 +123,11 @@ describe('the import screen', () => {
         technicianMap: { [user.remoteId]: own.id },
       },
     })
-    const outcome = await runs['load.run'](await ctx(), { dryRun: false, userId: shop.userId })
+    const outcome = await runs['load.run'](await ctx(), {
+      dryRun: false,
+      userId: shop.userId,
+      token: 'load-token-1',
+    })
     expect(outcome).toMatchObject({ summary: expect.stringMatching(/^Load .* done$/) })
     expect((await state()).loadRun).toMatchObject({ status: 'done', dryRun: false })
 
@@ -373,6 +381,69 @@ describe('the import screen', () => {
     }
   })
 
+  it('takes a run whose beat is three heartbeats old, or that never beat, for crashed', async () => {
+    const { mergeState } = await import('@/integrations/shopmonkey/load/outcome')
+    const { copyOf } = await import('@/integrations/shopmonkey/sync/runs')
+    const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString()
+    const running = { status: 'running', dryRun: false, at: at(12), token: 'run-token-6' }
+    await mergeState(shop, { loadRun: running })
+    expect(await copyOf(shop, 'loadRun', 'run-token-6')).toBe('crashed')
+    await mergeState(shop, { loadRun: { ...running, beatAt: at(5) } })
+    expect(await copyOf(shop, 'loadRun', 'run-token-6')).toBe('crashed')
+    await mergeState(shop, { loadRun: { ...running, beatAt: at(1) } })
+    expect(await copyOf(shop, 'loadRun', 'run-token-6')).toBe('live')
+    // Another run's token, or one still queued, isn't a copy.
+    expect(await copyOf(shop, 'loadRun', 'another-token')).toBeNull()
+    await mergeState(shop, { loadRun: { ...running, status: 'queued' } })
+    expect(await copyOf(shop, 'loadRun', 'run-token-6')).toBeNull()
+  })
+
+  it('beats only for its own run: another run’s job and state are left alone', async () => {
+    const { mergeState } = await import('@/integrations/shopmonkey/load/outcome')
+    const { keepAlive } = await import('@/integrations/shopmonkey/sync/runs')
+    const old = new Date(Date.now() - 20 * 60_000)
+    const job = await db.integrationJob.create({
+      data: {
+        organizationId: shop.organizationId,
+        connectionId: shop.connectionId,
+        kind: 'load.run',
+        status: 'running',
+        lockedAt: old,
+        startedAt: old,
+        payload: { dryRun: false, userId: shop.userId, token: 'run-token-7' },
+      },
+      select: { id: true },
+    })
+    try {
+      await mergeState(shop, {
+        loadRun: { status: 'running', dryRun: false, at: old.toISOString(), token: 'run-token-7' },
+      })
+      // A beat for some other run, still in flight after its stop.
+      const stop = keepAlive(shop, 'load.run', 'loadRun', 'run-token-other', 30)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      stop()
+      const row = await db.integrationJob.findUniqueOrThrow({
+        where: { id: job.id },
+        select: { lockedAt: true },
+      })
+      expect(row.lockedAt?.getTime()).toBe(old.getTime())
+      expect(((await state()).loadRun as unknown as { beatAt?: string }).beatAt).toBeUndefined()
+    } finally {
+      await db.integrationJob.delete({ where: { id: job.id } })
+    }
+  })
+
+  it('runs no load or cutover job that names no run', async () => {
+    const before = (await state()).loadRun
+    expect(await runs['load.run'](await ctx(), { dryRun: true, userId: shop.userId })).toEqual({
+      summary: 'Load not run: the job names no run',
+    })
+    expect(await runs['cutover.run'](await ctx(), { dryRun: true, userId: shop.userId })).toEqual({
+      summary: 'Cutover not run: the job names no run',
+    })
+    expect((await state()).loadRun).toEqual(before)
+  })
+
   it('refuses a load from the screen until an extract has finished', async () => {
     const { mergeState } = await import('@/integrations/shopmonkey/load/outcome')
     const finished = (await state()).extract
@@ -396,7 +467,11 @@ describe('the import screen', () => {
     const { mergeState } = await import('@/integrations/shopmonkey/load/outcome')
     await mergeState(shop, { cutover: { at: new Date().toISOString(), userId: shop.userId } })
     try {
-      const outcome = await runs['load.run'](await ctx(), { dryRun: true, userId: shop.userId })
+      const outcome = await runs['load.run'](await ctx(), {
+        dryRun: true,
+        userId: shop.userId,
+        token: 'cut-over-token-1',
+      })
       expect(outcome).toMatchObject({ summary: expect.stringMatching(/^Load refused: .*cut over/) })
       expect((await state()).loadRun).toMatchObject({
         status: 'refused',

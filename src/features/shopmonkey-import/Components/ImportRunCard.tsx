@@ -148,7 +148,9 @@ export function ImportRunCard({
           <Button
             variant="outline"
             size="sm"
-            disabled={busy !== null || cutOver || extracting || loading || !loadable}
+            disabled={
+              busy !== null || cutOver || extracting || loading || view.live.cutover || !loadable
+            }
             onClick={() => load(true)}
           >
             {busy === 'dry' ? (
@@ -160,7 +162,9 @@ export function ImportRunCard({
           </Button>
           <Button
             size="sm"
-            disabled={busy !== null || cutOver || extracting || loading || !loadable}
+            disabled={
+              busy !== null || cutOver || extracting || loading || view.live.cutover || !loadable
+            }
             onClick={() => load(false)}
           >
             {busy === 'load' ? (

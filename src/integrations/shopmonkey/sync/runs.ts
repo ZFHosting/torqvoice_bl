@@ -16,7 +16,6 @@ const BUSY_RETRY_S = 60
  * (`recoverStuckJobs`), and a load or a cutover can take longer.
  */
 const HEARTBEAT_MS = 60_000
-/** A run whose last heartbeat is older than the queue's stuck limit has no worker left. */
 /**
  * A copy of a run only exists once its job's lock went ten minutes without a renewal: the run is live only if it
  * still stamped its state within the last few heartbeats.
@@ -184,6 +183,9 @@ export function createRunJobs(deps: { depsFor(ctx: ConnectorContext): ExtractDep
     const dryRun = payload.dryRun === true
     const userId = typeof payload.userId === 'string' ? payload.userId : ''
     const token = typeof payload.token === 'string' ? payload.token : ''
+    // Every producer (the screen's action, a busy load's re-queue) names its run; one that doesn't couldn't be told
+    // from a copy of itself, nor kept alive past the queue's stuck limit.
+    if (!token) return { summary: 'Load not run: the job names no run' }
     const copy = await copyOf(scope, 'loadRun', token)
     if (copy) return answerCopy(scope, 'loadRun', copy, { dryRun, token }, 'load')
     const blocked = extractBlocker(await stateOf(scope))
@@ -261,6 +263,7 @@ export function createRunJobs(deps: { depsFor(ctx: ConnectorContext): ExtractDep
     const dryRun = payload.dryRun === true
     const userId = typeof payload.userId === 'string' ? payload.userId : ''
     const token = typeof payload.token === 'string' ? payload.token : ''
+    if (!token) return { summary: 'Cutover not run: the job names no run' }
     const copy = await copyOf(scope, 'cutoverRun', token)
     if (copy) return answerCopy(scope, 'cutoverRun', copy, { dryRun, token }, 'cutover')
     const { runCutover } = await import('./cutover')

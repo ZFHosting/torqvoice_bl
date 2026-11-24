@@ -259,7 +259,16 @@ describe('the Shopmonkey import actions', () => {
   )('%s still works on a plan without integrations (nothing of the connector runs)', async (_n, call) => {
     mocks.ctx.isAdmin = true
     mocks.features = { integrations: false }
-    expect(await call()).not.toHaveProperty('gated')
+    expect(await call()).toMatchObject({ success: true })
+  })
+
+  it('refuses a new extract while the ten-minute sync reads Shopmonkey', async () => {
+    mocks.ctx.isAdmin = true
+    mocks.jobs.mockResolvedValue([{ kind: 'sync.delta' }])
+    expect(await startShopmonkeyImportExtract()).toMatchObject({
+      success: false,
+      error: expect.stringMatching(/sync is reading/),
+    })
   })
 
   it('still reads the import on a plan without integrations', async () => {
