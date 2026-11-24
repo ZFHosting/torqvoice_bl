@@ -30,7 +30,7 @@ resolved.
 | M5 | provisional | fork/M5-load | Merged 40e49b36. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 4 passes. Evidence in the Decisions log (M5 provisional). |
 | A3 | done | fork/A3-read-endpoints | Merged c7770ecc. Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (A3 done). |
 | A4 | done | fork/A4-write-endpoints | Merged c28b98d4. Reviewer: ready for PR after 3 passes. Evidence in the Decisions log (A4 done). |
-| M6 | in_progress | fork/M6-reconcile | |
+| M6 | provisional | fork/M6-reconcile | Merged fae66342. Built on the synthetic fixtures: re-verify with recorded ones (B1). Reviewer: ready for PR after 2 passes. Evidence in the Decisions log (M6 provisional). |
 | M7 | todo | | |
 | M8 | todo | | |
 | A5 | todo | | |
@@ -69,45 +69,11 @@ Environment (local, Windows):
   schema on `\n`.
 - Reviews: the `migration-reviewer` reads files from this checkout; don't switch branches while one runs.
 
-**M6 (reconcile), in progress** on `fork/M6-reconcile` (from `fork/integration` at 12dea9dc; the upstream merge still
-conflicts, B15, same upstream commit). Built on M5's synthetic fixtures, so it ends `provisional` (B1). Plan:
-0. [x] (06f8b1a1) The load leaves out orders created before `historyFrom` (staged without children; "Leave empty to import
-   everything"): counted skipped, kept in the archive. Same date rule as the extract (`beforeHistory`).
-1. [x] (d550ae71, 06f8b1a1; `db/shopmonkey-load-skips.db.test.ts`, 3 passing) Why a record wasn't loaded, recorded where the load decides it: `SourceRecord.loadSkip` (reason code; migration
-   `fork_source_load_skip`), set for history, deleted, transform and rule skips and failures, cleared when the record
-   is linked. The load's warnings (by code, count and first 20 examples), failures and counts kept in the
-   connection's `state.lastLoad`.
-2. [x] (35c1945b) `src/integrations/shopmonkey/reconcile/`: counts per table (Shopmonkey's `meta.total` and the extract's
-   location skips from `state.extract`; staged; loaded = linked row present; missing = linked row gone; skipped by
-   reason; archive-only and folded tables; unaccounted = none of these, named); money per work order (Torqvoice's
-   counted lines, MAPPING §6.3, vs Shopmonkey's subtotal; the stored total vs `totalCostCents`; what the app counts
-   as paid vs `paidCostCents`; balance vs `remainingCostCents`; an estimate's total; over $0.01 listed; explained only
-   by a rule named in MAPPING §12 and in code); by month on the workshop's clock (invoiced, tax, discounts, payments,
-   open receivables at month end, both sides); 25 spot checks (seeded); warnings; unmapped fields (TABLE_SPECS /
-   NESTED_SPECS); gates (counts accounted, no unexplained money difference, receivables to the cent, no failed
-   orders).
-3. [x] (35c1945b) Stored as `state.lastReconciliation`; `scripts/shopmonkey/run.ts reconcile --connection <id> [--json]`.
-4. [x] (35c1945b; `db/shopmonkey-reconcile.db.test.ts` 3 passing, `db/shopmonkey-reconcile-scale.db.test.ts` 1 passing,
-   `features/integrations/shopmonkey/reconcile.test.ts` 16 passing) Tests (db): the fixture set passes every gate; a corrupted line total fails the money gate naming the order; a
-   deleted imported customer fails the count gate naming it; 50,000 generated orders reconcile in under a minute.
-5. [ ] MAPPING (§1 historyFrom, §12 reconciliation), DoD, reviewer, merge. Reviewer pass 1 (on 39caeb0a): needs
-   changes, 4 must-fix, all fixed: (1) inspection photos had no bucket (now `folded` into a loaded inspection; the
-   fixture test stages real files: order file `loaded`, photo `folded`); (2) `money_mismatch` explained any lines
-   difference on any warned order (now only the `subtotal` warning, and only while the lines are what the load
-   wrote, `state.lastLoad.mismatchedLines`; a test corrupts a warned order's line); (3) payment reasons were never
-   cleared (now cleared when its row is written, payments marked after the unit every run; the reconcile ignores an
-   imported payment's old reason); (4) the failures gate missed orders past the 500 named and failed re-loads (now
-   uncapped counts and `state.lastLoad.counts.order.failed`, tested). Should-fix done: invoice PDF parent; one-key
-   `jsonb_set` state writes (no clobbered `extract`); receivables report open balances not imported and loaded
-   orders deleted in Shopmonkey since, `manuallyPaid` counted; invoices by the transform's rule; PROVISIONAL markers
-   on the SQL counting rule and refund sign; folded children take their parent's fate; gate codes and values for M8;
-   estimates' totals compared; delta-phase totals not held to; exhaustive model switch; archive backup test seeds and
-   checks `loadSkip`; §1 note on setting `historyFrom` after a load; symmetric cent rounding; the scale test's
-   orders carry ~2 KB of incompressible payload and a service each (7.9 s for 50,000). DoD at 5bad7498: `tsc` 0,
-   Biome 14, `test:db` 33 files / 204 tests (50,000 orders 8.1 s). Reviewer pass 2: **ready for PR**, no must-fix.
-   Next (while `npm test` chunks run at 5bad7498): its should-fixes (payment and refund warnings pushed after the
-   unit, so a re-run keeps them; `money_mismatch` also bound to Shopmonkey's subtotal at load; `tvCents` via
-   `roundMoney`; an orphan child `unaccounted`; a deleted order's payments `deleted`), Shopmonkey tests, merge.
+**Next: M7 (delta sync and cutover)**, from `fork/integration` after M6's merge. Its plan goes here when it
+starts. Notes gathered while M6 ran (read-only): the generic webhook route queues without an idempotency key, and
+the queue clears a key once a job is claimed, so a replay after the claim needs a store of delivered ids of its
+own; Xero's `webhook.receive` enqueues its own jobs, the pattern to follow; a refetch of one record shouldn't
+re-run the whole load (a scope of table and ids for `runLoad`).
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
@@ -326,3 +292,4 @@ fixtures, compare each item below with them, fix the code or MAPPING, and remove
 | 2026-11-23 | M6: the load writes why it left each record out on `SourceRecord.loadSkip` (migration `fork_source_load_skip`), where it decides, and clears it when the record is linked; the report reads it rather than repeating the load's rules. Its warnings by code (20 examples each), every order warned `money_mismatch`, and its failures are kept in `state.lastLoad`. Deleted records come from `remoteDeletedAt` (the load never reads them). | One source of truth for why: a second copy of the rules in the report would drift from the load. The examples are what the brief's report shows; the full `money_mismatch` list is what explains money differences. |
 | 2026-11-23 | M6: a money difference is explained only by `money_mismatch` (lines) and by payments left out as `payment_type_unsupported`/`payment_missing_date` when they come to the difference to the cent (paid, balance). Receivables compare invoices only (an invoice date on either side). Unmapped fields are read from the 2,000 most recently updated records of each table. The count gate also requires that the extract read every record Shopmonkey listed (`steps[table].skip >= total`). MAPPING §12. | The brief: explained differences come from a rule in MAPPING and referenced by code. A field that matters is in most recent records; reading every payload of 50,000 orders would cost the minute the report has. |
 | 2026-11-23 | M6 (environment): `scratchpad/run-db.sh` gives the schema files their CRs back with `sed` instead of `git checkout`, which had thrown away an uncommitted `fork.prisma` edit (caught at once and re-applied before its commit). | Never discard uncommitted work to restore line endings. |
+| 2026-11-23 | **M6 provisional.** DoD: `tsc` exit 0 and Biome 14 (baseline, LF worktree) at 5bad7498 and a67eb06c; `test:db` 33 files / 204 tests at 5bad7498 (the 50,000-order reconciliation in 8.1 s, with ~2 KB out-of-line order payloads), and the Shopmonkey db tests (reconcile, load-skips, load: 19) and reconcile unit tests (29) again at a67eb06c; `npm test` in chunks: 835 files at 5bad7498; failing only the Windows baseline files (api/health, photo-handoff, portal-upload, equipment-gates, meters-gates, portal-file-route, lib/backup/engine, restic, files/manager, only-the-manager-deletes, safe-path, status-colors, upload-root, viewer-access), lib/backup-manifest and features/ai/workshop-columns (CRLF working copy: pass with LF schema files), registry.test (timeout under load, passes alone) and shopmonkey mapping-doc (read past §11 into the new §12: bounded in d5d389dc; shopmonkey unit tests 17 files / 257 passing at d5d389dc). Reviewer: needs changes (pass 1, 4 must-fix), ready for PR (pass 2; its should-fixes taken in a67eb06c). Merged at fae66342. Provisional: the money rules, the invoice rule and Shopmonkey's totals rest on M0 facts S4, S5, S12 (Re-verify list). | Acceptance evidence: on the fixture set every gate passes (`shopmonkey-reconcile.db.test.ts` "passes every gate, with every staged record (files included) in a bucket"); a corrupted line total fails the money gate naming its order ("fails the money gate on a line total corrupted…"); a deleted imported customer fails the count gate naming it ("fails the count gate when an imported customer is deleted…"); 50,000 generated orders reconcile in under a minute (`shopmonkey-reconcile-scale.db.test.ts`, 8.1 s). |
