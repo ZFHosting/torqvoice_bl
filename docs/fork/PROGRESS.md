@@ -73,16 +73,17 @@ Environment (local, Windows):
 conflicts, B15). Plan, from the brief:
 1. [ ] Playwright `e2e/specs/public-api.spec.ts`: a key made in Settings, then customer → work order → lines → payment
    over HTTP; the UI shows them, and the webhook delivery log has the events.
-2. [ ] Contract tests from `openapi.json` (fast-check, in `node_modules` already): generated requests for every
-   endpoint, responses validate, nothing 500s.
-3. [ ] Isolation sweep: every route with workshop A's key and workshop B's ids is a 404 (B seeded through the API, as
-   A4's write tests do).
+2. [x] Contract tests (`public-api-contract.db.test.ts`, fast-check now a declared dev dependency): every endpoint of
+   `RESOURCES`, nothing 500s, successes match their schemas, every read asked plainly once. Found and fixed two 500s
+   (an emptied `userId` on a technician, an emptied `invoiceDesignId` on a customer). 98371497.
+3. [x] Isolation sweep (`public-api-isolation.db.test.ts`): every route with an id, found on disk, every method:
+   404 for A's key and B's ids. 988b98d6.
 4. [ ] Load check on the local test database only: 20 rps on the list endpoints over 50,000 work orders for two minutes,
    p95 under 500 ms; indexes where needed (a `fork_` migration if any).
-5. [ ] `docs/fork/SECURITY-REVIEW.md` (notes in `scratchpad/a6-draft/security-notes.md`; the A1 items; `npm audit`).
-6. [ ] `docs/fork/API-GUIDE.md` (draft in `scratchpad/a6-draft/API-GUIDE.md`; idempotency's limits).
-7. [ ] API keys' service users on the Team page: labelled as API keys, left out of the seat count (`// fork:` filters
-   on `user: { apiKey: null }`).
+5. [x] `docs/fork/SECURITY-REVIEW.md`: no open high finding. Fixed on the way: error objects in logs, unbounded
+   uploads without a Content-Length, allowlist spellings, the purge test's reach (8fa94409, 988b98d6).
+6. [x] `docs/fork/API-GUIDE.md` (2f043085).
+7. [x] API keys on the Team page: labelled, no Remove, not a seat (`api-keys-team.db.test.ts`, 4098201e).
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
