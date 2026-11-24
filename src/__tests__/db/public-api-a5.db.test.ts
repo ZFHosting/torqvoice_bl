@@ -1,7 +1,9 @@
 /**
  * fork (A5, docs/fork/milestones/A5-events-reports.md) on a real PostgreSQL (`npm run test:db`): the reports match the
  * app's own reports for the same period, in a time zone far from UTC; `/source-records` and `/deleted` are scoped by
- * the key's workshop and refuse a key without the permission; a fork event goes out with the API's resource as `data`.
+ * the key's workshop and refuse a key without the permission; a fork event goes out with the API's resource as `data`;
+ * `include=source` hands an imported row its archived record (with `read:settings`); a restore or a bulk delete
+ * leaves a marker every key sees, and a restore sends `restore.complete`.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
@@ -87,7 +89,28 @@ beforeAll(async () => {
     data: [
       { organizationId: a.org, connectionId: 'conn-a', table: 'order', remoteId: 'syn_1', payload: { id: 'syn_1' }, payloadHash: 'h1' },
       { organizationId: b.org, connectionId: 'conn-b', table: 'order', remoteId: 'syn_1', payload: { id: 'syn_1', b: true }, payloadHash: 'h2' },
+      { organizationId: a.org, connectionId: 'conn-a', table: 'customer', remoteId: 'syn_cus_9', payload: { id: 'syn_cus_9', note: 'from Shopmonkey' }, payloadHash: 'h3' },
     ],
+  })
+  // An imported customer: linked through a Shopmonkey connection of workshop A.
+  const connection = await db.integrationConnection.create({
+    data: { organizationId: a.org, connectorId: 'shopmonkey', status: 'active', createdById: a.owner },
+    select: { id: true },
+  })
+  a.ids.imported = (
+    await db.customer.create({
+      data: { organizationId: a.org, userId: a.owner, name: 'Imported Customer' },
+      select: { id: true },
+    })
+  ).id
+  a.ids.customer = customer.id
+  await db.integrationLink.create({
+    data: {
+      connectionId: connection.id,
+      entityType: 'Customer',
+      entityId: a.ids.imported,
+      remoteId: 'customer:syn_cus_9',
+    },
   })
 }, 120_000)
 
@@ -175,5 +198,79 @@ describe('a fork event', () => {
       select: { payload: true },
     })
     expect(JSON.parse(sent.payload).data).toMatchObject({ id: created.id, title: 'Event check' })
+  })
+})
+
+describe('include=source', () => {
+  it('hands an imported row the record it came from, and a row made here null', async () => {
+    const { GET } = await route('customers/[id]')
+    const imported = await call(GET, a.key, 'GET', `/customers/${a.ids.imported}?include=source`, {
+      params: { id: a.ids.imported },
+    })
+    expect(imported.status).toBe(200)
+    expect((await imported.json()).data.source).toMatchObject({
+      source: 'shopmonkey',
+      table: 'customer',
+      remoteId: 'syn_cus_9',
+      payload: { id: 'syn_cus_9', note: 'from Shopmonkey' },
+    })
+    const own = await call(GET, a.key, 'GET', `/customers/${a.ids.customer}?include=source`, {
+      params: { id: a.ids.customer },
+    })
+    expect((await own.json()).data.source).toBeNull()
+    // Without the include, no source at all.
+    const plain = await call(GET, a.key, 'GET', `/customers/${a.ids.imported}`, {
+      params: { id: a.ids.imported },
+    })
+    expect((await plain.json()).data).not.toHaveProperty('source')
+  })
+
+  it('lists them on a page, and needs read:settings', async () => {
+    const list = await route('customers')
+    const page = (await (await call(list.GET, a.key, 'GET', '/customers?include=source')).json()).data
+    const byId = Object.fromEntries(page.map((c: { id: string; source: unknown }) => [c.id, c.source]))
+    expect(byId[a.ids.imported]).toMatchObject({ remoteId: 'syn_cus_9' })
+    expect(byId[a.ids.customer]).toBeNull()
+    const customersOnly = await newKey(a.org, a.owner, [{ action: 'read', subject: 'customers' }])
+    expect((await call(list.GET, customersOnly, 'GET', '/customers?include=source')).status).toBe(403)
+    expect((await call(list.GET, customersOnly, 'GET', '/customers')).status).toBe(200)
+  })
+
+  it('never reads another workshop’s archive', async () => {
+    const { GET } = await route('customers/[id]')
+    // B's key can't see A's customer at all; and B's own rows have no link to A's archive.
+    expect(
+      (await call(GET, b.key, 'GET', `/customers/${a.ids.imported}?include=source`, { params: { id: a.ids.imported } }))
+        .status
+    ).toBe(404)
+  })
+})
+
+describe('restores and bulk deletes', () => {
+  it('leave a marker every key sees at /deleted, and a restore sends restore.complete', async () => {
+    const { recordReset, announceRestore } = await import('@/features/public-api/Lib/resets.server')
+    const since = new Date().toISOString()
+    await recordReset(a.org, 'delete_content', a.owner)
+    await recordReset(a.org, 'restore', a.owner)
+    await announceRestore(a.org, a.owner)
+    const { GET } = await route('deleted')
+    // A key that may read only work orders still learns it must resync.
+    const servicesOnly = await newKey(a.org, a.owner, [{ action: 'read', subject: 'services' }])
+    const seen = (
+      await (await call(GET, servicesOnly, 'GET', `/deleted?since=${encodeURIComponent(since)}`)).json()
+    ).data
+    expect(seen.map((t: { entityType: string; entityId: string }) => `${t.entityType}:${t.entityId}`)).toEqual([
+      'reset:delete_content',
+      'restore:restore',
+    ])
+    // Not B's.
+    const other = (await (await call(GET, b.key, 'GET', `/deleted?since=${encodeURIComponent(since)}`)).json()).data
+    expect(other).toEqual([])
+    expect((await eventsOf(a.org, 'restore.complete')).deliveries).toBe(1)
+    const sent = await db.webhookDelivery.findFirstOrThrow({
+      where: { webhook: { organizationId: a.org }, event: 'restore.complete' },
+      select: { payload: true },
+    })
+    expect(JSON.parse(sent.payload).data).toEqual({ restoredAt: expect.any(String) })
   })
 })
