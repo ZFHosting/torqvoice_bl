@@ -131,6 +131,26 @@ describe('the extract.step job', () => {
     )
   })
 
+  it('stops when the import screen asks it to (M8), after the unit it is on, keeping that unit', async () => {
+    const mock = createMockShopmonkey()
+    const ctx = ctxFor(mock, startState(null, { runId: 'run-1', now: NOW }))
+    const asked = { state: { extractStop: { runId: 'run-1' } } }
+    // Asked before the job ran: it does nothing.
+    dbMock.integrationConnection.findFirst.mockResolvedValueOnce(asked)
+    expect(await step(ctx, { runId: 'run-1' })).toEqual({ summary: 'Stopped' })
+    expect(stored.saves).toBe(0)
+    // Asked while it runs: the unit under way is saved, then it stops, unfinished.
+    dbMock.integrationConnection.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(asked)
+      .mockResolvedValueOnce(asked)
+    expect(await step(ctx, { runId: 'run-1' })).toEqual({ summary: 'Stopped' })
+    expect(stored.saves).toBe(1)
+    expect((stored.saved as ExtractState).finishedAt).toBeNull()
+    dbMock.integrationConnection.findFirst.mockReset()
+    dbMock.integrationConnection.findFirst.mockResolvedValue(null)
+  })
+
   it('hands back to the queue when its time is up, with the checkpoint saved', async () => {
     const mock = createMockShopmonkey()
     const ctx = ctxFor(mock, startState(null, { runId: 'run-1', now: NOW }))
