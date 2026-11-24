@@ -55,7 +55,7 @@ beforeAll(async () => {
   b = await newShop('A5b')
   const { SETTING_KEYS } = await import('@/features/settings/Schema/settingsSchema')
   await db.appSetting.create({
-    data: { organizationId: a.org, key: SETTING_KEYS.TIMEZONE, value: ZONE },
+    data: { organizationId: a.org, userId: a.owner, key: SETTING_KEYS.TIMEZONE, value: ZONE },
   })
   const customer = await db.customer.create({
     data: { organizationId: a.org, userId: a.owner, name: 'Report Customer' },
@@ -303,7 +303,12 @@ describe('a fork event', () => {
       notifications: [],
     })
     expect(booked.success).toBe(true)
-    const events = await eventsOf(b.org, 'appointment.create')
+    // The audit, then its delivery, go out after the action answers: waited for, not assumed.
+    let events = await eventsOf(b.org, 'appointment.create')
+    for (let i = 0; i < 20 && events.deliveries === 0; i++) {
+      events = await eventsOf(b.org, 'appointment.create')
+    }
+    expect(events.audits).toHaveLength(1)
     expect(events.deliveries).toBe(1)
     const sent = await db.webhookDelivery.findFirstOrThrow({
       where: { webhook: { organizationId: b.org }, event: 'appointment.create' },
@@ -318,7 +323,14 @@ describe('a fork event', () => {
   it('goes out with the API’s resource as its data', async () => {
     const { POST } = await route('appointments')
     const res = await call(POST, a.key, 'POST', '/appointments', {
-      body: { title: 'Event check', startAt: '2026-06-01T08:00:00.000Z', durationMinutes: 30 },
+      body: {
+        title: 'Event check',
+        startDate: '2026-06-01',
+        startTime: '08:00',
+        endDate: '2026-06-01',
+        endTime: '08:30',
+        notifications: [],
+      },
     })
     expect(res.status).toBe(201)
     const created = (await res.json()).data
