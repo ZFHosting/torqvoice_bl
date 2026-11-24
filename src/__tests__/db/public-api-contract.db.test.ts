@@ -32,9 +32,15 @@ let A: Shop
 
 type Endpoint = import('@/features/public-api/Lib/openapi').EndpointSpec
 let endpoints: Endpoint[] = []
+let errorSchema: z.ZodType
 
 /** Runs per endpoint: enough to wander, few enough for the suite. */
 const RUNS = Number(process.env.CONTRACT_RUNS ?? 8)
+/**
+ * The same cases every run, so a failure in CI is the one found locally (A6 review): `CONTRACT_SEED` to wander
+ * elsewhere, and the seed is in the failure's message.
+ */
+const SEED = Number(process.env.CONTRACT_SEED ?? 1)
 
 /** A real record of the workshop for each path parameter, by the folder it follows. */
 const ID_OF: Record<string, string> = {
@@ -285,7 +291,9 @@ beforeAll(async () => {
   if (!url) throw new Error('E2E_DATABASE_URL is not set')
   ;({ db } = await import('@/lib/db'))
   ;({ resetKeyBudgets } = await import('@/features/public-api/Lib/rateLimit'))
-  endpoints = (await import('@/features/public-api/Lib/openapi')).RESOURCES.flat()
+  const openapi = await import('@/features/public-api/Lib/openapi')
+  endpoints = openapi.RESOURCES.flat()
+  errorSchema = openapi.errorSchema
   A = await newShop('A6contract')
   await seed(A)
 }, 120_000)
@@ -390,8 +398,18 @@ describe('the API against its OpenAPI document', () => {
           )
           if (response.status >= 500) {
             problems.push(
-              `${e.method} ${e.path}: ${response.status} for ${JSON.stringify({ params, query, body })}`
+              `${e.method} ${e.path}: ${response.status} for ${JSON.stringify({ params, query, body })} (seed ${SEED})`
             )
+            return
+          }
+          // A refusal answers in the documented envelope (`components.schemas.Error`).
+          if (response.status >= 400) {
+            const refusal = errorSchema.safeParse(await response.json().catch(() => null))
+            if (!refusal.success) {
+              problems.push(
+                `${e.method} ${e.path}: a ${response.status} not in the error envelope (seed ${SEED})`
+              )
+            }
             return
           }
           if (response.status !== success || e.contentType) return
@@ -408,7 +426,7 @@ describe('the API against its OpenAPI document', () => {
             )
           }
         }),
-        { numRuns: RUNS }
+        { numRuns: RUNS, seed: SEED }
       )
     }
     expect(problems).toEqual([])

@@ -65,4 +65,33 @@ describe('API keys on the Team page', () => {
     }
     expect(members.find((m) => m.user.id === shop.owner)?.apiKey).toBeNull()
   })
+
+  it('are refused removal and the technician app on the server too (a tab from before the change)', async () => {
+    const { db } = await import('@/lib/db')
+    const key = await db.apiKey.findFirstOrThrow({
+      where: { organizationId: shop.org },
+      select: { id: true, serviceUserId: true },
+    })
+    const member = await db.organizationMember.findFirstOrThrow({
+      where: { organizationId: shop.org, userId: key.serviceUserId },
+      select: { id: true },
+    })
+    const { removeMember } = await import('@/features/team/Actions/teamActions')
+    const removed = await removeMember(member.id)
+    expect(removed.success).toBe(false)
+    expect(removed.error).toMatch(/API key/)
+    expect(await db.organizationMember.count({ where: { id: member.id } })).toBe(1)
+
+    const { setMemberTechnician } = await import('@/features/team/Actions/setMemberTechnician')
+    const app = await setMemberTechnician({ userId: key.serviceUserId, enabled: true })
+    expect(app.success).toBe(false)
+    expect(app.error).toMatch(/API key/)
+    expect(
+      await db.technician.count({ where: { organizationId: shop.org, userId: key.serviceUserId } })
+    ).toBe(0)
+    expect(
+      await db.apiKey.count({ where: { id: key.id, revokedAt: null } }),
+      'the key still works'
+    ).toBe(1)
+  })
 })

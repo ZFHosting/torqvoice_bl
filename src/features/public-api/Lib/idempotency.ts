@@ -12,6 +12,7 @@ import 'server-only'
 import { createHash } from 'node:crypto'
 import type { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
+import { framesOf } from './errorFrames'
 import { publicApiError } from './errors'
 
 export const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000
@@ -120,11 +121,12 @@ export async function withIdempotency(
   } catch (err) {
     // The write itself committed: answer as it did, rather than a 500 that invites a retry. The
     // claim stays in flight until it counts as abandoned, then the key is free again.
-    // The class and code only (A6, SECURITY-REVIEW.md): the message can quote the stored body.
+    // The class, code and frames only (A6, SECURITY-REVIEW.md): the message can quote the stored body.
     console.error('[public-api] storing an idempotent response failed', {
       claimId,
       error: err instanceof Error ? err.name : 'unknown',
       code: (err as { code?: unknown } | null)?.code ?? null,
+      at: framesOf(err),
     })
   }
   return response

@@ -316,6 +316,9 @@ export async function removeMember(memberId: string) {
       if (!target) throw new Error('Member not found')
       if (target.role === 'owner') throw new Error('Cannot remove the owner')
       if (target.userId === userId) throw new Error('Cannot remove yourself')
+      // fork (A6): an API key's member goes with its key, in Settings → API keys (a tab from before the Team page hid it)
+      if (await db.apiKey.findFirst({ where: { organizationId, serviceUserId: target.userId } }))
+        throw new Error('This is an API key: revoke it in Settings → API keys')
 
       /**
        * Taking somebody off the team takes their technician standing with it.

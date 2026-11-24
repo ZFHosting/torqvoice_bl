@@ -58,7 +58,7 @@ export const RESOURCES: readonly EndpointSpec[][] = [
 ]
 
 /** Every refusal's body (src/features/public-api/Lib/errors.ts); `components.schemas.Error`. */
-const errorSchema = z.object({
+export const errorSchema = z.object({
   error: z.object({
     code: z.string(),
     message: z.string(),

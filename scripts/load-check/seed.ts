@@ -1,8 +1,8 @@
 /**
  * fork (A6, docs/fork/milestones/A6-hardening.md task 4): a workshop for the API's load check, in a local database
  * made for it: 5,000 customers, 10,000 vehicles, 50,000 work orders over three years, 20,000 payments, and twelve
- * full-access API keys (20 requests a second over 120 a minute each). SYNTHETIC data. Refuses a database whose name
- * doesn't say it's a test one.
+ * full-access API keys (20 requests a second over 120 a minute each). SYNTHETIC data. Refuses any database but a local
+ * one named for testing (`guard.ts`).
  *
  *   DATABASE_URL=postgresql://…/torqvoice_fork_load LOAD_KEYS_FILE=<path outside the repo> \
  *     npx tsx --import ./scripts/shopmonkey/register.mjs scripts/load-check/seed.ts
@@ -12,6 +12,7 @@ import { createApiKey } from '@/features/public-api/Lib/keys.server'
 import { db } from '@/lib/db'
 import { permissionGroups } from '@/lib/permissions'
 import { endProcess } from '../shopmonkey/exit'
+import { loadDatabaseRefusal } from './guard'
 
 const CUSTOMERS = 5_000
 const VEHICLES = 10_000
@@ -21,10 +22,8 @@ const KEYS = 12
 const CHUNK = 5_000
 
 function guard() {
-  const name = (process.env.DATABASE_URL ?? '').split('/').pop()?.split('?')[0] ?? ''
-  if (!/test|e2e|load/i.test(name)) {
-    throw new Error(`Refusing to seed "${name}": the load check runs on a local database named for it.`)
-  }
+  const refusal = loadDatabaseRefusal(process.env.DATABASE_URL)
+  if (refusal) throw new Error(refusal)
   if (!process.env.LOAD_KEYS_FILE) throw new Error('LOAD_KEYS_FILE says where the keys go (outside the repo).')
 }
 

@@ -35,8 +35,9 @@ for two minutes with a p95 under 500 ms?
 
 ## Running it again
 
-Only against a local server and a database made for it (`seed.ts` refuses a database whose name doesn't say test,
-e2e or load; `run.ts` refuses anything but `127.0.0.1` or `localhost`):
+Only against a local server and a database made for it (`seed.ts` refuses a database on any other host, or one
+without test, e2e or load as a word of its name, `scripts/load-check/guard.ts`; `run.ts` refuses anything but
+`127.0.0.1` or `localhost`):
 
 ```bash
 createdb torqvoice_fork_load && DATABASE_URL=postgresql://…/torqvoice_fork_load npx prisma migrate dev

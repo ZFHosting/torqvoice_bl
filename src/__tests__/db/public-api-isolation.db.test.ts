@@ -70,6 +70,42 @@ const ID_OF: Record<string, string> = {
   inspections: 'inspection',
 }
 
+/** The table each of B's seeded records is in, so the sweep can show that none of them changed. */
+const MODEL_OF: Record<string, string> = {
+  customer: 'customer',
+  contact: 'customerContact',
+  vehicle: 'vehicle',
+  technician: 'technician',
+  workOrder: 'serviceRecord',
+  job: 'workJob',
+  line: 'serviceLabor',
+  payment: 'payment',
+  attachment: 'serviceAttachment',
+  quote: 'quote',
+  appointment: 'appointment',
+  timeEntry: 'timeEntry',
+  shift: 'technicianShift',
+  part: 'inventoryPart',
+  preset: 'laborPreset',
+  finding: 'vehicleFinding',
+  webhook: 'webhook',
+  status: 'workOrderStatus',
+  inspection: 'inspection',
+}
+
+type Finder = { findUnique: (args: { where: { id: string } }) => Promise<unknown> }
+
+/** Every record of B's the sweep has an id for, as it is now. */
+async function snapshotOf(ids: Record<string, string>) {
+  const out: Record<string, unknown> = {}
+  for (const [kind, id] of Object.entries(ids)) {
+    const model = MODEL_OF[kind]
+    if (!model) throw new Error(`No table for B's ${kind}`)
+    out[kind] = await (db as unknown as Record<string, Finder>)[model].findUnique({ where: { id } })
+  }
+  return out
+}
+
 function paramsFor(rel: string, ids: Record<string, string>) {
   const segments = rel.split('/')
   const params: Record<string, string> = {}
@@ -250,7 +286,7 @@ describe('the isolation sweep', () => {
   })
 
   it('answers 404 to every method of every route, for workshop A’s key and workshop B’s ids', async () => {
-    const before = await db.customer.findUniqueOrThrow({ where: { id: B.ids.customer } })
+    const before = await snapshotOf(B.ids)
     const wrong: string[] = []
     let calls = 0
     for (const rel of routesWithIds()) {
@@ -274,7 +310,9 @@ describe('the isolation sweep', () => {
     }
     expect(calls).toBeGreaterThan(40)
     expect(wrong).toEqual([])
-    // And nothing of B's changed.
-    expect(await db.customer.findUniqueOrThrow({ where: { id: B.ids.customer } })).toEqual(before)
+    // And nothing of B's changed: every record the sweep aimed at is there, as it was.
+    const after = await snapshotOf(B.ids)
+    for (const [kind, row] of Object.entries(before)) expect(row, kind).not.toBeNull()
+    expect(after).toEqual(before)
   })
 })

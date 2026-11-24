@@ -111,10 +111,10 @@ in a field you control) before a late retry.
 | --- | --- | --- |
 | 400 | `invalid_request` | Fix the request; `details` lists each `{ path, message }`. |
 | 401 | `unauthorized` | The key is wrong, revoked or expired. |
-| 403 | `forbidden` | The key's role lacks the permission, or a plan feature is off (`details.gate`). |
+| 403 | `forbidden` | The key's role lacks the permission, a plan feature is off (`details.gate`), or the request came from an address not on the key's IP allowlist. |
 | 404 | `not_found` | No such record in this workshop. |
 | 409 | `document_locked`, `idempotency_conflict`, `conflict` | A locked invoice; a reused idempotency key; a restore in progress (try again later). |
 | 412 | `precondition_failed` | The record changed since your `ETag`. |
-| 413 | `invalid_request` | An upload over its size limit (see `openapi.json` for each kind). |
-| 429 | `rate_limited` | Wait `Retry-After` seconds. |
+| 413 | `invalid_request` | An upload over its size limit (see `openapi.json` for each kind), or a JSON body over 1 MiB. |
+| 429 | `rate_limited` | Wait `Retry-After` seconds: the key's 120 a minute, or too many failed attempts from your address (30 a minute; a key that has worked from that address lately still gets through). |
 | 5xx | | Retry with backoff, with the same `Idempotency-Key`. |

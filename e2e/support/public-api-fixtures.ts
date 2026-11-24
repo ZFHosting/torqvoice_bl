@@ -3,7 +3,9 @@
  * a role with every permission for its key (the workshop's default roles can't write work orders), and a webhook that
  * takes every event (inserted as the A4 tests do: its URL, on a reserved domain, would be refused when saved, and a
  * delivery to it fails without anything leaving the machine). `setup` prints their ids as JSON; `cleanup` removes
- * them, and the spec's keys and their service users. Run by `support/public-api.ts`:
+ * them, and the spec's keys and their service users: what the key wrote over the API (customer, vehicle, work order,
+ * line, payment) goes with its service user by cascade, so a spec that failed half-way leaves none of it behind. The
+ * workshop is the e2e user's first as owner, the one the suite signs in to. Run by `support/public-api.ts`:
  *
  *   node node_modules/tsx/dist/cli.mjs --import ./scripts/shopmonkey/register.mjs e2e/support/public-api-fixtures.ts setup
  */

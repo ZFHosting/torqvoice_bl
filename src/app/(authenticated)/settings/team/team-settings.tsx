@@ -596,7 +596,10 @@ export function TeamSettings({
                 {/* The mobile for a mechanic set up at the counter, whose
                     address is a placeholder nobody can act on, and the email
                     for everybody else. Whichever one identifies them. */}
-                <p className="truncate text-xs text-muted-foreground">{contactFor(member.user)}</p>
+                {/* fork (A6): a key's service user has a placeholder address, not a contact */}
+                {!member.apiKey && (
+                  <p className="truncate text-xs text-muted-foreground">{contactFor(member.user)}</p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {technicians.has(member.user.id) && (
@@ -623,7 +626,8 @@ export function TeamSettings({
                     <TooltipContent>{t('team.revokeTechnicianTitle')}</TooltipContent>
                   </Tooltip>
                 )}
-                {isAdmin && (
+                {/* fork (A6): not for an API key, which never signs a phone in (the sign-out above stays) */}
+                {isAdmin && !member.apiKey && (
                   /* Shown for everybody, the owner included: a one-person
                      workshop is the desk and the bay, and the owner is the
                      likeliest technician in it. Only role changes and removal
