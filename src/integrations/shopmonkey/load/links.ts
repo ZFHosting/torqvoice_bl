@@ -20,6 +20,49 @@ export interface LoadScope {
   onRecreate?: (table: string, model: LocalModel, remoteId: string) => void
   /** M7: told when a changed record is about to overwrite its row, edited in Torqvoice since its last sync (warned). */
   onOverwrite?: (table: string, model: LocalModel, remoteId: string) => void
+  /**
+   * M7: the rows the unit of work under way has written, its own and any it touched in passing (an appointment
+   * setting its work order's start). Their links are synced as of the unit's end (`stampWritten`), so what the load
+   * wrote never reads as an edit made in Torqvoice, and an edit made meanwhile to a row it didn't write still does.
+   */
+  written?: { model: LocalModel; id: string }[]
+}
+
+/** M7: a row the unit of work wrote in passing, so its link is synced with the unit. */
+export function noteWritten(scope: LoadScope, model: LocalModel, id: string): void {
+  scope.written?.push({ model, id })
+}
+
+/** M7: the links of the rows a unit wrote, synced as of now (its end). */
+export async function stampWritten(tx: Tx, scope: LoadScope): Promise<void> {
+  const written = scope.written ?? []
+  if (!written.length) return
+  await tx.integrationLink.updateMany({
+    where: {
+      connectionId: scope.connectionId,
+      OR: written.map((w) => ({ entityType: w.model, entityId: w.id })),
+    },
+    data: { lastSyncedAt: new Date() },
+  })
+}
+
+/** M7: links synced as of now, for rows written outside a unit (invoices issued after their order's unit). */
+export async function stampLinks(
+  tx: Tx,
+  scope: Pick<LoadScope, 'connectionId'>,
+  model: LocalModel,
+  ids: string[]
+): Promise<void> {
+  for (let i = 0; i < ids.length; i += 1000) {
+    await tx.integrationLink.updateMany({
+      where: {
+        connectionId: scope.connectionId,
+        entityType: model,
+        entityId: { in: ids.slice(i, i + 1000) },
+      },
+      data: { lastSyncedAt: new Date() },
+    })
+  }
 }
 
 /** Keys that hold the run's own ids, not what a record points at: left out of `foreignKeys`. */
@@ -297,6 +340,8 @@ async function writeLink(
       entityId: localId,
       remoteId: linkRemoteId(table, remoteId),
       checksum: hash,
+      // M7: the app's clock, as every later sync stamp is (the column's default is the database's).
+      lastSyncedAt: new Date(),
       // Undo removes what a run created, never a row it only matched or updated.
       metadata: created ? { createdByRun: scope.runId } : {},
     },
@@ -327,6 +372,7 @@ export async function markLoaded(
     input.hash,
     input.created
   )
+  noteWritten(scope, input.model, input.localId)
   await tx.sourceRecord.updateMany({
     where: {
       organizationId: scope.organizationId,

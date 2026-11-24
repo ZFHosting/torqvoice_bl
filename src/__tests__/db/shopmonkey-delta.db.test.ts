@@ -295,6 +295,38 @@ describe('an edit made in Torqvoice during the sync window', () => {
     ])
   })
 
+  it('stays an edit when it is made while a load runs (the load syncs only what it wrote)', async () => {
+    const { runLoad } = await import('@/integrations/shopmonkey/load/run')
+    const id = await localOf('Customer', 'customer', 'syn_cus_2')
+    const loading = runLoad({
+      organizationId: shop.organizationId,
+      connectionId: shop.connectionId,
+      runUserId: shop.userId,
+    })
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    await db.customer.update({ where: { id }, data: { notes: 'Edited while a load ran' } })
+    await loading
+    const row = await db.customer.findUniqueOrThrow({ where: { id }, select: { updatedAt: true } })
+    const link = await db.integrationLink.findFirstOrThrow({
+      where: { connectionId: shop.connectionId, entityType: 'Customer', entityId: id },
+      select: { lastSyncedAt: true },
+    })
+    expect(row.updatedAt.getTime()).toBeGreaterThan(link.lastSyncedAt.getTime())
+    // So Shopmonkey's next change to it warns.
+    mock.changeAt('customer', 'syn_cus_2', '2026-02-15T00:00:00.000Z', { note: 'Shopmonkey again' })
+    await webhook.receive(
+      delivery({ operation: 'UPDATE', table: 'customer', data: { id: 'syn_cus_2' } })(),
+      await ctx()
+    )
+    await runQueued('refetch')
+    const lastLoad = (await state()).lastLoad as {
+      warnings: Record<string, { examples: unknown[] }>
+    }
+    expect(lastLoad.warnings.local_edit_overwritten.examples).toEqual([
+      expect.objectContaining({ table: 'customer', remoteId: 'syn_cus_2' }),
+    ])
+  })
+
   it("isn't warned of when the record changes in Shopmonkey again, nobody having edited it since", async () => {
     mock.changeAt('customer', 'syn_cus_4', '2026-03-01T00:00:00.000Z', { note: 'Again' })
     await webhook.receive(
@@ -327,8 +359,46 @@ describe('a record deleted in Shopmonkey', () => {
     })
   })
 
+  it('keeps a work order the workshop added a status report to since its last sync', async () => {
+    const id = await localOf('ServiceRecord', 'order', 'syn_ord_1003')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    await db.statusReport.create({
+      data: {
+        organizationId: shop.organizationId,
+        serviceRecordId: id,
+        publicToken: `syn-${randomUUID()}`,
+        title: 'Brake video',
+      },
+    })
+    mock.remove('order', 'syn_ord_1003')
+    await webhook.receive(
+      delivery({ operation: 'DELETE', table: 'order', data: { id: 'syn_ord_1003' } })(),
+      await ctx()
+    )
+    await runQueued('refetch')
+    expect(await db.serviceRecord.count({ where: { id } })).toBe(1)
+    expect(await db.statusReport.count({ where: { serviceRecordId: id } })).toBe(1)
+    expect((await state()).lastSync).toMatchObject({
+      keptDeletes: expect.arrayContaining([
+        { table: 'order', remoteId: 'syn_ord_1003', model: 'ServiceRecord', reason: 'edited' },
+      ]),
+    })
+  })
+
   it('deletes a work order untouched since its last sync, with its tombstone', async () => {
     const id = await localOf('ServiceRecord', 'order', 'syn_ord_1002')
+    // Its parts came from Shopmonkey's counts and never left the shelf here: the delete puts nothing back.
+    const stock = () =>
+      db.inventoryPart.findMany({
+        where: { organizationId: shop.organizationId },
+        orderBy: { id: 'asc' },
+        select: { id: true, quantity: true },
+      })
+    const stockBefore = await stock()
+    const linked = await db.servicePart.count({
+      where: { serviceRecordId: id, inventoryPartId: { not: null } },
+    })
+    expect(linked).toBeGreaterThan(0)
     mock.remove('order', 'syn_ord_1002')
     await webhook.receive(
       delivery({ operation: 'DELETE', table: 'order', data: { id: 'syn_ord_1002' } })(),
@@ -350,6 +420,18 @@ describe('a record deleted in Shopmonkey', () => {
     expect(archived.remoteDeletedAt).not.toBeNull()
     expect(archived.localId).toBeNull()
     expect((await state()).lastSync).toMatchObject({ deleted: 1 })
+    expect(await stock()).toEqual(stockBefore)
+    expect(
+      await db.stockMovement.count({
+        where: { organizationId: shop.organizationId, reason: 'service_record_deleted' },
+      })
+    ).toBe(0)
+    // One audit event for the deletes, naming them.
+    expect(
+      await db.auditLog.count({
+        where: { organizationId: shop.organizationId, action: 'shopmonkey.sync_delete' },
+      })
+    ).toBe(1)
   })
 })
 

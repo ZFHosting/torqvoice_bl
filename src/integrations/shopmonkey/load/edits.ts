@@ -1,12 +1,11 @@
 /**
  * Torqvoice edits to imported rows (M7, the conflict and delete policies): a row is edited in Torqvoice when its
- * `updatedAt` is later than its link's `lastSyncedAt`. A load moves `lastSyncedAt` past everything it wrote itself
- * once it's over (`stampSynced`), the rows it touched in passing included (an appointment setting its work order's
- * start, an invoice issued after its order's unit), so only a change made outside a load counts. An edit made while
- * a load runs counts as the load's own: it's overwritten by the next change from Shopmonkey without a warning.
+ * `updatedAt` is later than its link's `lastSyncedAt`. A load syncs the links of exactly the rows it wrote, at the end
+ * of the unit that wrote them (`stampWritten` in `links.ts`), the rows it touched in passing included (an appointment
+ * setting its work order's start), and the invoices it issued after their unit; so only a change made outside a load
+ * counts, and an edit made while a load runs to a row it didn't write still does.
  */
-import { db } from '@/lib/db'
-import type { LoadScope, LocalModel } from './links'
+import type { LocalModel } from './links'
 import type { Tx } from './context'
 
 /** The table of each linked model that records when its row last changed (an attachment doesn't). */
@@ -61,27 +60,4 @@ export async function editedSince(
 ): Promise<boolean> {
   const updatedAt = await rowUpdatedAt(tx, model, id, organizationId)
   return !!updatedAt && updatedAt.getTime() > syncedAt.getTime()
-}
-
-/**
- * After a load: every link of the connection whose row changed since the run started is synced as of `at`, so what
- * the run wrote (directly or in passing) isn't taken for an edit made in Torqvoice. One statement per model.
- */
-export async function stampSynced(
-  scope: Pick<LoadScope, 'connectionId'>,
-  since: Date,
-  at: Date
-): Promise<void> {
-  for (const [model, table] of Object.entries(UPDATED_TABLES)) {
-    await db.$executeRawUnsafe(
-      `UPDATE "public"."integration_links" AS l SET "lastSyncedAt" = $3
-         FROM "public"."${table}" AS r
-        WHERE l."connectionId" = $1 AND l."entityType" = $2 AND r."id" = l."entityId"
-          AND r."updatedAt" >= $4`,
-      scope.connectionId,
-      model,
-      at,
-      since
-    )
-  }
 }

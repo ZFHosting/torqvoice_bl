@@ -2,11 +2,12 @@
  * Cutover (M7 task 5, docs/fork/CUTOVER.md): the end of the sync window, in the brief's order. It stops at the first
  * step that fails, so nothing after a failing reconciliation changes the workshop.
  *   1. The shop has stopped editing Shopmonkey (the operator says so: `shopStopped`).
- *   2. A final delta for every table, then a load and the delete policy.
+ *   2. The webhook refetches still waiting, a sync run under way finished, then a fresh delta for every table
+ *      from where that ended, a load and the delete policy.
  *   3. The reconciliation; any gate failing stops the cutover.
  *   4. The numbering proposal (MAPPING §9) applied.
  *   5. `state.cutover` set: the banners go (M8) and the sync stops for good.
- *   6. The sync's queued jobs cancelled; the schedule and the webhook do nothing from now on.
+ *   6. The sync's queued jobs cancelled and its schedule put off for good; the webhook does nothing from now on.
  *   7. A reminder: delete the webhook in Shopmonkey and revoke the API key.
  * A dry run goes through every step and changes nothing in the workshop: its load is rolled back, its proposals
  * aren't applied, nothing is set or cancelled. Its delta does stage what changed, as the sync would; its
@@ -17,7 +18,7 @@ import { randomUUID } from 'node:crypto'
 import { saveExtractState } from '@/features/shopmonkey-import/Lib/extractState.server'
 import { auditDetails, logAudit } from '@/lib/audit'
 import { db } from '@/lib/db'
-import type { ExtractDeps } from '../extract/engine'
+import { type ExtractDeps, refetchRecord } from '../extract/engine'
 import type { ExtractState } from '../extract/plan'
 import type { Tx } from '../load/context'
 import { LoadRefused } from '../load/finish'
@@ -33,6 +34,9 @@ import type { CutoverState } from './jobs'
 
 /** The sync's own jobs: cancelled at cutover. */
 export const SYNC_JOBS = ['refetch', 'sync.delta', 'sync.load']
+
+/** The latest time a Date can hold (ms): a schedule's last run set to it is never due again. */
+const NEVER_AGAIN = 8_640_000_000_000_000
 
 export const CUTOVER_STEPS = [
   'The shop has stopped editing Shopmonkey',
@@ -134,7 +138,7 @@ export async function runCutover(options: {
   record('done', 'Confirmed by the operator.')
 
   // 2. The final delta, then the load (rolled back in a dry run) and the delete policy.
-  const previous = state.extract
+  let previous = state.extract
   if (!previous?.finishedAt && !previous?.sync) {
     record('failed', previous ? 'An extract is still running.' : 'No extract has finished yet.')
     return finish()
@@ -143,20 +147,56 @@ export async function runCutover(options: {
     record('failed', 'Run the first load (run.ts load) before cutting over.')
     return finish()
   }
-  // Marked a sync run: if this stops halfway, the sync carries it on instead of waiting on it for ever.
-  const run = previous.finishedAt
-    ? deltaStart(previous, { runId: randomUUID(), now: new Date(), sync: true })
-    : previous
-  if (run !== previous) await mergeState(scope, { extract: run })
-  const extracted = await driveDelta(options.deps, run, {
-    budgetMs: Number.POSITIVE_INFINITY,
-    save: (next) => saveExtractState(scope, next),
+  const drive = (run: ExtractState) =>
+    driveDelta(options.deps, run, {
+      budgetMs: Number.POSITIVE_INFINITY,
+      save: (next) => saveExtractState(scope, next),
+    })
+  let changed = 0
+  // The deliveries not acted on yet: the only way a delete or a change to a child alone arrives. Read now; a real
+  // cutover marks their jobs done (a dry run leaves them for the sync).
+  const waiting = await db.integrationJob.findMany({
+    where: { ...scope, kind: 'refetch', status: 'queued' },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, payload: true },
   })
+  for (const job of waiting) {
+    const target = (job.payload ?? {}) as { table?: unknown; id?: unknown }
+    if (typeof target.table === 'string' && typeof target.id === 'string') {
+      const result = await refetchRecord(options.deps, target.table, target.id)
+      changed += result.counts.created + result.counts.updated + result.children.created
+      changed +=
+        result.children.updated + result.children.gone + (result.outcome === 'gone' ? 1 : 0)
+    }
+    if (!dry) {
+      await db.integrationJob.updateMany({
+        where: { id: job.id, ...scope, status: 'queued' },
+        data: { status: 'done', finishedAt: new Date(), idempotencyKey: null },
+      })
+    }
+  }
+  // A sync run under way started from dates fixed when it began: it is finished, then a fresh delta reads every
+  // table from where it ended, so nothing changed before the shop stopped is missed.
+  if (!previous.finishedAt) {
+    const finishing = await drive(previous)
+    if (finishing.replaced) {
+      record('failed', 'Another extract replaced the final delta; run the cutover again.')
+      return finish()
+    }
+    changed += changedRecords(finishing.state)
+    previous = finishing.state
+  }
+  // Marked a sync run: if this stops halfway, the sync carries it on instead of waiting on it for ever.
+  const run = deltaStart(previous, { runId: randomUUID(), now: new Date(), sync: true })
+  await mergeState(scope, { extract: run })
+  const extracted = await drive(run)
   if (extracted.replaced) {
     record('failed', 'Another extract replaced the final delta; run the cutover again.')
     return finish()
   }
-  const changed = changedRecords(extracted.state)
+  changed += changedRecords(extracted.state)
+  // A dry run's load keeps nothing: what this staged is still to load, by the sync or the real cutover.
+  if (dry && changed) await mergeState(scope, { syncPending: true })
   let loadDetail: string
   try {
     const summary = await runLoad({ ...scope, runUserId: options.userId, dryRun: dry })
@@ -201,17 +241,32 @@ export async function runCutover(options: {
   }
   record(done, `The connection is marked cut over${dry ? '' : ` at ${at}`}.`)
 
-  // 6. The sync's waiting jobs cancelled; from now on the schedule and the webhook find `cutover` and do nothing.
-  const where = { connectionId: scope.connectionId, status: 'queued', kind: { in: SYNC_JOBS } }
+  // 6. The sync's queued jobs cancelled (their keys released) and its schedule put off for good: the scheduler
+  // queues a job only once its interval has passed since the time in `state.scheduleRuns`, and that time is now as
+  // late as a date can be. The webhook finds `cutover` and does nothing.
+  const where = { ...scope, status: 'queued', kind: { in: SYNC_JOBS } }
   const cancelled = dry
     ? await db.integrationJob.count({ where })
     : (
         await db.integrationJob.updateMany({
           where,
-          data: { status: 'failed', finishedAt: new Date(), error: 'Cut over' },
+          data: {
+            status: 'failed',
+            finishedAt: new Date(),
+            error: 'Cut over',
+            idempotencyKey: null,
+          },
         })
       ).count
-  record(done, `${cancelled} queued sync jobs ${dry ? 'would be ' : ''}cancelled.`)
+  if (!dry) {
+    const runs = (connection.state as { scheduleRuns?: Record<string, number> } | null)
+      ?.scheduleRuns
+    await mergeState(scope, { scheduleRuns: { ...(runs ?? {}), 'sync.delta': NEVER_AGAIN } })
+  }
+  record(
+    done,
+    `${cancelled} queued sync jobs ${dry ? 'would be ' : ''}cancelled, and the sync's schedule ${dry ? 'would be ' : ''}stopped.`
+  )
 
   // 7. What only the operator can do, in Shopmonkey.
   record('done', REMINDER)

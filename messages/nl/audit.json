@@ -238,6 +238,7 @@
     "shopmonkey_import": "Geïmporteerd uit Shopmonkey",
     "shopmonkey_import_undo": "Shopmonkey-import ongedaan gemaakt",
     "shopmonkey_cutover": "Overgestapt van Shopmonkey",
+    "shopmonkey_sync_delete": "Verwijderd door de Shopmonkey-synchronisatie",
     "contact_create": "Contact toegevoegd",
     "contact_update": "Contact gewijzigd",
     "contact_delete": "Contact verwijderd",
@@ -446,6 +447,7 @@
     "shopmonkey_import": "{records} nieuwe of gewijzigde records geïmporteerd uit Shopmonkey",
     "shopmonkey_import_undo": "Shopmonkey-import ongedaan gemaakt: {records} records verwijderd",
     "shopmonkey_cutover": "Overgestapt van Shopmonkey: Torqvoice volgt het niet meer",
+    "shopmonkey_sync_delete": "{records} records verwijderd die in Shopmonkey zijn verwijderd (synchronisatieperiode)",
     "platform_revokeSuperAdmin": "Superbeheerder ingetrokken voor {name} ({email})"
   }
 }

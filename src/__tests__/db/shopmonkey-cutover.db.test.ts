@@ -212,6 +212,18 @@ describe('a cutover', () => {
 
   it('goes through every step for real, and then the sync stops', async () => {
     const job = await queueSync()
+    // A delivery not acted on yet, about a change only a refetch sees (a vehicle has no list): step 2 reads it.
+    mock.change('vehicle', 'syn_veh_1', { color: 'Green' })
+    const refetch = await db.integrationJob.create({
+      data: {
+        connectionId: shop.connectionId,
+        organizationId: shop.organizationId,
+        kind: 'refetch',
+        payload: { table: 'vehicle', id: 'syn_veh_1' },
+        idempotencyKey: 'refetch:vehicle:syn_veh_1',
+      },
+      select: { id: true },
+    })
     const result = await run({ dryRun: false })
     expect(result.steps.map((s) => s.status)).toEqual([
       'done',
@@ -227,7 +239,27 @@ describe('a cutover', () => {
     expect(await db.integrationJob.findUniqueOrThrow({ where: { id: job.id } })).toMatchObject({
       status: 'failed',
       error: 'Cut over',
+      idempotencyKey: null,
     })
+    expect(await db.integrationJob.findUniqueOrThrow({ where: { id: refetch.id } })).toMatchObject({
+      status: 'done',
+    })
+    const vehicle = await db.integrationLink.findFirstOrThrow({
+      where: {
+        connectionId: shop.connectionId,
+        entityType: 'Vehicle',
+        remoteId: 'vehicle:syn_veh_1',
+      },
+      select: { entityId: true },
+    })
+    expect(
+      await db.vehicle.findUniqueOrThrow({
+        where: { id: vehicle.entityId },
+        select: { color: true },
+      })
+    ).toEqual({ color: 'green' }) // the transform keeps colours in lower case
+    // The schedule is put off for good: the scheduler never finds it due again.
+    expect((await state()).scheduleRuns).toMatchObject({ 'sync.delta': 8_640_000_000_000_000 })
     expect(
       await db.auditLog.count({
         where: { organizationId: shop.organizationId, action: 'shopmonkey.cutover' },
@@ -268,5 +300,24 @@ describe('a cutover', () => {
     ).toBe(0)
 
     await expect(run({ dryRun: true })).rejects.toMatchObject({ name: 'CutoverRefused' })
+
+    // And nothing more is loaded or read from Shopmonkey.
+    const { runLoad } = await import('@/integrations/shopmonkey/load/run')
+    await expect(
+      runLoad({
+        organizationId: shop.organizationId,
+        connectionId: shop.connectionId,
+        runUserId: shop.userId,
+      })
+    ).rejects.toMatchObject({ name: 'LoadRefused' })
+    const { startShopmonkeyExtract } = await import(
+      '@/features/shopmonkey-import/Lib/startExtract.server'
+    )
+    await expect(
+      startShopmonkeyExtract({
+        organizationId: shop.organizationId,
+        connectionId: shop.connectionId,
+      })
+    ).rejects.toThrow(/cut over/)
   })
 })

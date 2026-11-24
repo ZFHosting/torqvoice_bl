@@ -1160,7 +1160,7 @@
         "apiKey": "Shopmonkey API raktas",
         "apiKeyHelp": "Jį sukuria Shopmonkey administratorius skiltyje Settings, Integration, API Keys. Jis veikia to žmogaus teisėmis, todėl šis turi turėti prieigą prie kiekvienos importuojamos vietos.",
         "webhookSecret": "Webhook parašo slaptažodis",
-        "webhookSecretHelp": "Neprivaloma. Shopmonkey jį parodo, kai šiam ryšiui pridedate webhook skiltyje Settings, Integration, Webhooks; jis prasideda whsec_. Be jo Torqvoice vis tiek kas 10 minučių tikrina Shopmonkey pakeitimus."
+        "webhookSecretHelp": "Neprivaloma. Shopmonkey jį parodo, kai šiam ryšiui pridedate webhook skiltyje Settings, Integration, Webhooks; jis prasideda whsec_. Be jo Torqvoice vis tiek kas 10 minučių tikrina Shopmonkey pakeitimus, bet apie ištrynimus praneša tik webhook."
       },
       "settings": {
         "locationId": "Vieta",

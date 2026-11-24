@@ -268,7 +268,8 @@ export async function scheduleDueSyncs(): Promise<number> {
       // connector saved meanwhile (the Shopmonkey sync saves its checkpoints and its cutover per key).
       await db.$executeRaw`
         UPDATE "public"."integration_connections"
-        SET "state" = jsonb_set(COALESCE("state", '{}'::jsonb), '{scheduleRuns}', ${JSON.stringify(lastRuns)}::jsonb)
+        SET "state" = jsonb_set(COALESCE("state", '{}'::jsonb), '{scheduleRuns}', ${JSON.stringify(lastRuns)}::jsonb),
+            "updatedAt" = now()
         WHERE "id" = ${c.id}`
     }
   }

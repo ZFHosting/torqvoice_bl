@@ -7,7 +7,7 @@ import type { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import type { Stage } from '@/features/work-order-statuses/Lib/stages'
 import type { TransformContext, Warning } from '../transform/types'
-import type { LoadScope } from './links'
+import { type LoadScope, stampWritten } from './links'
 import type { Resolver } from './resolver'
 
 export type Tx = Prisma.TransactionClient
@@ -118,7 +118,18 @@ export function createLoadContext(input: {
  * One unit of work (a customer, an order with everything on it): its own transaction, so a failure rolls back that
  * record alone and the run carries on. In a dry run, a savepoint in the outer transaction instead.
  */
-export async function unit<T>(lc: LoadContext, fn: (tx: Tx) => Promise<T>): Promise<T> {
+export async function unit<T>(lc: LoadContext, work: (tx: Tx) => Promise<T>): Promise<T> {
+  // M7: the rows the unit writes are collected, and their links synced as of its end, inside its transaction.
+  const fn = async (tx: Tx) => {
+    lc.scope.written = []
+    try {
+      const out = await work(tx)
+      await stampWritten(tx, lc.scope)
+      return out
+    } finally {
+      lc.scope.written = undefined
+    }
+  }
   const dry = lc.dryTx
   if (!dry) {
     return db.$transaction((tx) => fn(tx as Tx), {

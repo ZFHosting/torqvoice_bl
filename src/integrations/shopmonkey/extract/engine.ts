@@ -101,6 +101,8 @@ export interface StepResult {
  * stays well inside the queue's ten minutes before it thinks a job is stuck and runs it again.
  */
 const CHILD_CALL_BUDGET = 25
+/** M7: records a newest-first page reads again from the page before it (see `listOnePage`). */
+const RECENT_REREAD = 10
 const CHILD_UNIT_MS = 30_000
 const PARENTS_PER_UNIT = 10
 /** Bump when what a table's children are changes, so every parent's children are fetched again. */
@@ -349,19 +351,25 @@ async function listOnePage(
       kept.map((payload) => ({ payload }))
     )
   )
-  for (const row of kept) cp.highWatermark = later(cp.highWatermark, row.updatedDate)
+  // Every record read, another location's too: the watermark says how far the list was read, not what was kept.
+  for (const row of rows) cp.highWatermark = later(cp.highWatermark, row.updatedDate)
   cp.skip += page.rows.length
   if (rows.length >= PAGE_SIZE) cp.lastPage = pageKey
   // M7: newest first and past the delta's start: the rest of the list is older still.
   let reachedStart = false
   if (recent && !cp.unordered && rows.length) {
-    if (!newestFirst(rows)) {
+    const floor = cp.recentFloor ? timeOf(cp.recentFloor) : Number.POSITIVE_INFINITY
+    if (!newestFirst(rows) || timeOf(rows[0].updatedDate) > floor) {
       cp.unordered = true
       await deps.log('warn', `Shopmonkey's ${spec.table} list isn't newest first; read whole`, {
         table: spec.table,
       })
     } else {
       reachedStart = timeOf(rows[rows.length - 1].updatedDate) < timeOf(since)
+      cp.recentFloor = rows[rows.length - 1].updatedDate as string
+      // Paged by skip, a record deleted meanwhile moves the rest up a place: the next page starts a few records
+      // back, so up to that many deletes between two pages skip nothing (the repeats are staged unchanged).
+      if (page.more && !reachedStart) cp.skip -= Math.min(RECENT_REREAD, page.rows.length - 1)
     }
   }
   if (!page.more || reachedStart) cp.stage = spec.children?.length ? 'children' : 'done'

@@ -238,6 +238,7 @@
     "shopmonkey_import": "Shopmonkey'den içe aktarıldı",
     "shopmonkey_import_undo": "Shopmonkey içe aktarımı geri alındı",
     "shopmonkey_cutover": "Shopmonkey'den geçiş",
+    "shopmonkey_sync_delete": "Shopmonkey senkronizasyonu tarafından silindi",
     "contact_create": "Kişi eklendi",
     "contact_update": "Kişi değiştirildi",
     "contact_delete": "Kişi kaldırıldı",
@@ -446,6 +447,7 @@
     "shopmonkey_import": "Shopmonkey'den {records} yeni veya değişmiş kayıt içe aktarıldı",
     "shopmonkey_import_undo": "Shopmonkey içe aktarımı geri alındı: {records} kayıt kaldırıldı",
     "shopmonkey_cutover": "Shopmonkey'den geçiş: Torqvoice artık onu takip etmiyor",
+    "shopmonkey_sync_delete": "Shopmonkey'de silinen {records} kayıt silindi (senkronizasyon dönemi)",
     "platform_revokeSuperAdmin": "{name} ({email}) kullanıcısının süper yöneticiliği kaldırıldı"
   }
 }

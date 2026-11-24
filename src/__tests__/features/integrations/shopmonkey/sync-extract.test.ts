@@ -89,6 +89,23 @@ describe('a delta of a large GET list', () => {
     ).toBe(true)
   })
 
+  it('reads every page a few records back from the last, so a delete between pages skips nothing', async () => {
+    const h = harness({ extra: { order: 250 } })
+    await h.run(
+      startState(null, {
+        runId: 'd4',
+        only,
+        sinceByTable: { order: '2024-12-01T00:00:00.000Z' },
+        now: NOW,
+      })
+    )
+    // 255 orders newest first, ten read again per page: 0-99, 90-189, 180-254.
+    expect(
+      h.mock.calls.filter((c) => c.method === 'GET' && c.path === '/v3/order').map((c) => c.skip)
+    ).toEqual([0, 90, 180])
+    expect([...h.memory.rows.values()].filter((r) => r.table === 'order')).toHaveLength(255)
+  })
+
   it('reads a backfill whole, in id order, whatever the table says', async () => {
     const h = harness({ extra: { order: 250 } })
     await h.run(startState(null, { runId: 'b1', only, now: NOW }))

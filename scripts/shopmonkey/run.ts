@@ -151,6 +151,10 @@ async function main() {
   if (ctx.connection.connectorId !== 'shopmonkey') {
     throw new Error('That connection is not a Shopmonkey connection')
   }
+  // M7: after cutover nothing more is read from Shopmonkey.
+  if (ctx.connection.state.cutover) {
+    throw new Error('The import is cut over: nothing more is read from Shopmonkey.')
+  }
   const { state, resumed } = runToDrive(
     ctx.connection.state.extract as never,
     args,

@@ -21,7 +21,6 @@ import {
   type Tx,
 } from './context'
 import { loadInventory, loadPresets } from './catalog'
-import { stampSynced } from './edits'
 import { removePlaced } from './files'
 import { withLoadLock } from './lock'
 import { recordSkips, saveLastLoad } from './outcome'
@@ -43,7 +42,7 @@ import {
 } from './people'
 import { applySettingChanges, type Proposals, proposeNumbering, proposeSettings } from './proposals'
 import { importLabeler } from './labels'
-import type { LoadScope } from './links'
+import { type LoadScope, stampLinks } from './links'
 import { loadResolver } from './resolver'
 
 export interface LoadOptions {
@@ -64,6 +63,8 @@ export interface LoadOptions {
   statusStageMap?: Record<string, Stage>
   technicianMap?: Record<string, string | 'create'>
   now?: Date
+  /** M7: a sync's load. When it writes nothing it records no audit event (a sync loads every ten minutes). */
+  quiet?: boolean
 }
 
 export interface LoadSummary {
@@ -126,8 +127,6 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
 }
 
 async function loadUnlocked(options: LoadOptions): Promise<LoadSummary> {
-  // M7: the real clock (not `now`, which dates what's written): rows changed after it are this run's.
-  const startedAt = new Date()
   const scope = {
     organizationId: options.organizationId,
     connectionId: options.connectionId,
@@ -140,10 +139,14 @@ async function loadUnlocked(options: LoadOptions): Promise<LoadSummary> {
       organizationId: scope.organizationId,
       connectorId: 'shopmonkey',
     },
-    select: { id: true, settings: true },
+    select: { id: true, settings: true, state: true },
   })
   if (!connection)
     throw new LoadRefused([], 'That is not a Shopmonkey connection of this workshop.')
+  // M7: after cutover the workshop is the system of record: nothing from Shopmonkey overwrites it any more.
+  if ((connection.state as { cutover?: unknown } | null)?.cutover) {
+    throw new LoadRefused([], 'The import is cut over: nothing more is loaded from Shopmonkey.')
+  }
   // Issuing an imported invoice notifies whatever hears `service.update`: nothing is written while one is on.
   if (!options.dryRun) await assertNoInvoiceListeners(scope.organizationId)
   const resolver = await loadResolver(scope)
@@ -240,21 +243,22 @@ async function loadUnlocked(options: LoadOptions): Promise<LoadSummary> {
   }
   const issue =
     options.dryRun || listeners.length
-      ? { issued: 0, failed: 0 }
+      ? { issued: 0, failed: 0, ids: [] }
       : await issueInvoices(scope.organizationId, lc.toIssue)
   if (!options.dryRun) {
-    // M7: what this run wrote, in passing too (an invoice issued just now), isn't an edit made in Torqvoice.
-    await stampSynced(scope, startedAt, new Date())
+    // M7: an invoice issued just now, after its order's unit, isn't an edit made in Torqvoice either.
+    await stampLinks(db as unknown as Tx, scope, 'ServiceRecord', issue.ids)
     const records = Object.values(lc.counts).reduce((a, c) => a + c.created + c.updated, 0)
-    await recordLoad(scope.organizationId, options.runUserId, {
-      connectionId: scope.connectionId,
-      runId: scope.runId,
-      records,
-      counts: lc.counts,
-      issued: issue.issued,
-      issueFailed: issue.failed,
-      applied,
-    })
+    if (!(options.quiet && records === 0))
+      await recordLoad(scope.organizationId, options.runUserId, {
+        connectionId: scope.connectionId,
+        runId: scope.runId,
+        records,
+        counts: lc.counts,
+        issued: issue.issued,
+        issueFailed: issue.failed,
+        applied,
+      })
     await saveLastLoad(scope, lc, {
       runId: scope.runId,
       issued: issue.issued,

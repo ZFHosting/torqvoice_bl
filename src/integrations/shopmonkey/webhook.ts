@@ -106,7 +106,7 @@ export async function receive(
   ctx: ConnectorContext
 ): Promise<{ jobs: { kind: string; payload?: Record<string, unknown> }[]; response?: Response }> {
   const secret =
-    typeof ctx.credentials.webhookSecret === 'string' ? ctx.credentials.webhookSecret : ''
+    typeof ctx.credentials.webhookSecret === 'string' ? ctx.credentials.webhookSecret.trim() : ''
   if (!secret) throw new Error('This connection has no webhook secret')
   const body = await request.text()
   const deliveryId = request.headers.get('webhook-id')
@@ -158,7 +158,10 @@ export async function receive(
       idempotencyKey: `refetch:${target.table}:${target.id}`,
     })
   } catch (err) {
+    // Another delivery about the same record queued its refetch at the same moment: this one joins it.
+    if (isUniqueViolation(err)) return { jobs: [], response: ok() }
     // Not queued, so not taken: Shopmonkey's retry of it is acted on.
+    // (A crash between the two writes loses the delivery; the ten-minute delta still reads the change.)
     await db.inboundWebhookDelivery.deleteMany({
       where: { connectionId: scope.connectionId, deliveryId: deliveryId as string },
     })

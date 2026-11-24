@@ -1160,7 +1160,7 @@
         "apiKey": "Klucz API Shopmonkey",
         "apiKeyHelp": "Tworzy go administrator Shopmonkey w Settings, Integration, API Keys. Działa z uprawnieniami tej osoby, więc musi ona mieć dostęp do każdej importowanej lokalizacji.",
         "webhookSecret": "Sekret podpisu webhooka",
-        "webhookSecretHelp": "Opcjonalne. Shopmonkey pokazuje go po dodaniu webhooka dla tego połączenia w Settings, Integration, Webhooks; zaczyna się od whsec_. Bez niego Torqvoice i tak sprawdza zmiany w Shopmonkey co 10 minut."
+        "webhookSecretHelp": "Opcjonalne. Shopmonkey pokazuje go po dodaniu webhooka dla tego połączenia w Settings, Integration, Webhooks; zaczyna się od whsec_. Bez niego Torqvoice i tak sprawdza zmiany w Shopmonkey co 10 minut, ale o usunięciach informuje tylko webhook."
       },
       "settings": {
         "locationId": "Lokalizacja",

@@ -116,7 +116,8 @@ export async function syncLoad(ctx: ConnectorContext): Promise<string> {
   ])
   let summary: LoadSummary
   try {
-    summary = await runLoad({ ...scope, runUserId: userId })
+    // Quiet: a sync load that wrote nothing records no audit event (one would fire every ten minutes).
+    summary = await runLoad({ ...scope, runUserId: userId, quiet: true })
   } catch (err) {
     if (err instanceof Error && err.name === 'LoadBusy') {
       await mergeState(scope, { syncPending: true })
@@ -133,6 +134,8 @@ export async function syncLoad(ctx: ConnectorContext): Promise<string> {
       await ctx.log('warn', `Sync not loaded: ${err.message}`)
       return `not loaded: ${err.message}`
     }
+    // Whatever went wrong, what was staged is still to load: the next run tries again.
+    await mergeState(scope, { syncPending: true })
     throw err
   }
   const deletes = await applyRemoteDeletes({ ...scope, runId: summary.runId }, userId)
@@ -185,7 +188,7 @@ export function createSyncJobs(deps: SyncJobDeps) {
     // The last refetch of a burst loads; the ones before it leave that to the one still waiting.
     const waiting = await db.integrationJob.count({
       where: {
-        connectionId: scope.connectionId,
+        ...scope,
         kind: 'refetch',
         status: 'queued',
         runAfter: { lte: new Date() },
