@@ -11,8 +11,7 @@ type Input = {
   organizationId: string
   entity?: string | null
   entityId?: string | null
-  // biome-ignore lint/suspicious/noExplicitAny: the dispatcher's own input type
-  data?: Record<string, any> | null
+  data?: Record<string, unknown> | null
 }
 
 /** The event under the API's name and kind, or null when it isn't one of the fork's (or names no record). */
