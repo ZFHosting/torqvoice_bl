@@ -264,10 +264,12 @@ export async function scheduleDueSyncs(): Promise<number> {
       queued++
     }
     if (changed) {
-      await db.integrationConnection.update({
-        where: { id: c.id },
-        data: { state: { ...state, scheduleRuns: lastRuns } as object },
-      })
+      // fork: this key only, in one statement: writing back the whole state read above could undo what a
+      // connector saved meanwhile (the Shopmonkey sync saves its checkpoints and its cutover per key).
+      await db.$executeRaw`
+        UPDATE "public"."integration_connections"
+        SET "state" = jsonb_set(COALESCE("state", '{}'::jsonb), '{scheduleRuns}', ${JSON.stringify(lastRuns)}::jsonb)
+        WHERE "id" = ${c.id}`
     }
   }
   return queued

@@ -237,6 +237,7 @@
     "shopmonkey_extract": "Recuperato da Shopmonkey",
     "shopmonkey_import": "Importato da Shopmonkey",
     "shopmonkey_import_undo": "Importazione da Shopmonkey annullata",
+    "shopmonkey_cutover": "Passaggio da Shopmonkey completato",
     "contact_create": "Contatto aggiunto",
     "contact_update": "Contatto modificato",
     "contact_delete": "Contatto rimosso",
@@ -444,6 +445,7 @@
     "shopmonkey_extract": "Recuperati {records} record nuovi o modificati da Shopmonkey ({count} chiamate API)",
     "shopmonkey_import": "Importati {records} record nuovi o modificati da Shopmonkey",
     "shopmonkey_import_undo": "Annullata un'importazione da Shopmonkey: rimossi {records} record",
+    "shopmonkey_cutover": "Passaggio da Shopmonkey completato: Torqvoice non lo segue più",
     "platform_revokeSuperAdmin": "Ruolo di super amministratore rimosso da {name} ({email})"
   }
 }

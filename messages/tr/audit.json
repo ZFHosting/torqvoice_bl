@@ -237,6 +237,7 @@
     "shopmonkey_extract": "Shopmonkey'den alındı",
     "shopmonkey_import": "Shopmonkey'den içe aktarıldı",
     "shopmonkey_import_undo": "Shopmonkey içe aktarımı geri alındı",
+    "shopmonkey_cutover": "Shopmonkey'den geçiş",
     "contact_create": "Kişi eklendi",
     "contact_update": "Kişi değiştirildi",
     "contact_delete": "Kişi kaldırıldı",
@@ -444,6 +445,7 @@
     "shopmonkey_extract": "Shopmonkey'den {records} yeni veya değişmiş kayıt alındı ({count} API çağrısı)",
     "shopmonkey_import": "Shopmonkey'den {records} yeni veya değişmiş kayıt içe aktarıldı",
     "shopmonkey_import_undo": "Shopmonkey içe aktarımı geri alındı: {records} kayıt kaldırıldı",
+    "shopmonkey_cutover": "Shopmonkey'den geçiş: Torqvoice artık onu takip etmiyor",
     "platform_revokeSuperAdmin": "{name} ({email}) kullanıcısının süper yöneticiliği kaldırıldı"
   }
 }

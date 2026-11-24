@@ -27,6 +27,13 @@
  * Reconciles the import (M6): every staged record accounted for, money per work order and by month, receivables,
  * spot checks, warnings and unmapped fields, and the gates cutover waits on. Kept as the connection's
  * `state.lastReconciliation`; `--json` prints the whole report. Exits 2 when a gate fails. Writes nothing else.
+ *
+ *   npx tsx --conditions=react-server scripts/shopmonkey/run.ts cutover --connection <id> --shop-stopped \
+ *     [--dry-run] [--user <id>]
+ *
+ * Ends the sync window (M7, docs/fork/CUTOVER.md): a final delta and load, the reconciliation (stops on a failing
+ * gate, exit 2), numbering, the connection marked cut over, the sync's jobs cancelled, and a reminder of what to do in
+ * Shopmonkey. `--dry-run` goes through every step and changes nothing in the workshop.
  */
 import { randomUUID } from 'node:crypto'
 import { loadConnection } from '@/features/integrations/Lib/connections'
@@ -43,6 +50,8 @@ import { reconcile } from '@/integrations/shopmonkey/reconcile/engine'
 import { formatReport, parseReconcileArgs } from '@/integrations/shopmonkey/reconcile/format'
 import { undoLoad } from '@/integrations/shopmonkey/load/undo'
 import { extractDepsFor, recordExtractFinished } from '@/integrations/shopmonkey/server'
+import { formatCutoverResult, parseCutoverArgs } from '@/integrations/shopmonkey/sync/cli'
+import { runCutover } from '@/integrations/shopmonkey/sync/cutover'
 import { db } from '@/lib/db'
 
 async function load() {
@@ -108,8 +117,33 @@ async function reconcileCommand() {
   if (!report.passed) process.exitCode = 2
 }
 
+async function cutover() {
+  const args = parseCutoverArgs(process.argv.slice(2))
+  const { ctx } = await loadConnection(args.connection)
+  if (ctx.connection.connectorId !== 'shopmonkey') {
+    throw new Error('That connection is not a Shopmonkey connection')
+  }
+  const connection = await db.integrationConnection.findUniqueOrThrow({
+    where: { id: args.connection },
+    select: { createdById: true },
+  })
+  // runCutover refuses anyone who isn't a member of the workshop.
+  const result = await runCutover({
+    organizationId: ctx.connection.organizationId,
+    connectionId: ctx.connection.id,
+    userId: args.user ?? connection.createdById,
+    shopStopped: args.shopStopped,
+    dryRun: args.dryRun,
+    deps: extractDepsFor(ctx),
+    print: (line) => console.log(line),
+  })
+  for (const line of formatCutoverResult(result)) console.log(line)
+  if (!result.completed) process.exitCode = 2
+}
+
 async function main() {
   if (process.argv[2] === 'load') return load()
+  if (process.argv[2] === 'cutover') return cutover()
   if (process.argv[2] === 'reconcile') return reconcileCommand()
   if (process.argv[2] === 'undo') return undo()
   const args = parseExtractArgs(process.argv.slice(2))

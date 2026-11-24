@@ -23,6 +23,7 @@ import {
 } from '../client'
 import { type FileStager, MAX_PDF_BYTES, type StagedFile, TransientDownloadError } from './files'
 import {
+  type ChildCounts,
   type ExtractState,
   newCheckpoint,
   type PlanStep,
@@ -37,7 +38,7 @@ import {
   type SourceStore,
   type StagedRow,
 } from './stage'
-import { type ChildSpec, type TableSpec, tableSpec } from './tables'
+import { type ChildSpec, recordPath, TABLES, type TableSpec, tableSpec } from './tables'
 
 type Row = Record<string, unknown>
 type Log = (
@@ -195,7 +196,11 @@ export async function extractStep(deps: ExtractDeps, input: ExtractState): Promi
   while (state.step < plan.length) {
     const step = plan[state.step]
     const spec = tableSpec(step.table)
-    state.steps[step.key] ??= newCheckpoint(state.since ? 'delta' : 'backfill', spec, step.list)
+    state.steps[step.key] ??= newCheckpoint(
+      state.since || state.sinceByTable ? 'delta' : 'backfill',
+      spec,
+      step.list
+    )
     const cp = state.steps[step.key]
 
     if (cp.stage === 'list') {
@@ -255,6 +260,25 @@ function finishStep(state: ExtractState, step: PlanStep, cp: StepCheckpoint) {
   }
 }
 
+/** Where a table's delta starts: its own start (the polling backstop), else the run's. */
+function sinceOf(state: ExtractState, table: string): string | null {
+  return state.sinceByTable?.[table] ?? state.since
+}
+
+const timeOf = (value: unknown) =>
+  typeof value === 'string' ? new Date(value).getTime() : Number.NaN
+
+/** Whether rows are newest first by `updatedDate`, every one of them dated. */
+function newestFirst(rows: Row[]): boolean {
+  let previous = Number.POSITIVE_INFINITY
+  for (const row of rows) {
+    const time = timeOf(row.updatedDate)
+    if (Number.isNaN(time) || time > previous) return false
+    previous = time
+  }
+  return true
+}
+
 async function listOnePage(
   deps: ExtractDeps,
   state: ExtractState,
@@ -262,6 +286,9 @@ async function listOnePage(
   cp: StepCheckpoint
 ): Promise<void> {
   const list = spec.list
+  const since = sinceOf(state, spec.table)
+  // M7: a large GET list in a delta, newest first, so it can stop at the delta's start.
+  const recent = !!since && list.kind === 'get' && spec.recentFirst === true
   if (list.kind === 'none') {
     cp.stage = 'children'
     return
@@ -284,9 +311,13 @@ async function listOnePage(
         ? await deps.client.searchPage(
             list.path,
             cp.skip,
-            state.since && spec.updatedFilter ? { where: where.updatedSince(state.since) } : {}
+            since && spec.updatedFilter ? { where: where.updatedSince(since) } : {}
           )
-        : await deps.client.listPage(list.path, cp.skip)
+        : await deps.client.listPage(
+            list.path,
+            cp.skip,
+            recent ? { orderby: 'updatedDate desc' } : {}
+          )
   } catch (err) {
     if (spec.optional && cp.skip === 0 && err instanceof ShopmonkeyError && err.status === 404) {
       cp.stage = 'done'
@@ -321,7 +352,82 @@ async function listOnePage(
   for (const row of kept) cp.highWatermark = later(cp.highWatermark, row.updatedDate)
   cp.skip += page.rows.length
   if (rows.length >= PAGE_SIZE) cp.lastPage = pageKey
-  if (!page.more) cp.stage = spec.children?.length ? 'children' : 'done'
+  // M7: newest first and past the delta's start: the rest of the list is older still.
+  let reachedStart = false
+  if (recent && !cp.unordered && rows.length) {
+    if (!newestFirst(rows)) {
+      cp.unordered = true
+      await deps.log('warn', `Shopmonkey's ${spec.table} list isn't newest first; read whole`, {
+        table: spec.table,
+      })
+    } else {
+      reachedStart = timeOf(rows[rows.length - 1].updatedDate) < timeOf(since)
+    }
+  }
+  if (!page.more || reachedStart) cp.stage = spec.children?.length ? 'children' : 'done'
+}
+
+/** What a refetch of one record did (M7). */
+export interface RefetchResult {
+  /**
+   * `staged`: read and staged, with its children; `gone`: Shopmonkey has no such record (marked deleted, if it was
+   * staged); `elsewhere`: another location's, left out; `not_read`: a table no record is read from by id.
+   */
+  outcome: 'staged' | 'gone' | 'elsewhere' | 'not_read'
+  counts: StepCounts
+  children: ChildCounts
+}
+
+/**
+ * M7: one record read again by its id (a webhook said it changed), staged, and its children read again whatever its
+ * own hash says: a webhook may be about a child alone (a service on an order). Children that no longer come back are
+ * marked deleted, as a delta's sweep marks them. A 404 marks the record itself deleted.
+ */
+export async function refetchRecord(
+  deps: ExtractDeps,
+  table: string,
+  remoteId: string
+): Promise<RefetchResult> {
+  const now = (deps.now ?? (() => new Date()))()
+  const spec = TABLES.find((t) => t.table === table)
+  const path = recordPath(table)
+  const cp = newCheckpoint('delta', spec ?? tableSpec('order'), false)
+  const result = (outcome: RefetchResult['outcome']): RefetchResult => ({
+    outcome,
+    counts: cp.counts,
+    children: cp.children,
+  })
+  if (!spec || !path) return result('not_read')
+  let found: Envelope<unknown>
+  try {
+    found = await deps.client.get<unknown>(pathFor(path, remoteId))
+  } catch (err) {
+    if (err instanceof ShopmonkeyError && err.status === 404) {
+      await deps.store.markDeleted(table, remoteId, now)
+      return result('gone')
+    }
+    throw err
+  }
+  if (!isRow(found.data)) return result('gone')
+  const payload = found.data
+  if (!inLocation(payload, spec, deps.settings.locationId)) return result('elsewhere')
+  const before = (await deps.store.hashes(table, [remoteId])).get(remoteId) ?? null
+  const staged = await deps.store.stage(table, [{ payload }])
+  tally(cp.counts, staged)
+  if (spec.children?.length && staged.length) {
+    const parent: PendingParent = {
+      id: '',
+      remoteId,
+      payload,
+      payloadHash: staged[0].hash,
+      // Staged before: its children were read before too, so one that's gone is marked.
+      childrenHash: before,
+    }
+    if (await fetchChildren(deps, spec, parent, cp, now)) {
+      await deps.store.markChildrenFetched(table, remoteId, staged[0].hash)
+    }
+  }
+  return result('staged')
 }
 
 /** One batch of parents' children. False when no parent is waiting. */

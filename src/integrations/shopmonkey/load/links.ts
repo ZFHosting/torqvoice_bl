@@ -18,6 +18,8 @@ export interface LoadScope {
   runId: string
   /** Told when a record's row was deleted in the app and is about to be created again (M5 task 1: warned). */
   onRecreate?: (table: string, model: LocalModel, remoteId: string) => void
+  /** M7: told when a changed record is about to overwrite its row, edited in Torqvoice since its last sync (warned). */
+  onOverwrite?: (table: string, model: LocalModel, remoteId: string) => void
 }
 
 /** Keys that hold the run's own ids, not what a record points at: left out of `foreignKeys`. */
@@ -135,6 +137,8 @@ export interface FoundLink {
   localId: string
   /** The source hash the row was last loaded from. */
   hash: string | null
+  /** M7: when its link was last synced (null when the link was only just restored from the archive's mapping). */
+  syncedAt: Date | null
 }
 
 /**
@@ -155,11 +159,11 @@ export async function findLoaded(
       entityType: model,
       remoteId: linkRemoteId(table, remoteId),
     },
-    select: { entityId: true, checksum: true },
+    select: { entityId: true, checksum: true, lastSyncedAt: true },
   })
   if (link) {
     if (await ownRowExists(tx, model, link.entityId, scope.organizationId)) {
-      return { localId: link.entityId, hash: link.checksum }
+      return { localId: link.entityId, hash: link.checksum, syncedAt: link.lastSyncedAt }
     }
     // Its row was deleted in the app: the link and the archive's mapping go (so a second look warns no more), and
     // the row is created again (warned).
@@ -184,7 +188,7 @@ export async function findLoaded(
     (await ownRowExists(tx, model, source.localId, scope.organizationId))
   ) {
     await writeLink(tx, scope, table, model, remoteId, source.localId, source.loadedHash, false)
-    return { localId: source.localId, hash: source.loadedHash }
+    return { localId: source.localId, hash: source.loadedHash, syncedAt: null }
   }
   // Loaded once (the archive says so), and the row is gone: created again, warned once.
   if (source?.localEntity === model && source.localId) {

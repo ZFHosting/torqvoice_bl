@@ -44,6 +44,12 @@ export interface TableSpec {
   location?: 'locationId' | 'locationIds'
   /** Whether the list honours `where: { updatedDate: { gte } }`, so a delta reads only changes. */
   updatedFilter: boolean
+  /**
+   * M7: a GET list too large to read whole every ten minutes. A delta asks for it newest first
+   * (`orderby=updatedDate desc`) and stops at the first record older than its start, as long as the pages come
+   * back in that order; otherwise it reads the whole list. PROVISIONAL(M0:S2): that GET lists honour `orderby`.
+   */
+  recentFirst?: boolean
   children?: ChildSpec[]
   /** The list may not exist (archived or undocumented): a 404 skips the table with a warning. */
   optional?: boolean
@@ -118,6 +124,7 @@ export const TABLES: readonly TableSpec[] = [
   // Orders and everything that hangs off one.
   get('order', {
     location: 'locationId',
+    recentFirst: true,
     children: [
       {
         kind: 'list',
@@ -146,23 +153,35 @@ export const TABLES: readonly TableSpec[] = [
   get('line_item_assignment', { optional: true }),
 
   // Calendar, inspections, time.
-  get('appointment', { location: 'locationId' }),
+  get('appointment', { location: 'locationId', recentFirst: true }),
   get('inspection_template'),
   get('inspection', {
     location: 'locationId',
+    recentFirst: true,
     children: [{ kind: 'itemFiles', table: 'inspection_file', detailPath: '/v3/inspection/:id' }],
   }),
   search('timesheet'),
 
   // Archive only (MAPPING §3).
-  get('purchase_order', { location: 'locationId', optional: true }),
+  get('purchase_order', { location: 'locationId', optional: true, recentFirst: true }),
   search('statement', { optional: true }),
   search('part_return', { optional: true }),
   search('inventory_transfer', { optional: true }),
-  get('tpi_scan', { optional: true }),
+  get('tpi_scan', { optional: true, recentFirst: true }),
   // Messages are archived whatever `includeMessages` says; the setting decides whether M5 loads them (B4).
-  get('message', { optional: true }),
+  get('message', { optional: true, recentFirst: true }),
 ]
+
+/**
+ * M7: where one record of a table is read by its id, for a webhook's refetch. PROVISIONAL(M0:S1): `/v3/<table>/:id`
+ * for every table a webhook names (Shopmonkey's reference lists a Find by id for each). Null for a table that isn't
+ * read by id (the company, which is read by the connection's own id).
+ */
+export function recordPath(table: string): string | null {
+  const spec = TABLES.find((t) => t.table === table)
+  if (!spec || spec.list.kind === 'record') return null
+  return `/v3/${table}/:id`
+}
 
 export function tableSpec(table: string): TableSpec {
   const spec = TABLES.find((t) => t.table === table)

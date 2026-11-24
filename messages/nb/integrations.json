@@ -1158,7 +1158,9 @@
       "description": "Hent et verksteds historikk fra Shopmonkey: kunder, kjøretøy, ordrer, fakturaer, betalinger, inspeksjoner og filer. Bare lesing: ingenting endres noen gang i Shopmonkey.",
       "fields": {
         "apiKey": "Shopmonkey API-nøkkel",
-        "apiKeyHelp": "En Shopmonkey-administrator lager den under Settings, Integration, API Keys. Den handler med den personens tilgang, så vedkommende trenger tilgang til hver lokasjon du importerer."
+        "apiKeyHelp": "En Shopmonkey-administrator lager den under Settings, Integration, API Keys. Den handler med den personens tilgang, så vedkommende trenger tilgang til hver lokasjon du importerer.",
+        "webhookSecret": "Signeringsnøkkel for webhook",
+        "webhookSecretHelp": "Valgfritt. Shopmonkey viser den når du legger til en webhook for denne tilkoblingen under Settings, Integration, Webhooks; den begynner med whsec_. Uten den sjekker Torqvoice likevel Shopmonkey for endringer hvert 10. minutt."
       },
       "settings": {
         "locationId": "Lokasjon",

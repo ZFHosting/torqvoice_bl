@@ -81,6 +81,11 @@ export interface StepCheckpoint {
   children: ChildCounts
   /** Why the step was skipped (an optional table whose list isn't there). */
   skippedReason?: string
+  /**
+   * M7: a newest-first list (`recentFirst`) that came back in another order, so it was read to the end instead of
+   * stopping at the first record older than the delta's start.
+   */
+  unordered?: boolean
 }
 
 export interface ExtractState {
@@ -89,6 +94,13 @@ export interface ExtractState {
   finishedAt: string | null
   /** Only records updated since then, where the list can filter (`--since`). */
   since: string | null
+  /**
+   * M7: per table, only records updated since then (the polling backstop: each table's watermark less an overlap).
+   * A table it doesn't name reads from `since`.
+   */
+  sinceByTable?: Record<string, string> | null
+  /** M7: a run the sync started (`sync.delta`): the sync carries it on, and loads once it's done. */
+  sync?: boolean
   /** Only these tables (`--tables`). */
   only: string[] | null
   /** The index in the plan of the step being worked on. */
@@ -134,10 +146,19 @@ export function newCheckpoint(
  */
 export function startState(
   previous: Partial<ExtractState> | null | undefined,
-  input: { runId: string; since?: string | null; only?: string[] | null; now: Date }
+  input: {
+    runId: string
+    since?: string | null
+    sinceByTable?: Record<string, string> | null
+    sync?: boolean
+    only?: string[] | null
+    now: Date
+  }
 ): ExtractState {
-  if (input.since && Number.isNaN(new Date(input.since).getTime())) {
-    throw new Error('since must be an ISO date')
+  for (const value of [input.since, ...Object.values(input.sinceByTable ?? {})]) {
+    if (value && Number.isNaN(new Date(value).getTime())) {
+      throw new Error('since must be an ISO date')
+    }
   }
   planFor(input.only ?? null)
   return {
@@ -145,6 +166,8 @@ export function startState(
     startedAt: input.now.toISOString(),
     finishedAt: null,
     since: input.since ?? null,
+    ...(input.sinceByTable ? { sinceByTable: { ...input.sinceByTable } } : {}),
+    ...(input.sync ? { sync: true } : {}),
     only: input.only?.length ? [...input.only] : null,
     step: 0,
     steps: {},

@@ -237,6 +237,7 @@
     "shopmonkey_extract": "Получено из Shopmonkey",
     "shopmonkey_import": "Импортировано из Shopmonkey",
     "shopmonkey_import_undo": "Импорт из Shopmonkey отменён",
+    "shopmonkey_cutover": "Переход с Shopmonkey",
     "contact_create": "Контакт добавлен",
     "contact_update": "Контакт изменён",
     "contact_delete": "Контакт удалён",
@@ -444,6 +445,7 @@
     "shopmonkey_extract": "Получено записей из Shopmonkey (новых или изменённых): {records} ({count} запросов к API)",
     "shopmonkey_import": "Импортировано записей из Shopmonkey (новых или изменённых): {records}",
     "shopmonkey_import_undo": "Импорт из Shopmonkey отменён: удалено записей: {records}",
+    "shopmonkey_cutover": "Переход с Shopmonkey: Torqvoice больше его не отслеживает",
     "platform_revokeSuperAdmin": "С {name} ({email}) сняты права суперадмина"
   }
 }

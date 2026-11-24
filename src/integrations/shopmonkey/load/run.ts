@@ -21,7 +21,9 @@ import {
   type Tx,
 } from './context'
 import { loadInventory, loadPresets } from './catalog'
+import { stampSynced } from './edits'
 import { removePlaced } from './files'
+import { withLoadLock } from './lock'
 import { recordSkips, saveLastLoad } from './outcome'
 import {
   assertNoInvoiceListeners,
@@ -114,7 +116,18 @@ function countWarnings(warnings: Warning[]): Record<string, number> {
   return out
 }
 
+/**
+ * A load. A real one holds the connection's load lock (M7: the sync's jobs, the CLI and the cutover never load at
+ * once); `LoadBusy` when another holds it. A dry run writes nothing and needs no lock.
+ */
 export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
+  if (options.dryRun) return loadUnlocked(options)
+  return withLoadLock(options.connectionId, () => loadUnlocked(options))
+}
+
+async function loadUnlocked(options: LoadOptions): Promise<LoadSummary> {
+  // M7: the real clock (not `now`, which dates what's written): rows changed after it are this run's.
+  const startedAt = new Date()
   const scope = {
     organizationId: options.organizationId,
     connectionId: options.connectionId,
@@ -156,9 +169,16 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
       remoteId,
       message: `Its ${model} was deleted in Torqvoice and is created again.`,
     })
+  const warnOverwritten: NonNullable<LoadScope['onOverwrite']> = (table, model, remoteId) =>
+    lc.warnings.push({
+      code: 'local_edit_overwritten',
+      table,
+      remoteId,
+      message: `Its ${model} was edited in Torqvoice since the last sync; Shopmonkey's change overwrote it.`,
+    })
   const timeZone = options.timeZone ?? (await workshopTimeZone(scope.organizationId))
   const lc = createLoadContext({
-    scope: { ...scope, onRecreate: warnRecreated },
+    scope: { ...scope, onRecreate: warnRecreated, onOverwrite: warnOverwritten },
     runUserId: options.runUserId,
     resolver,
     timeZone,
@@ -223,6 +243,8 @@ export async function runLoad(options: LoadOptions): Promise<LoadSummary> {
       ? { issued: 0, failed: 0 }
       : await issueInvoices(scope.organizationId, lc.toIssue)
   if (!options.dryRun) {
+    // M7: what this run wrote, in passing too (an invoice issued just now), isn't an edit made in Torqvoice.
+    await stampSynced(scope, startedAt, new Date())
     const records = Object.values(lc.counts).reduce((a, c) => a + c.created + c.updated, 0)
     await recordLoad(scope.organizationId, options.runUserId, {
       connectionId: scope.connectionId,

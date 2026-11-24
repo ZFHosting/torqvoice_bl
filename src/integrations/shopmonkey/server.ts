@@ -17,6 +17,8 @@ import { createFileStager } from './extract/files'
 import type { ExtractState } from './extract/plan'
 import { prismaSourceStore } from './extract/stage'
 import { manifest } from './manifest'
+import { createSyncJobs } from './sync/jobs'
+import { receive } from './webhook'
 
 /** How long one job run keeps extracting before it hands back to the queue (the cron runs each minute). */
 const EXTRACT_BUDGET_MS = 45_000
@@ -183,5 +185,8 @@ export const connector: ConnectorServer = {
 
   jobs: {
     'extract.step': extractStepJob,
+    // M7: the sync window (webhook refetches, the ten-minute delta, a load put off).
+    ...createSyncJobs({ depsFor: extractDepsFor, extractFinished: recordExtractFinished }),
   },
+  webhook: { receive },
 }
