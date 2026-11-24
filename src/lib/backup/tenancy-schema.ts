@@ -634,6 +634,11 @@ export const TENANCY_SCHEMA: SchemaGraph = {
     },
     ownerPaths: [],
   },
+  InboundWebhookDelivery: {
+    organizationId: false,
+    foreignKeys: {},
+    ownerPaths: [],
+  },
   ImportBatch: {
     organizationId: true,
     foreignKeys: {

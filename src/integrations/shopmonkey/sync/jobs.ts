@@ -17,11 +17,9 @@ import { db } from '@/lib/db'
 import { ShopmonkeyError } from '../client'
 import { type ExtractDeps, refetchRecord } from '../extract/engine'
 import type { ExtractState } from '../extract/plan'
-import { LoadRefused } from '../load/finish'
-import { LoadBusy } from '../load/lock'
 import { mergeState } from '../load/outcome'
-import { runLoad } from '../load/run'
-import { applyRemoteDeletes, type KeptDelete } from './deletes'
+import type { LoadSummary } from '../load/run'
+import type { KeptDelete } from './deletes'
 import { changedRecords, deltaStart, driveDelta } from './delta'
 
 /** How long one `sync.delta` run extracts before it hands back to the queue. */
@@ -111,11 +109,16 @@ export async function syncLoad(ctx: ConnectorContext): Promise<string> {
   }
   // Cleared first: a refetch staging while this load runs sets it again, and the next run loads that.
   await mergeState(scope, { syncPending: false })
-  let summary: Awaited<ReturnType<typeof runLoad>>
+  // Loaded when a load runs: the registry loads every connector's server, and the load reaches most of the app.
+  const [{ runLoad }, { applyRemoteDeletes }] = await Promise.all([
+    import('../load/run'),
+    import('./deletes'),
+  ])
+  let summary: LoadSummary
   try {
     summary = await runLoad({ ...scope, runUserId: userId })
   } catch (err) {
-    if (err instanceof LoadBusy) {
+    if (err instanceof Error && err.name === 'LoadBusy') {
       await mergeState(scope, { syncPending: true })
       await enqueueJob({
         ...scope,
@@ -125,7 +128,7 @@ export async function syncLoad(ctx: ConnectorContext): Promise<string> {
       })
       return 'another load is running: queued again'
     }
-    if (err instanceof LoadRefused) {
+    if (err instanceof Error && err.name === 'LoadRefused') {
       await mergeState(scope, { syncPending: true })
       await ctx.log('warn', `Sync not loaded: ${err.message}`)
       return `not loaded: ${err.message}`
