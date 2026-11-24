@@ -33,6 +33,12 @@ vi.mock('@/lib/cached-session', () => ({
     customRole: null,
   }),
   getCachedSessionScope: async () => null,
+  resolveMembership: async () => ({
+    organizationId: ctx.organizationId,
+    role: 'owner',
+    customRole: null,
+  }),
+  assertAccountSession: async () => undefined,
 }))
 vi.mock('next/headers', () => ({
   headers: async () => new Headers(),
