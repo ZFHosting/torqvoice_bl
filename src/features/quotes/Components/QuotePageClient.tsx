@@ -55,6 +55,7 @@ import {
   type LaborPresetOption,
 } from '@/features/labor-presets/Components/LaborPresetPickerDialog'
 import { QuotePartsEditor } from './QuotePartsEditor'
+import { WorkJobsCard } from '@/features/fork-records/Components/WorkJobsCard' // fork (M9)
 import type { InventoryPartOption } from '@/features/vehicles/Components/service-edit/form-types'
 import { QuoteLaborEditor } from './QuoteLaborEditor'
 import { QuoteNotesEditor } from './QuoteNotesEditor'
@@ -262,6 +263,18 @@ export function QuotePageClient({
   // it as well, and converting the quote or copying its link is not an edit.
   const leftColumn = (
     <fieldset disabled={lockState.locked} className="min-w-0 space-y-3">
+      {/* fork (M9): the lines under their jobs, for a workshop that has jobs */}
+      <WorkJobsCard
+        parent={{ kind: 'quote', id: quote.id }}
+        laborItems={state.laborItems}
+        partItems={state.partItems}
+        onMoveLine={(kind, index, jobId) =>
+          kind === 'labor'
+            ? state.updateLabor(index, 'jobId', jobId ?? '')
+            : state.updatePart(index, 'jobId', jobId ?? '')
+        }
+        locked={lockState.locked}
+      />
       <QuotePartsEditor
         partItems={state.partItems}
         currencyCode={currencyCode}
