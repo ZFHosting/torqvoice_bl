@@ -62,6 +62,8 @@ export const customersSpec: ReadSpec<CustomerOut> = {
     q: z.string().trim().min(1).max(100).optional().describe('Name, email, phone or number'),
   }),
   includes: ['contacts', 'customFields'],
+  // fork (A5): `include=source`
+  sourceModel: 'Customer',
   response: customerSchema,
 }
 

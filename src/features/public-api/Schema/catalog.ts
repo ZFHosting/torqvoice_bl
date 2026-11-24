@@ -85,6 +85,8 @@ export const laborPresetsSpec: ReadSpec<LaborPresetOut> = {
   path: '/labor-presets',
   tag: 'Labor presets',
   noun: { one: 'labor preset', many: 'labor presets' },
+  // fork (A5): `include=source`
+  sourceModel: 'LaborPreset',
   response: laborPresetSchema,
 }
 
@@ -96,6 +98,8 @@ export const inventoryPartsSpec: ReadSpec<InventoryPartOut> = {
     q: z.string().trim().min(1).max(100).optional().describe('Name, part number or barcode'),
     category: z.string().trim().min(1).max(100).optional(),
   }),
+  // fork (A5): `include=source`
+  sourceModel: 'InventoryPart',
   response: inventoryPartSchema,
 }
 

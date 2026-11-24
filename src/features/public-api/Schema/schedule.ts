@@ -70,6 +70,8 @@ export const appointmentsSpec: ReadSpec<AppointmentOut> = {
   tag: 'Appointments',
   noun: { one: 'appointment', many: 'appointments' },
   filters: z.object({ ...rangeFilters }).describe('By start'),
+  // fork (A5): `include=source`
+  sourceModel: 'Appointment',
   response: appointmentSchema,
 }
 
@@ -82,6 +84,8 @@ export const timeEntriesSpec: ReadSpec<TimeEntryOut> = {
     workOrderId: z.string().min(1).optional(),
     ...rangeFilters,
   }),
+  // fork (A5): `include=source`
+  sourceModel: 'TimeEntry',
   response: timeEntrySchema,
 }
 
@@ -90,6 +94,8 @@ export const shiftsSpec: ReadSpec<ShiftOut> = {
   tag: 'Time',
   noun: { one: 'shift', many: 'shifts' },
   filters: z.object({ technicianId: z.string().min(1).optional(), ...rangeFilters }),
+  // fork (A5): `include=source`
+  sourceModel: 'TechnicianShift',
   response: shiftSchema,
 }
 

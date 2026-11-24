@@ -127,8 +127,8 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
 | `/reports/sales` | R | Totals by day, week or month: invoiced, collected, tax, parts, labor, fees. |
 | `/reports/receivables` | R | Open invoices with aging buckets. |
 | `/reports/technicians` | R | Per technician: hours sold (labor lines with `technicianId`), hours clocked (time entries), shift hours, and jobs completed in a period. This is the input BlueLabel's pay calculation needs. |
-| `/source-records` | R | Shopmonkey payloads as fetched (X1): `?table=`, `?remoteId=`, `?updatedSince=`. Read-only. Two kinds of record are the importer's own: files (`order_file`, `inspection_file`: the entry as Shopmonkey sent it plus `_parent` and `_staged`) and `invoice_pdf` (made by the importer). Keys starting with `_` are never Shopmonkey's; `_staged.path` is relative to the server's data folder (MAPPING §1). |
-| `/deleted` | R | Tombstones: `?since=`, `?entityType=`. |
+| `/source-records` | R | Shopmonkey payloads as fetched (X1): `?table=`, `?remoteId=`, `?updatedSince=`. Read-only; needs `read:settings`. Two kinds of record are the importer's own: files (`order_file`, `inspection_file`: the entry as Shopmonkey sent it plus `_parent` and `_staged`) and `invoice_pdf` (made by the importer). Keys starting with `_` are never Shopmonkey's; `_staged.path` is relative to the server's data folder (MAPPING §1). The same record is on each imported row with `include=source` (customers, vehicles, work orders, quotes, inspections, findings, appointments, time entries, shifts, technicians, work order statuses, labor presets, inventory parts), also with `read:settings` (a key without it gets 403): `source` is `{ source, table, remoteId, payload, remoteUpdatedAt, remoteDeletedAt }`, read through the row's import link, or `null` for a row made in Torqvoice (or whose connection was removed since; the archive stays here). |
+| `/deleted` | R | Tombstones: `?since=`, `?entityType=`, oldest first, paged by `(deletedAt, id)`; each kind only to a key that may read it (`read:settings` for the rest). Two kinds name no record and go to every key: **`restore`** (a backup was restored: rows were replaced, tombstones with them, and came back with their old `updatedAt`) and **`reset`** (a bulk delete without a tombstone per row; `entityId` says which: `delete_content`, `sample_data`, `import_undo`, `shopmonkey_undo`). After either, sync everything again from scratch. Each is written once the change has committed. Deletes the app makes one at a time all leave tombstones (A2, and A5 for an inspection, a payment pulled back from the accounting system and a booking's placeholder work order). |
 | `/openapi.json` | R | Unauthenticated. |
 
 ## 5. Webhook events added by the fork
@@ -141,7 +141,9 @@ these (listed in that file under a `// fork:` comment, and sent from the matchin
 `time_entry.create`, `time_entry.update`, `time_entry.delete`, `shift.create`, `shift.update`, `shift.delete`,
 `technician.create`, `technician.update`, `technician.delete`, `work_order.issue`, `job.create`, `job.update`,
 `job.delete`, `contact.create`, `contact.update`, `contact.delete` (A5 added the three deletes and
-`time_entry.create`/`delete` beside the list first planned: a subscriber syncing those lists needs them).
+`time_entry.create`/`delete` beside the list first planned: a subscriber syncing those lists needs them), and
+`restore.complete` (a backup was restored, its files too: `data` is `{ restoredAt }`; sync everything again, and
+`/deleted` has a `restore` marker).
 
 Payloads keep the existing shape (`event`, `entity`, `entityId`, `data`). `data` is the same serialized
 resource the API returns for that entity, read when the event is sent and scoped by the workshop, so a subscriber

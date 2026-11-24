@@ -50,6 +50,8 @@ export const techniciansSpec: ReadSpec<TechnicianOut> = {
   filters: z.object({
     active: z.enum(['true', 'false']).optional().describe('Only active (true) or inactive (false)'),
   }),
+  // fork (A5): `include=source`
+  sourceModel: 'Technician',
   response: technicianSchema,
 }
 
@@ -57,6 +59,8 @@ export const workOrderStatusesSpec: ReadSpec<WorkOrderStatusOut> = {
   path: '/work-order-statuses',
   tag: 'Work order statuses',
   noun: { one: 'work order status', many: 'work order statuses' },
+  // fork (A5): `include=source`
+  sourceModel: 'WorkOrderStatus',
   response: workOrderStatusSchema,
 }
 

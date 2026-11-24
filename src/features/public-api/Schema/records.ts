@@ -80,6 +80,8 @@ export const findingsSpec: ReadSpec<FindingOut> = {
     vehicleId: z.string().min(1).optional(),
     status: z.string().trim().min(1).max(50).optional(),
   }),
+  // fork (A5): `include=source`
+  sourceModel: 'VehicleFinding',
   response: findingSchema,
 }
 

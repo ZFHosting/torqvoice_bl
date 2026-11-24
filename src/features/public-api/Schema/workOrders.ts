@@ -161,6 +161,8 @@ export const workOrdersSpec: ReadSpec<WorkOrderOut> = {
     openOnly: z.enum(['true', 'false']).optional().describe('true: not completed'),
   }),
   includes: WORK_ORDER_INCLUDES,
+  // fork (A5): `include=source`
+  sourceModel: 'ServiceRecord',
   response: workOrderSchema,
 }
 

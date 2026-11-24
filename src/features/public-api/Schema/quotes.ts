@@ -64,6 +64,8 @@ export const quotesSpec: ReadSpec<QuoteOut> = {
     vehicleId: z.string().min(1).optional(),
   }),
   includes: ['jobs', 'lines', 'customFields'],
+  // fork (A5): `include=source`
+  sourceModel: 'Quote',
   response: quoteSchema,
 }
 

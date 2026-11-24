@@ -57,6 +57,8 @@ export const inspectionsSpec: ReadSpec<InspectionOut> = {
     status: z.string().trim().min(1).max(50).optional(),
   }),
   includes: ['items'],
+  // fork (A5): `include=source`
+  sourceModel: 'Inspection',
   response: inspectionSchema,
 }
 

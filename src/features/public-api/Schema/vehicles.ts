@@ -61,6 +61,8 @@ export const vehiclesSpec: ReadSpec<VehicleOut> = {
     plate: z.string().trim().min(1).max(32).optional(),
   }),
   includes: ['notes', 'customFields'],
+  // fork (A5): `include=source`
+  sourceModel: 'Vehicle',
   response: vehicleSchema,
 }
 
