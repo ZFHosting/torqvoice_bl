@@ -71,29 +71,27 @@ Environment (local, Windows):
 
 **M7 (delta sync and cutover), in progress** on `fork/M7-delta-and-cutover` (from `fork/integration` at b4d8a9d7; the
 upstream merge still conflicts, B15). Built on M6 (provisional) and the mock server, so it ends `provisional` (B1).
-Plan:
-1. [ ] `src/integrations/shopmonkey/webhook.ts`: Standard Webhooks verification (`webhook-id`, `webhook-timestamp`,
-   `webhook-signature` `v1,<base64>` space-separated; HMAC-SHA256 over `id.timestamp.body` with the `whsec_` secret;
-   constant-time; 5-minute tolerance) with unit tests for valid, tampered body, wrong secret, old timestamp, rotated
-   secret. The secret is a connection credential (`webhookSecret`).
-2. [ ] `receive`: dedupe on `webhook-id` in a table of delivered ids (`WebhookDelivery`, migration
-   `fork_webhook_deliveries`: the queue clears `idempotencyKey` when a job is claimed, so it can't remember a delivery);
-   queue a `refetch` job per `(table, id)` (coalesced by `idempotencyKey` while queued); answer 200 at once. Never
-   trusts the payload.
-3. [ ] `refetch` job: GET the record (and an order's children and refs) from Shopmonkey, stage it, then queue a
-   debounced `sync.load` (one load for a burst of changes). `DELETE`: `remoteDeletedAt`, then the delete policy (an
-   archive-only record: nothing; a loaded record untouched since its last sync: deleted, with its tombstone; touched:
-   kept and listed in `state.lastSync.keptDeletes` for the report).
-4. [ ] Polling backstop: a manifest schedule (every 10 minutes) runs `sync.delta`: a delta extract with each table's
-   watermark − 5 minutes, then `sync.load`. Skipped while an extract runs.
-5. [ ] Conflict policy: a load overwriting a Torqvoice edit to an imported row (row changed since its link's last
-   sync) warns `local_edit_overwritten`. The banner on imported records moves to M8 (UI).
-6. [ ] `cutover`: `scripts/shopmonkey/run.ts cutover --connection <id> --shop-stopped [--dry-run]`, steps 1-7 of the
-   brief (final delta, reconcile and stop on a failing gate, numbering, `state.cutover`, schedule and webhook off,
-   the reminder); `docs/fork/CUTOVER.md`.
-7. [ ] Tests (db): a replayed delivery queues nothing; a changed fixture order delivered by webhook is updated by the
-   refetch and the load it queues; polling catches a change without a webhook; a cutover dry run goes through every
-   step, and a forced money mismatch stops it at step 3. MAPPING, brief, DoD, reviewer, merge.
+Plan (steps 1-7 built; commits 11d20515, f130e7b5, baf3d8b9, cbc6723f):
+1. [x] `webhook.ts`: Standard Webhooks verification, constant-time, 5-minute tolerance, rotated secrets
+   (`webhook-signature.test.ts`, 6 tests). The secret is the connection's `webhookSecret` credential (optional field).
+2. [x] `receive`: dedupe in `InboundWebhookDelivery` (migration `fork_inbound_webhook_deliveries`; the name
+   `WebhookDelivery` is upstream's outbound table), pruned after a week; one `refetch` job per record while it waits
+   (`refetch:<table>:<id>`); 200 at once; the payload only names the record (a payment: its order).
+3. [x] `refetch` job (`sync/jobs.ts`): `refetchRecord` in the engine reads the record and its children by id and
+   stages them (404: `remoteDeletedAt`); the last refetch of a burst loads, in the same job run. Delete policy in
+   `sync/deletes.ts` (MAPPING §13): untouched work orders, quotes, appointments deleted through the app's own delete
+   (tombstones); edited, locked or other kept and listed in `state.lastSync.keptDeletes`.
+4. [x] `sync.delta` every 10 minutes (manifest `schedules`): a delta from each table's watermark − 5 minutes
+   (`sinceByTable`), large GET lists newest first with an order check (`recentFirst`), then a load if anything changed
+   or a refetch left one pending. Loads hold a per-connection advisory lock (`load/lock.ts`, `LoadBusy`; `sync.load`
+   retries a minute later).
+5. [x] Conflicts: `local_edit_overwritten` when a load overwrites a row edited since its link's `lastSyncedAt`;
+   `stampSynced` after each load. The banner moved to M8 (both briefs updated).
+6. [x] `run.ts cutover --connection <id> --shop-stopped [--dry-run] [--user <id>]` (`sync/cutover.ts`), and
+   `docs/fork/CUTOVER.md`.
+7. [x] Tests: `shopmonkey-delta.db.test.ts` (12), `shopmonkey-cutover.db.test.ts` (4), `sync-extract.test.ts` (10),
+   `sync-cli.test.ts` (3). Also: the upstream schedule writer now sets only `state.scheduleRuns` (`// fork:`).
+Next: the definition of done, the reviewer, merge.
 
 Carry-over notes:
 - For A3: the M1 `sourceExtra` readers (`readLaborSourceExtra`, `readPartSourceExtra`) drop the whole object when one
@@ -110,9 +108,13 @@ Carry-over notes:
     search that ignores `where` still pages the whole payment table per order; `startShopmonkeyExtract` writes back
     the whole `state` instead of only `extract`.
   - Records reached only as children (vehicles, owners, services, payments) are refetched only when their parent
-    changes (MAPPING §1, "How a re-run sees changes"); webhooks must cover them.
-- For M8 (the import screen), from M5's reviews (MAPPING §9.2): a lock against two loads of one connection at once;
-  the dry run's single long transaction (up to an hour); the realtime notify per committed record (run large loads
+    changes (MAPPING §1, "How a re-run sees changes"); webhooks must cover them. (M7: a webhook's refetch reads a
+    record's children whatever its own hash says; polling still misses a child-only change, MAPPING §13.)
+  - Still open after M7 (for M9's hardening): the stuck-limit lease, `children.retry` in the done summary, the
+    401/403 file host, and `startShopmonkeyExtract` writing back the whole `state` (now that the sync writes its own
+    keys, it should set `extract` alone, as `scheduleDueSyncs` does since M7).
+- For M8 (the import screen), from M5's reviews (MAPPING §9.2): (the lock against two loads of one connection at
+  once is built in M7, `load/lock.ts`); the dry run's single long transaction (up to an hour); the realtime notify per committed record (run large loads
   outside opening hours); an operator's `'create'` choice for a user matched earlier is ignored (the match stands);
   remove the staging folder (`dataRoot()/shopmonkey-staging/<connectionId>/`) on disconnect or workshop deletion
   (a load removes each staged file it places); a quote whose conversion an undo removed keeps the `vehicleId` it
