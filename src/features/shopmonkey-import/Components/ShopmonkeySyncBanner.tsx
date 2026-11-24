@@ -22,7 +22,10 @@ export function ShopmonkeySyncBanner({ lastSyncAt }: { lastSyncAt: string | null
         <p className="text-muted-foreground">
           {lastSyncAt
             ? t('syncedDetail', {
-                time: format.dateTime(new Date(lastSyncAt), { dateStyle: 'medium', timeStyle: 'short' }),
+                time: format.dateTime(new Date(lastSyncAt), {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                }),
               })
             : t('syncedNever')}
         </p>

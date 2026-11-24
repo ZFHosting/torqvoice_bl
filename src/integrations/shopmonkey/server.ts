@@ -125,7 +125,9 @@ async function extractStepJob(ctx: ConnectorContext, payload: Record<string, unk
     })
     if (result.replaced) {
       return {
-        summary: (await stopRequested(scope, state.runId)) ? 'Stopped' : 'Replaced by a newer extract',
+        summary: (await stopRequested(scope, state.runId))
+          ? 'Stopped'
+          : 'Replaced by a newer extract',
       }
     }
     if (!result.done) {

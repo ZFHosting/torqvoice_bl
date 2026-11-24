@@ -8,7 +8,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  ctx: { userId: 'user-1', organizationId: 'org-1', role: 'member', isSuperAdmin: false, isAdmin: false },
+  ctx: {
+    userId: 'user-1',
+    organizationId: 'org-1',
+    role: 'member',
+    isSuperAdmin: false,
+    isAdmin: false,
+  },
   options: [] as unknown[],
   findUnique: vi.fn(),
 }))
@@ -33,7 +39,9 @@ vi.mock('@/lib/db', () => ({
 }))
 vi.mock('@/lib/demo', () => ({ demoGuard: () => undefined }))
 vi.mock('@/features/integrations/Lib/jobs', () => ({ enqueueJob: vi.fn(async () => 'job-1') }))
-vi.mock('@/integrations/shopmonkey/load/outcome', () => ({ mergeState: vi.fn(async () => undefined) }))
+vi.mock('@/integrations/shopmonkey/load/outcome', () => ({
+  mergeState: vi.fn(async () => undefined),
+}))
 vi.mock('@/integrations/shopmonkey/load/undo', () => ({
   undoLoad: vi.fn(async () => ({ removed: {}, kept: {} })),
 }))
@@ -83,7 +91,17 @@ beforeEach(() => {
   mocks.findUnique.mockResolvedValue({
     id: 'conn-1',
     status: 'active',
-    state: { extract: { runId: 'run-1', finishedAt: null, startedAt: '2026-01-01T00:00:00Z', steps: {}, step: 0, only: null, calls: 0 } },
+    state: {
+      extract: {
+        runId: 'run-1',
+        finishedAt: null,
+        startedAt: '2026-01-01T00:00:00Z',
+        steps: {},
+        step: 0,
+        only: null,
+        calls: 0,
+      },
+    },
     createdById: 'user-1',
   })
 })
@@ -96,7 +114,9 @@ describe('the Shopmonkey import actions', () => {
     expect(mocks.findUnique).not.toHaveBeenCalled()
   })
 
-  it.each(READS)('%s needs the settings read permission, and reads the caller’s own connection', async (_n, call) => {
+  it.each(
+    READS
+  )('%s needs the settings read permission, and reads the caller’s own connection', async (_n, call) => {
     mocks.ctx.isAdmin = true
     expect((await call()).success).toBe(true)
     expect(mocks.options.at(-1)).toEqual({
@@ -104,12 +124,16 @@ describe('the Shopmonkey import actions', () => {
     })
     expect(mocks.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { organizationId_connectorId: { organizationId: 'org-1', connectorId: 'shopmonkey' } },
+        where: {
+          organizationId_connectorId: { organizationId: 'org-1', connectorId: 'shopmonkey' },
+        },
       })
     )
   })
 
-  it.each(WRITES)('%s needs the settings update permission, on the caller’s own connection', async (_n, call) => {
+  it.each(
+    WRITES
+  )('%s needs the settings update permission, on the caller’s own connection', async (_n, call) => {
     mocks.ctx.isAdmin = true
     await call()
     expect(mocks.options.at(-1)).toEqual({
@@ -117,7 +141,9 @@ describe('the Shopmonkey import actions', () => {
     })
     expect(mocks.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { organizationId_connectorId: { organizationId: 'org-1', connectorId: 'shopmonkey' } },
+        where: {
+          organizationId_connectorId: { organizationId: 'org-1', connectorId: 'shopmonkey' },
+        },
       })
     )
   })

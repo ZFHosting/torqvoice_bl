@@ -48,12 +48,8 @@ export default async function IntegrationConnectionPage({
   ])
   if (!view.success || !view.data) notFound()
 
-  // fork: the Shopmonkey import's own panels (M8), under its connection once it's live.
-  const live =
-    view.data.connection?.status === 'active' || view.data.connection?.status === 'error'
-  const content = (
-    <>
-      <ConnectionSettings
+  const settings = (
+    <ConnectionSettings
       organizationId={data.organizationId}
       view={view.data}
       activity={
@@ -64,9 +60,18 @@ export default async function IntegrationConnectionPage({
       platformHandlesBackups={manifest.id === 's3' && platformBackupsEnabled()}
       reauth={reauth}
     />
-      {live && manifest.capabilities.includes('import.shopmonkey') && <ShopmonkeyImportPanel />}
-    </>
   )
+  // fork: the Shopmonkey import's own panels (M8), under its connection once it's live.
+  const live = view.data.connection?.status === 'active' || view.data.connection?.status === 'error'
+  const content =
+    live && manifest.capabilities.includes('import.shopmonkey') ? (
+      <>
+        {settings}
+        <ShopmonkeyImportPanel />
+      </>
+    ) : (
+      settings
+    )
 
   // Said in terms of what this connector does: a payment or AI connector is
   // gated by its own plan feature, and calendars and video calls are not what

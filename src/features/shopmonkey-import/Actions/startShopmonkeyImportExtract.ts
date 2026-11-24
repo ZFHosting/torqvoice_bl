@@ -11,7 +11,8 @@ export async function startShopmonkeyImportExtract() {
     async ({ organizationId }) => {
       demoGuard()
       const connection = await shopmonkeyConnection(organizationId)
-      if (connection.state.cutover) throw new Error('The import is cut over: nothing more comes from Shopmonkey.')
+      if (connection.state.cutover)
+        throw new Error('The import is cut over: nothing more comes from Shopmonkey.')
       await mergeState({ organizationId, connectionId: connection.id }, { extractStop: null })
       return startShopmonkeyExtract({ organizationId, connectionId: connection.id })
     },

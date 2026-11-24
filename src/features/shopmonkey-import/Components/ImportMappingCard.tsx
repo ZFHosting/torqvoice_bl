@@ -78,8 +78,17 @@ export function ImportMappingCard({ onSaved }: { onSaved: () => Promise<void> | 
       title={t('title')}
       description={t('description')}
       action={
-        <Button size="sm" onClick={save} disabled={!mapping || saving} data-testid="shopmonkey-mapping-save">
-          {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1 h-3.5 w-3.5" />}
+        <Button
+          size="sm"
+          onClick={save}
+          disabled={!mapping || saving}
+          data-testid="shopmonkey-mapping-save"
+        >
+          {saving ? (
+            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Save className="mr-1 h-3.5 w-3.5" />
+          )}
           {t('save')}
         </Button>
       }
@@ -115,7 +124,10 @@ export function ImportMappingCard({ onSaved }: { onSaved: () => Promise<void> | 
                           value={stages[s.id]}
                           onValueChange={(v) => setStages((m) => ({ ...m, [s.id]: v as Stage }))}
                         >
-                          <SelectTrigger className="h-8 w-full" aria-label={t('stageOf', { name: s.name })}>
+                          <SelectTrigger
+                            className="h-8 w-full"
+                            aria-label={t('stageOf', { name: s.name })}
+                          >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -158,7 +170,10 @@ export function ImportMappingCard({ onSaved }: { onSaved: () => Promise<void> | 
                           value={users[u.id] ?? AUTO}
                           onValueChange={(v) => setUsers((m) => ({ ...m, [u.id]: v }))}
                         >
-                          <SelectTrigger className="h-8 w-full" aria-label={t('technicianOf', { name: u.name })}>
+                          <SelectTrigger
+                            className="h-8 w-full"
+                            aria-label={t('technicianOf', { name: u.name })}
+                          >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>

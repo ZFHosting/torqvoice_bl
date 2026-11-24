@@ -116,7 +116,11 @@ describe('the import screen', () => {
     })
     expect(status.stage).toBe('pending')
     const link = await db.integrationLink.findFirstOrThrow({
-      where: { connectionId: shop.connectionId, entityType: 'Technician', remoteId: `user:${user.remoteId}` },
+      where: {
+        connectionId: shop.connectionId,
+        entityType: 'Technician',
+        remoteId: `user:${user.remoteId}`,
+      },
       select: { entityId: true },
     })
     expect(link.entityId).toBe(own.id)
@@ -128,7 +132,10 @@ describe('the import screen', () => {
     try {
       const outcome = await runs['load.run'](await ctx(), { dryRun: true, userId: shop.userId })
       expect(outcome).toMatchObject({ summary: expect.stringMatching(/^Load refused: .*cut over/) })
-      expect((await state()).loadRun).toMatchObject({ status: 'refused', message: expect.stringMatching(/cut over/) })
+      expect((await state()).loadRun).toMatchObject({
+        status: 'refused',
+        message: expect.stringMatching(/cut over/),
+      })
     } finally {
       await mergeState(shop, { cutover: null })
     }

@@ -24,7 +24,10 @@ test.describe('the Shopmonkey import', () => {
     await page.locator('input[name="shopmonkey-apiKey"]').fill('sm-e2e-key')
     await page.getByRole('button', { name: 'Connect', exact: true }).click()
     await expect
-      .poll(() => connectionStatus('shopmonkey'), { timeout: 30_000, message: 'Shopmonkey is active' })
+      .poll(() => connectionStatus('shopmonkey'), {
+        timeout: 30_000,
+        message: 'Shopmonkey is active',
+      })
       .toBe('active')
 
     await page.reload()
@@ -98,8 +101,13 @@ test.describe('the Shopmonkey import', () => {
   test.describe('in dark mode and another language', () => {
     test.use({ colorScheme: 'dark' })
 
-    test('shows the import, in English where the language has no words for it yet', async ({ page, baseURL }) => {
-      await page.context().addCookies([{ name: 'locale', value: 'nb', url: baseURL ?? 'http://localhost:3100' }])
+    test('shows the import, in English where the language has no words for it yet', async ({
+      page,
+      baseURL,
+    }) => {
+      await page
+        .context()
+        .addCookies([{ name: 'locale', value: 'nb', url: baseURL ?? 'http://localhost:3100' }])
       await page.goto('/settings/integrations/shopmonkey')
       await settle(page)
       const panel = page.getByTestId('shopmonkey-import')

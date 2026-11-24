@@ -102,7 +102,11 @@ export function ImportRunCard({
               disabled={busy !== null}
               onClick={() => act('stop', stopShopmonkeyExtract, t('stopAsked'))}
             >
-              {busy === 'stop' ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Pause className="mr-1 h-3.5 w-3.5" />}
+              {busy === 'stop' ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Pause className="mr-1 h-3.5 w-3.5" />
+              )}
               {t('stop')}
             </Button>
           ) : extract?.stopped ? (
@@ -112,7 +116,11 @@ export function ImportRunCard({
               disabled={busy !== null || cutOver}
               onClick={() => act('resume', resumeShopmonkeyExtract, t('resumed'))}
             >
-              {busy === 'resume' ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-1 h-3.5 w-3.5" />}
+              {busy === 'resume' ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Play className="mr-1 h-3.5 w-3.5" />
+              )}
               {t('resume')}
             </Button>
           ) : null}
@@ -123,7 +131,11 @@ export function ImportRunCard({
               disabled={busy !== null || cutOver}
               onClick={() => act('extract', startShopmonkeyImportExtract, t('extractQueued'))}
             >
-              {busy === 'extract' ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+              {busy === 'extract' ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="mr-1 h-3.5 w-3.5" />
+              )}
               {extract ? t('extractAgain') : t('extract')}
             </Button>
           )}
@@ -133,7 +145,11 @@ export function ImportRunCard({
             disabled={busy !== null || cutOver || extracting || loading || !extract?.finishedAt}
             onClick={() => load(true)}
           >
-            {busy === 'dry' ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="mr-1 h-3.5 w-3.5" />}
+            {busy === 'dry' ? (
+              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FlaskConical className="mr-1 h-3.5 w-3.5" />
+            )}
             {t('dryRun')}
           </Button>
           <Button
@@ -141,7 +157,11 @@ export function ImportRunCard({
             disabled={busy !== null || cutOver || extracting || loading || !extract?.finishedAt}
             onClick={() => load(false)}
           >
-            {busy === 'load' ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <DatabaseZap className="mr-1 h-3.5 w-3.5" />}
+            {busy === 'load' ? (
+              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <DatabaseZap className="mr-1 h-3.5 w-3.5" />
+            )}
             {t('load')}
           </Button>
         </div>
@@ -184,9 +204,7 @@ export function ImportRunCard({
                     <TableRow key={row.key}>
                       <TableCell className="font-mono text-xs">{row.key}</TableCell>
                       <TableCell>
-                        {row.skippedReason
-                          ? t('skipped')
-                          : t(`stage.${row.stage}` as 'stage.done')}
+                        {row.skippedReason ? t('skipped') : t(`stage.${row.stage}` as 'stage.done')}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {row.total !== null ? `${row.read} / ${row.total}` : row.read}

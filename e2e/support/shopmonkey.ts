@@ -41,7 +41,11 @@ export function runQueuedJobs(): void {
 }
 
 /** The id of the row a Shopmonkey record was loaded as (its link), or null. */
-export async function loadedRow(model: string, table: string, remoteId: string): Promise<string | null> {
+export async function loadedRow(
+  model: string,
+  table: string,
+  remoteId: string
+): Promise<string | null> {
   const db = new Client({ connectionString: process.env.E2E_DATABASE_URL })
   await db.connect()
   try {

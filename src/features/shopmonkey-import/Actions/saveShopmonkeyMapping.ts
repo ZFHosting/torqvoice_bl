@@ -23,12 +23,15 @@ export async function saveShopmonkeyMapping(input: unknown) {
       const mapping = inputSchema.parse(input)
       const connection = await shopmonkeyConnection(organizationId)
       // A technician id from the browser has to be this workshop's.
-      const chosen = [...new Set(Object.values(mapping.technicianMap))].filter((v) => v !== 'create')
+      const chosen = [...new Set(Object.values(mapping.technicianMap))].filter(
+        (v) => v !== 'create'
+      )
       const own = await db.technician.findMany({
         where: { organizationId, id: { in: chosen } },
         select: { id: true },
       })
-      if (own.length !== chosen.length) throw new Error('That technician is not one of this workshop.')
+      if (own.length !== chosen.length)
+        throw new Error('That technician is not one of this workshop.')
       await mergeState({ organizationId, connectionId: connection.id }, { mapping })
       return { saved: true }
     },

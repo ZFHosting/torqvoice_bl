@@ -9,7 +9,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ findMany: vi.fn() }))
 vi.mock('@/lib/db', () => ({ db: { auditLog: { findMany: mocks.findMany } } }))
 
-import { emptyChildCounts, emptyCounts, newCheckpoint, startState } from '@/integrations/shopmonkey/extract/plan'
+import {
+  emptyChildCounts,
+  emptyCounts,
+  newCheckpoint,
+  startState,
+} from '@/integrations/shopmonkey/extract/plan'
 import { tableSpec } from '@/integrations/shopmonkey/extract/tables'
 import { importView } from '@/features/shopmonkey-import/Lib/importView.server'
 
@@ -65,7 +70,11 @@ describe('the import view', () => {
   it('says a run was stopped, and gives no estimate once it has finished', async () => {
     const stopped = await importView(
       'org-1',
-      { id: 'conn-1', status: 'active', state: { extract: extract(), extractStop: { runId: 'run-1' } } },
+      {
+        id: 'conn-1',
+        status: 'active',
+        state: { extract: extract(), extractStop: { runId: 'run-1' } },
+      },
       NOW
     )
     expect(stopped.extract?.stopped).toBe(true)
@@ -99,7 +108,9 @@ describe('the import view', () => {
     ])
     const view = await importView('org-1', { id: 'conn-1', status: 'active', state: {} }, NOW)
     expect(mocks.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ organizationId: 'org-1', entityId: 'conn-1' }) })
+      expect.objectContaining({
+        where: expect.objectContaining({ organizationId: 'org-1', entityId: 'conn-1' }),
+      })
     )
     expect(view.runs).toEqual([
       { runId: 'run-b', at: '2026-01-01T13:00:00.000Z', records: 3, undone: false },

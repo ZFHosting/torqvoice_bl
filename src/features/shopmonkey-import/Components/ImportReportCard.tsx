@@ -20,7 +20,16 @@ import { reconcileShopmonkeyImport } from '../Actions/reconcileShopmonkeyImport'
 import type { ImportView } from './types'
 
 const GATES = ['counts', 'money', 'receivables', 'failures'] as const
-const BUCKETS = ['loaded', 'skipped', 'deleted', 'archive', 'folded', 'settings', 'failed', 'missing'] as const
+const BUCKETS = [
+  'loaded',
+  'skipped',
+  'deleted',
+  'archive',
+  'folded',
+  'settings',
+  'failed',
+  'missing',
+] as const
 const LISTED = 20
 
 /**
@@ -71,25 +80,39 @@ export function ImportReportCard({
           disabled={running || !view.lastLoad}
           data-testid="shopmonkey-reconcile"
         >
-          {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1 h-3.5 w-3.5" />}
+          {running ? (
+            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="mr-1 h-3.5 w-3.5" />
+          )}
           {t('run')}
         </Button>
       }
     >
       {!report ? (
-        <p className="text-sm text-muted-foreground">{view.lastLoad ? t('notRun') : t('loadFirst')}</p>
+        <p className="text-sm text-muted-foreground">
+          {view.lastLoad ? t('notRun') : t('loadFirst')}
+        </p>
       ) : (
         <div className="space-y-6 text-sm">
           <div className="space-y-2" data-testid="shopmonkey-gates">
             <p className="text-muted-foreground">
               {t('generated', {
-                time: format.dateTime(new Date(report.generatedAt), { dateStyle: 'medium', timeStyle: 'short' }),
+                time: format.dateTime(new Date(report.generatedAt), {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                }),
               })}
             </p>
             {GATES.map((name) => {
               const gate = report.gates[name]
               return (
-                <div key={name} className="flex items-start gap-2" data-gate={name} data-passed={gate.passed}>
+                <div
+                  key={name}
+                  className="flex items-start gap-2"
+                  data-gate={name}
+                  data-passed={gate.passed}
+                >
                   {gate.passed ? (
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   ) : (
@@ -97,7 +120,10 @@ export function ImportReportCard({
                   )}
                   <div>
                     <span className="font-medium">{t(`gateName.${name}`)}</span>
-                    <Badge variant={gate.passed ? 'secondary' : 'destructive'} className="ml-2 text-xs">
+                    <Badge
+                      variant={gate.passed ? 'secondary' : 'destructive'}
+                      className="ml-2 text-xs"
+                    >
                       {gate.passed ? t('pass') : t('fail')}
                     </Badge>
                     <p className="text-muted-foreground">{gateText(gate.code, gate.values)}</p>
@@ -138,7 +164,9 @@ export function ImportReportCard({
 
           {report.money.differences.length > 0 && (
             <div className="space-y-2">
-              <h4 className="font-medium">{t('differences', { count: report.money.differenceTotal })}</h4>
+              <h4 className="font-medium">
+                {t('differences', { count: report.money.differenceTotal })}
+              </h4>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -155,8 +183,12 @@ export function ImportReportCard({
                       <TableRow key={`${d.orderId}:${d.field}`}>
                         <TableCell>{d.number ?? d.orderId}</TableCell>
                         <TableCell>{t(`moneyField.${d.field}`)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{money(d.shopmonkeyCents)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{money(d.torqvoiceCents)}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {money(d.shopmonkeyCents)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {money(d.torqvoiceCents)}
+                        </TableCell>
                         <TableCell>
                           {d.explainedBy ? (
                             <span className="font-mono text-xs">{d.explainedBy}</span>

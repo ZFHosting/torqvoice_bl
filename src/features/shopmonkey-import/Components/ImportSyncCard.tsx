@@ -12,7 +12,15 @@ import { Button } from '@/components/ui/button'
 import { queueShopmonkeyCutover } from '../Actions/queueShopmonkeyCutover'
 import type { ImportView } from './types'
 
-const STEPS = ['stopped', 'delta', 'reconcile', 'numbering', 'recorded', 'syncOff', 'reminder'] as const
+const STEPS = [
+  'stopped',
+  'delta',
+  'reconcile',
+  'numbering',
+  'recorded',
+  'syncOff',
+  'reminder',
+] as const
 
 /**
  * fork (M8): the sync window (M7) and the cutover. Where Shopmonkey's webhook goes, when the sync last loaded, the
@@ -61,14 +69,18 @@ export function ImportSyncCard({
     <AppCard icon={RefreshCcw} title={t('title')} description={t('description')}>
       <div className="space-y-4 text-sm">
         {view.cutover ? (
-          <p data-testid="shopmonkey-cutover-done">{t('cutOver', { time: when(view.cutover.at) })}</p>
+          <p data-testid="shopmonkey-cutover-done">
+            {t('cutOver', { time: when(view.cutover.at) })}
+          </p>
         ) : (
           <>
             <div className="space-y-1">
               <p className="font-medium">{t('webhook')}</p>
               <p className="text-muted-foreground">{t('webhookHelp')}</p>
               <div className="flex items-center gap-2">
-                <code className="break-all rounded bg-muted px-2 py-1 text-xs">{view.webhookUrl}</code>
+                <code className="break-all rounded bg-muted px-2 py-1 text-xs">
+                  {view.webhookUrl}
+                </code>
                 <CopyValue value={view.webhookUrl} label={t('webhook')} />
               </div>
             </div>
@@ -145,7 +157,11 @@ export function ImportSyncCard({
               onClick={() => cutover(true)}
               data-testid="shopmonkey-cutover-dry"
             >
-              {busy === 'dry' ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="mr-1 h-3.5 w-3.5" />}
+              {busy === 'dry' ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <FlaskConical className="mr-1 h-3.5 w-3.5" />
+              )}
               {t('dryRun')}
             </Button>
             <Button
@@ -155,7 +171,11 @@ export function ImportSyncCard({
               onClick={() => cutover(false)}
               title={passed ? undefined : t('passFirst')}
             >
-              {busy === 'real' ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Flag className="mr-1 h-3.5 w-3.5" />}
+              {busy === 'real' ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Flag className="mr-1 h-3.5 w-3.5" />
+              )}
               {t('cutover')}
             </Button>
           </div>

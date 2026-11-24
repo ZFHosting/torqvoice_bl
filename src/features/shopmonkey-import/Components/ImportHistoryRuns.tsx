@@ -63,7 +63,11 @@ export function ImportHistoryRuns({
   }
 
   return (
-    <AppCard icon={History} title={t('title')} description={cutOver ? t('cutOver') : t('description')}>
+    <AppCard
+      icon={History}
+      title={t('title')}
+      description={cutOver ? t('cutOver') : t('description')}
+    >
       <div className="divide-y" data-testid="shopmonkey-runs">
         {view.runs.map((run) => (
           <div key={run.runId} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
@@ -71,7 +75,9 @@ export function ImportHistoryRuns({
               <span className="font-medium">
                 {format.dateTime(new Date(run.at), { dateStyle: 'medium', timeStyle: 'short' })}
               </span>
-              <span className="ml-2 text-muted-foreground">{t('records', { count: run.records })}</span>
+              <span className="ml-2 text-muted-foreground">
+                {t('records', { count: run.records })}
+              </span>
               {run.undone && (
                 <Badge variant="secondary" className="ml-2 text-xs">
                   {t('undoneBadge')}

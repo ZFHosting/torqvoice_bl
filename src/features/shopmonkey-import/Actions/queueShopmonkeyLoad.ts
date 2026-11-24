@@ -16,7 +16,8 @@ export async function queueShopmonkeyLoad(input: unknown) {
     async ({ organizationId, userId }) => {
       const { dryRun } = inputSchema.parse(input)
       const connection = await shopmonkeyConnection(organizationId)
-      if (connection.state.cutover) throw new Error('The import is cut over: nothing more is loaded.')
+      if (connection.state.cutover)
+        throw new Error('The import is cut over: nothing more is loaded.')
       const scope = { organizationId, connectionId: connection.id }
       await mergeState(scope, {
         loadRun: { status: 'queued', dryRun, at: new Date().toISOString() },

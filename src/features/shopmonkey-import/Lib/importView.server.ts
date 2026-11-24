@@ -74,7 +74,11 @@ export interface ImportView {
 
 const RUNS_LISTED = 20
 
-function extractView(state: ExtractState | undefined, stop: unknown, now: Date): ExtractView | null {
+function extractView(
+  state: ExtractState | undefined,
+  stop: unknown,
+  now: Date
+): ExtractView | null {
   if (!state?.runId) return null
   let plan: ReturnType<typeof planFor>
   try {

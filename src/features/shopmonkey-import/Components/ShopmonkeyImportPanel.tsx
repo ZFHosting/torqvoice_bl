@@ -18,7 +18,8 @@ const IDLE_MS = 30_000
 
 function busy(view: ImportView | null): boolean {
   if (!view) return false
-  const running = (s?: { status: string } | null) => s?.status === 'queued' || s?.status === 'running'
+  const running = (s?: { status: string } | null) =>
+    s?.status === 'queued' || s?.status === 'running'
   return (
     (!!view.extract && !view.extract.finishedAt && !view.extract.stopped) ||
     running(view.loadRun) ||
