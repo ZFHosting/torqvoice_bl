@@ -368,3 +368,42 @@ describe('a customer’s other emails and phones', () => {
     ).toBe('+1555')
   })
 })
+
+describe('a JSON body past the limit (A6, SECURITY-REVIEW.md item 7)', () => {
+  it('is a 413 and writes nothing, with or without a Content-Length', async () => {
+    resetKeyBudgets()
+    const { POST } = await route('customers')
+    const { MAX_JSON_BYTES } = await import('@/features/public-api/Lib/writeRoute')
+    const before = await db.customer.count({ where: { organizationId: A.org } })
+    const big = JSON.stringify({ name: 'Too long', notes: 'x'.repeat(MAX_JSON_BYTES) })
+    const said = await POST(
+      new Request('http://localhost/api/v1/customers', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${A.key}`,
+          'content-type': 'application/json',
+          'content-length': String(big.length),
+        },
+        body: big,
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(said.status).toBe(413)
+    const streamed = await POST(
+      new Request('http://localhost/api/v1/customers', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${A.key}`, 'content-type': 'application/json' },
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(big))
+            controller.close()
+          },
+        }),
+        duplex: 'half',
+      } as RequestInit),
+      { params: Promise.resolve({}) }
+    )
+    expect(streamed.status).toBe(413)
+    expect(await db.customer.count({ where: { organizationId: A.org } })).toBe(before)
+  })
+})

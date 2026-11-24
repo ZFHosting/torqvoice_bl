@@ -598,7 +598,8 @@
     "noAccessBody": "Ваша учётная запись относится к {workshop}, но ей ещё не назначена роль, поэтому открыть здесь нечего. Попросите владельца или администратора мастерской назначить вам роль.",
     "setupPageInstall": "Загрузить в Google Play",
     "setupPageInstallIos": "Загрузите в App Store",
-    "invalidInviteEmail": "Проверьте адрес электронной почты. Он должен выглядеть так: name@example.com."
+    "invalidInviteEmail": "Проверьте адрес электронной почты. Он должен выглядеть так: name@example.com.",
+    "apiKeyBadge": "API-ключ"
   },
   "invoice": {
     "title": "Счета и предложения",

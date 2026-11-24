@@ -75,6 +75,7 @@ import {
   Users,
   X,
 } from 'lucide-react'
+import { KeyRound } from 'lucide-react' // fork (A6)
 import { handleGated } from '@/components/upgrade-gate'
 
 interface Member {
@@ -83,6 +84,8 @@ interface Member {
   roleId: string | null
   customRoleName: string | null
   user: { id: string; name: string; email: string; phone?: string | null }
+  /** fork (A6): the API key this member is the service user of. */
+  apiKey?: { id: string; name: string } | null
 }
 
 interface Organization {
@@ -579,10 +582,26 @@ export function TeamSettings({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-sm">{member.user.name}</p>
+                {/* fork (A6): a key, not a person: its role is set here, the key itself in Settings → API keys */}
+                {member.apiKey && (
+                  <Badge
+                    variant="outline"
+                    className="mt-0.5 text-xs"
+                    data-testid="team-member-api-key"
+                  >
+                    <KeyRound className="mr-1 h-3 w-3" />
+                    {t('team.apiKeyBadge')}
+                  </Badge>
+                )}
                 {/* The mobile for a mechanic set up at the counter, whose
                     address is a placeholder nobody can act on, and the email
                     for everybody else. Whichever one identifies them. */}
-                <p className="truncate text-xs text-muted-foreground">{contactFor(member.user)}</p>
+                {/* fork (A6): a key's service user has a placeholder address, not a contact */}
+                {!member.apiKey && (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {contactFor(member.user)}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {technicians.has(member.user.id) && (
@@ -609,7 +628,8 @@ export function TeamSettings({
                     <TooltipContent>{t('team.revokeTechnicianTitle')}</TooltipContent>
                   </Tooltip>
                 )}
-                {isAdmin && (
+                {/* fork (A6): not for an API key, which never signs a phone in (the sign-out above stays) */}
+                {isAdmin && !member.apiKey && (
                   /* Shown for everybody, the owner included: a one-person
                      workshop is the desk and the bay, and the owner is the
                      likeliest technician in it. Only role changes and removal
@@ -684,7 +704,8 @@ export function TeamSettings({
                     <span className="ml-1 capitalize">{member.customRoleName || member.role}</span>
                   </Badge>
                 )}
-                {isAdmin && member.role !== 'owner' && (
+                {/* fork (A6): a key is revoked in Settings → API keys, not removed here */}
+                {isAdmin && member.role !== 'owner' && !member.apiKey && (
                   <Button
                     variant="ghost"
                     size="icon"

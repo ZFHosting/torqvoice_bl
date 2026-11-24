@@ -154,9 +154,13 @@ describe('Idempotency-Key', () => {
   it('forgets a response after 24 hours: the purge drops it and the key runs afresh', async () => {
     const handler = counter()
     await idem.withIdempotency(post('k-5', '{}'), scope, '{}', handler.run)
-    const day = idem.IDEMPOTENCY_TTL_MS
-    const later = new Date(Date.now() + day + 60_000)
-    expect(await idem.purgeExpiredIdempotencyKeys(later)).toBeGreaterThan(0)
+    // This test's own row made a day old, and the purge run at the real time: it never removes another test's
+    // fresh rows from the shared database.
+    await db.apiIdempotencyKey.updateMany({
+      where: { apiKeyId: scope.apiKeyId, key: 'k-5' },
+      data: { createdAt: new Date(Date.now() - idem.IDEMPOTENCY_TTL_MS - 60_000) },
+    })
+    expect(await idem.purgeExpiredIdempotencyKeys()).toBeGreaterThan(0)
     expect(
       await db.apiIdempotencyKey.count({ where: { apiKeyId: scope.apiKeyId, key: 'k-5' } })
     ).toBe(0)

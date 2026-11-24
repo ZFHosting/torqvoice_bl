@@ -21,7 +21,8 @@ export function seatsFrom(used: number, limit: number): MemberSeats {
 export async function memberSeats(organizationId: string): Promise<MemberSeats> {
   const [features, used] = await Promise.all([
     getFeatures(organizationId),
-    db.organizationMember.count({ where: { organizationId } }),
+    // fork (A6): an API key's service user is a member (that's how its role is managed) but not a seat.
+    db.organizationMember.count({ where: { organizationId, user: { apiKey: null } } }),
   ])
   return seatsFrom(used, features.maxUsers)
 }

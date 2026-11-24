@@ -36,9 +36,20 @@ export async function setMemberTechnician(input: unknown) {
       // action would happily mint a technician for any user id sent to it.
       const member = await db.organizationMember.findFirst({
         where: { userId, organizationId },
-        select: { user: { select: { id: true, name: true, email: true } } },
+        select: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              apiKey: { select: { id: true } }, // fork (A6)
+            },
+          },
+        },
       })
       if (!member?.user) throw new Error('That person is not a member of this workshop.')
+      // fork (A6): an API key's service user never works jobs, nor signs a phone in to the app
+      if (enabled && member.user.apiKey) throw new Error('This is an API key, not a person.')
 
       const existing = await db.technician.findFirst({
         where: { userId, organizationId },

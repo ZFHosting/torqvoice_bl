@@ -53,17 +53,30 @@ export async function getOrganization() {
       const memberUserIds = membership.organization.members.map((m) => m.userId)
       const users = await db.user.findMany({
         where: { id: { in: memberUserIds } },
-        select: { id: true, name: true, email: true, phone: true },
+        // fork (A6): an API key's service user, shown as the key it is
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          apiKey: { select: { id: true, name: true } },
+        },
       })
       const userMap = new Map(users.map((u) => [u.id, u]))
 
-      const membersWithUsers = membership.organization.members.map((m) => ({
-        id: m.id,
-        role: m.role,
-        roleId: m.roleId,
-        customRoleName: m.customRole?.name || null,
-        user: userMap.get(m.userId) || { id: m.userId, name: 'Unknown', email: '', phone: null },
-      }))
+      const membersWithUsers = membership.organization.members.map((m) => {
+        const found = userMap.get(m.userId)
+        return {
+          id: m.id,
+          role: m.role,
+          roleId: m.roleId,
+          customRoleName: m.customRole?.name || null,
+          user: found
+            ? { id: found.id, name: found.name, email: found.email, phone: found.phone }
+            : { id: m.userId, name: 'Unknown', email: '', phone: null },
+          apiKey: found?.apiKey ?? null, // fork (A6)
+        }
+      })
 
       return {
         organization: {
@@ -299,10 +312,14 @@ export async function removeMember(memberId: string) {
 
       const target = await db.organizationMember.findFirst({
         where: { id: memberId, organizationId },
+        include: { user: { select: { apiKey: { select: { id: true } } } } }, // fork (A6)
       })
       if (!target) throw new Error('Member not found')
       if (target.role === 'owner') throw new Error('Cannot remove the owner')
       if (target.userId === userId) throw new Error('Cannot remove yourself')
+      // fork (A6): an API key's member goes with its key, in Settings → API keys (a tab from before the Team page hid it)
+      if (target.user?.apiKey)
+        throw new Error('This is an API key: revoke it in Settings → API keys')
 
       /**
        * Taking somebody off the team takes their technician standing with it.

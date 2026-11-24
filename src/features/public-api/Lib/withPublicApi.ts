@@ -18,10 +18,20 @@ import { hasAllPermissions, type PermissionInput } from '@/lib/permissions'
 import { clientAddress } from '@/lib/rate-limit'
 import { runAsActor } from '@/lib/realtime/actor.server'
 import { documentLockedResponse } from '@/lib/with-api-auth'
+import { framesOf } from './errorFrames'
 import { publicApiError } from './errors'
 import { verifyApiKey } from './keys.server'
 import { InvalidCursorError } from './pagination'
-import { type Budget, consumeKeyBudget, failedAuthRetryAfter, recordFailedAuth } from './rateLimit'
+import {
+  type Budget,
+  consumeKeyBudget,
+  failedAuthRetryAfter,
+  recordFailedAuth,
+  recordGoodAuth,
+} from './rateLimit'
+
+/** The part of a key that names it, safe to keep in memory: the 8 characters after `tvk_`. */
+const KEY_PREFIX = /^tvk_([a-z0-9]{8})_/
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
@@ -69,9 +79,11 @@ export async function withPublicApi(
   const token = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : ''
   if (!token.startsWith('tvk_')) return refuse('missing')
 
-  // Cheap refusal first: an address that keeps presenting bad keys gets no lookup at all.
+  // Cheap refusal first: an address that keeps presenting bad keys gets no lookup at all, unless this key has
+  // authenticated from it lately (rateLimit.ts).
   const address = clientAddress(request)
-  const blockedFor = failedAuthRetryAfter(address)
+  const prefix = KEY_PREFIX.exec(token)?.[1] ?? null
+  const blockedFor = failedAuthRetryAfter(address, prefix)
   if (blockedFor !== null) {
     return publicApiError(
       429,
@@ -97,9 +109,10 @@ export async function withPublicApi(
   try {
     const verified = await verifyApiKey(token, address === 'unknown' ? null : address)
     if (!verified.ok) {
-      recordFailedAuth(address)
+      recordFailedAuth(address, prefix)
       return refuse(verified.reason)
     }
+    if (prefix) recordGoodAuth(address, prefix)
 
     budget = consumeKeyBudget(verified.apiKeyId, options.rateLimit)
     if (!budget.allowed) {
@@ -178,7 +191,15 @@ function errorResponse(request: Request, err: unknown): Response {
   if (err instanceof SyntaxError) {
     return publicApiError(400, 'invalid_request', 'The request body was not valid JSON.')
   }
-  // Ids and the path only: never a body, a header or a key.
-  console.error('[public-api]', request.method, new URL(request.url).pathname, err)
+  // Ids and the path only: never a body, a header or a key. Nor the error itself (A6, SECURITY-REVIEW.md): its message
+  // or a Prisma error's meta can quote what was sent; its class, code and the frames below the message say where it
+  // came from.
+  console.error('[public-api] request failed', {
+    method: request.method,
+    path: new URL(request.url).pathname,
+    error: err instanceof Error ? err.name : 'unknown',
+    code: (err as { code?: unknown } | null)?.code ?? null,
+    at: framesOf(err),
+  })
   return publicApiError(500, 'server_error', 'Something went wrong. Try again.')
 }

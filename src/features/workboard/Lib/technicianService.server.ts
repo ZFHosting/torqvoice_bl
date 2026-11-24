@@ -17,6 +17,16 @@ import type { ServiceCtx } from '@/lib/service-context'
 async function assertMember(organizationId: string, userId: string) {
   const member = await db.organizationMember.count({ where: { organizationId, userId } })
   if (!member) throw new Error('User not found')
+  // fork (A6): an API key's service user is a member too, but never a technician: the app's code would sign a phone in
+  // as the key (SECURITY-REVIEW.md item 17)
+  if (
+    await db.apiKey.findFirst({
+      where: { organizationId, serviceUserId: userId },
+      select: { id: true },
+    })
+  ) {
+    throw new Error('That user is an API key, not a person.')
+  }
 }
 
 export async function createTechnicianService(ctx: ServiceCtx, input: unknown) {
@@ -64,6 +74,8 @@ export async function updateTechnicianService(ctx: ServiceCtx, input: unknown) {
   const { id, skills, ...rest } = data
   // An emptied field means "no skills line", not a line of nothing.
   const updates = { ...rest, ...(skills !== undefined ? { skills: skills || null } : {}) }
+  // fork (A6): an emptied login means no login, as null does (it reached the database as a user id: a 500)
+  if (updates.userId === '') updates.userId = null
 
   // Prevent linking a user that's already linked to another technician
   if (updates.userId) {

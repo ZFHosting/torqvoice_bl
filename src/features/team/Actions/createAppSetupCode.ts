@@ -41,10 +41,19 @@ export async function createAppSetupCode(input: unknown) {
         select: {
           role: true,
           customRole: { select: { isAdmin: true } },
-          user: { select: { id: true, name: true, email: true } },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              apiKey: { select: { id: true } }, // fork (A6)
+            },
+          },
         },
       })
       if (!member?.user) throw new Error('That person is not a member of this workshop.')
+      // fork (A6): an API key's service user never signs a phone in: whoever held the code would be the key
+      if (member.user.apiKey) throw new Error('This is an API key, not a person.')
 
       // Whoever holds the code is signed in as this person, so it is only
       // issued looking down the team, never across or up (appSetupRules.ts).

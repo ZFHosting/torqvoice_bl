@@ -12,6 +12,7 @@
  */
 import 'server-only'
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { allowlisted } from './ipAddress'
 import { db } from '@/lib/db'
 
 /** Lower-case letters and digits without the look-alikes (l, 0, 1), for a prefix read off a screen. */
@@ -140,7 +141,8 @@ export async function verifyApiKey(
   if (!row || !equal) return { ok: false, reason: 'unknown' }
   if (row.revokedAt) return { ok: false, reason: 'revoked' }
   if (row.expiresAt && row.expiresAt <= now) return { ok: false, reason: 'expired' }
-  if (row.ipAllowlist.length > 0 && (!ip || !row.ipAllowlist.includes(ip))) {
+  // A6: compared in one spelling per address (`::ffff:1.2.3.4` is `1.2.3.4`; IPv6 case and zeros), ipAddress.ts.
+  if (row.ipAllowlist.length > 0 && (!ip || !allowlisted(row.ipAllowlist, ip))) {
     return { ok: false, reason: 'ip_not_allowed' }
   }
   if (!row.lastUsedAt || now.getTime() - row.lastUsedAt.getTime() >= LAST_USED_THROTTLE_MS) {

@@ -60,6 +60,61 @@ export interface WriteOptions<P extends Record<string, string>, R> {
   replayAs?: (body: unknown) => unknown
 }
 
+/** The body, or null as soon as it passes `maxBytes` (the rest is not read). */
+export async function readBounded(
+  request: Request,
+  maxBytes: number
+): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (!request.body) return new Uint8Array(new ArrayBuffer(0))
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > maxBytes) {
+      await reader.cancel().catch(() => undefined)
+      return null
+    }
+    chunks.push(value)
+  }
+  const out = new Uint8Array(new ArrayBuffer(size))
+  let at = 0
+  for (const chunk of chunks) {
+    out.set(chunk, at)
+    at += chunk.byteLength
+  }
+  return out
+}
+
+/**
+ * The most a JSON body may hold. The app's own server actions take at most 1 MB (Next's default), and `/api/v1` is
+ * outside the proxy whose body limit covers the rest of the app, so the API takes the same.
+ */
+export const MAX_JSON_BYTES = 1024 * 1024
+
+/**
+ * A JSON body as text, or a 413 once it passes `MAX_JSON_BYTES`: before it is read when it says its length, and as it
+ * arrives otherwise, so no body is held whole before its size is known (A6, SECURITY-REVIEW.md item 7).
+ */
+export async function readJsonBody(request: Request): Promise<string | Response> {
+  const tooLarge = () =>
+    publicApiError(
+      413,
+      'invalid_request',
+      `The request body is larger than ${MAX_JSON_BYTES} bytes.`
+    )
+  try {
+    assertContentLength(request, MAX_JSON_BYTES)
+  } catch {
+    return tooLarge()
+  }
+  const bytes = await readBounded(request, MAX_JSON_BYTES)
+  if (!bytes) return tooLarge()
+  return new TextDecoder().decode(bytes)
+}
+
 /**
  * An upload's form, and what `Idempotency-Key` compares it by: its fields and files in order, not its bytes, since a
  * client sending it again picks a new multipart boundary.
@@ -75,8 +130,10 @@ async function readMultipart(
   } catch {
     return tooLarge()
   }
-  const bytes = new Uint8Array(await request.arrayBuffer())
-  if (bytes.byteLength > maxBytes) return tooLarge()
+  // Read as it arrives and stopped past the limit (A6, SECURITY-REVIEW.md): a body sent without a Content-Length is
+  // never held whole before its size is known.
+  const bytes = await readBounded(request, maxBytes)
+  if (!bytes) return tooLarge()
   let form: FormData
   try {
     form = await new Response(bytes, {
@@ -163,13 +220,19 @@ export function domainErrorResponse(err: unknown): Response | null {
   }
   if (isPrismaError(err, 'P2025')) return publicApiError(404, 'not_found', 'Not found.')
   // A plain Error is a refusal the action shows the person as it is ("Customer not found", "Quote is already
-  // converted"): the caller's to read. Anything else (a driver's error, a bug) is ours.
-  if (err instanceof Error && err.constructor === Error) {
+  // converted"): the caller's to read. Anything else (a driver's error, a bug) is ours, and so is a system call's
+  // failure, though Node throws it as a plain Error: a full disk is not the caller's, and its message names the path.
+  if (err instanceof Error && err.constructor === Error && !isSystemError(err)) {
     return /not found/i.test(err.message)
       ? publicApiError(404, 'not_found', err.message)
       : publicApiError(400, 'invalid_request', err.message)
   }
   return null
+}
+
+/** Node's file system and network errors: plain Errors that carry what the system said. */
+export function isSystemError(err: Error): boolean {
+  return 'code' in err || 'errno' in err || 'syscall' in err
 }
 
 function parseBody(text: string): unknown {
@@ -193,7 +256,9 @@ export function writeRoute<P extends Record<string, string>, R>(
           upload = read.form
           text = read.text
         } else if (method !== 'DELETE') {
-          text = await request.text()
+          const read = await readJsonBody(request)
+          if (read instanceof Response) return read
+          text = read
         }
         const svc: ServiceCtx = {
           organizationId: ctx.organizationId,

@@ -57,7 +57,8 @@ export default async function SubscriptionPage({
   const [customerCount, memberCount, prices] = await Promise.all([
     countCustomersTowardLimit(authContext.organizationId),
     db.organizationMember.count({
-      where: { organizationId: authContext.organizationId },
+      // fork (A6): an API key's service user is not a seat (memberSeats.ts)
+      where: { organizationId: authContext.organizationId, user: { apiKey: null } },
     }),
     // Only a page with buy buttons needs the amounts.
     canBuy ? fetchBillingPrices(authContext.organizationId) : Promise.resolve(null),

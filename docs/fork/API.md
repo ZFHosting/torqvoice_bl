@@ -5,7 +5,8 @@ integration) can read, sync and write without screen-scraping or a second system
 technician app's API under `/api/v1/` and follows the same response shapes (`apiOk` / `apiError` in
 `src/lib/with-api-auth.ts`), so the two feel like one API.
 
-Built in milestones A1–A6 (`docs/fork/milestones/`).
+Built in milestones A1–A6 (`docs/fork/milestones/`). For integrators, [API-GUIDE.md](API-GUIDE.md) is the short version: keys, paging, the sync
+loop, idempotency and errors, with curl examples.
 
 ---
 
@@ -38,17 +39,22 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
   roles screen as staff. It also gives every record a real `userId` / `createdById` (Torqvoice requires
   one on customers, vehicles, quotes and inventory).
 - Revoking a key works immediately. `lastUsedAt` and `lastUsedIp` are recorded (throttled to one write a minute).
-- Optional per-key IP allowlist (exact addresses). It reads the caller's address the way upstream's
-  rate limiter does (`clientAddress` in `src/lib/rate-limit.ts`): `X-Real-IP`, set by the reverse proxy
-  in front of the app, or Cloudflare's `CF-Connecting-IP` when `TRUST_CF_CONNECTING_IP=true`. **It only
-  holds behind a proxy that overwrites `X-Real-IP`** (nginx with `proxy_set_header X-Real-IP
+- Optional per-key IP allowlist (exact addresses, no ranges; an entry matches the address in any spelling:
+  an IPv4-mapped IPv6 address is its IPv4 one, and IPv6 compares without regard to case or zeros). It
+  reads the caller's address the way upstream's rate limiter does (`clientAddress` in
+  `src/lib/rate-limit.ts`): `X-Real-IP`, set by the reverse proxy in front of the app, or Cloudflare's
+  `CF-Connecting-IP` when `TRUST_CF_CONNECTING_IP=true`. **It only holds behind a proxy that
+  overwrites `X-Real-IP`** (nginx with `proxy_set_header X-Real-IP
   $remote_addr`, for example): with the app's port open directly, as the shipped `docker-compose.yml`
   does, a caller can send any `X-Real-IP`. A request with no address is refused when the key has an
   allowlist. The settings screen says so under the field.
-- An address that fails authentication 30 times in a minute is refused (429) before any key lookup. It
-  reads the address the same way, so the same caveat holds: without a proxy that overwrites
-  `X-Real-IP`, a caller can spend another address's failures (and lock out a valid key using it) by
-  sending that address in the header.
+- An address that fails authentication 30 times in a minute is refused (429) before any key lookup,
+  except for a key that authenticated from that address in the last 10 minutes: that key is still
+  looked up until it fails 30 times a minute itself. The address is read the same way, so the same
+  caveat holds: without a proxy that overwrites `X-Real-IP`, a caller can spend another address's
+  failures by sending that address in the header. That locks out keys the address hasn't used in the
+  last 10 minutes, and a key in use only if the caller also sends its prefix, which is not a secret
+  (Settings → API keys shows it).
 - Server-to-server only: no CORS headers.
 
 **New tables (`prisma/schema/fork.prisma`)**
@@ -85,10 +91,10 @@ Built in milestones A1–A6 (`docs/fork/milestones/`).
 | Totals | A work order's and a quote's `subtotal`, `discountAmount`, `taxAmount`, `totalAmount` and `taxableSubtotal` are worked out from its lines, its `discountType`/`discountValue` and the tax settings, after every write that sends lines, discount or tax; sending them is a 400. A line's `total` is its quantity × unit price, or hours × rate, to the cent: one sent that says otherwise is a 400, and one left out is filled in. A change that sends none of these leaves the totals as stored (an imported invoice keeps Shopmonkey's). A quote's percentage shop fee line isn't priced again (its editor does that). `partItems`/`laborItems` replace a document's lines as the app's form does: each is priced quantity × price, with no per-line discount, and an imported line's job, kind and discount columns are carried over by matching (MAPPING §9.2) but not taken into its total; to change one line of an imported work order, whose lines can carry a discount, use `/work-orders/{id}/lines`, which keeps it. |
 | Answers | A create is 201 and a change 200, with the record as its `GET` returns it, and its `ETag`. A child (a contact, a job, a payment, an attachment) answers with itself as its list shows it, and its own `ETag`. A line has no `updatedAt` of its own: its answer carries no `ETag`, and `If-Match` on a line's `PATCH` or `DELETE` takes the work order's (`GET /work-orders/{id}`). A delete is 200 with `{ "data": { "id", "deleted": true } }` and leaves a tombstone in `/deleted`. A line removed through `/work-orders/{id}/lines/{lineId}` leaves one too (`work_order_line`), but the app's own save replaces a work order's lines with new ids and leaves none: sync lines by reading `/work-orders/{id}/lines` whole, not from tombstones. Deleting a technician deactivates them, as the app does (their clocked hours stay); they read on with `active=false`, and leave no tombstone. |
 | Changes | `PATCH` changes only the fields sent: what's left out stays as it is. To empty a text field, send `""`, as the app's forms do; `null` clears a field only where the body's schema in `openapi.json` says it's nullable (the API's own bodies use it for an optional link: a line's `jobId`, an appointment's `customerId`). The services the app's forms use for whole-record saves were made to work this way (the forms send every field, so the app is unchanged). |
-| Errors | A body that fails validation: 400 `invalid_request` with `details` as `[{ path, message }]`. A record of another workshop, or none: 404. An issued or locked invoice: 409 `document_locked` with `details.reason`. A plan feature that's off: 403 `forbidden` with `details.gate`. A plan's count limit (photos on a work order, for one) is the app's own refusal: 400 with its message. A restore in progress: 409 `conflict`. Completing a job without the vehicle's required meter readings: 400 with `details.meters`; custom field values the workshop refuses: 400 with `details.fields`. Any other refusal the app would show the person ("This part does not track stock"): 400 with its message. |
+| Errors | A body that fails validation: 400 `invalid_request` with `details` as `[{ path, message }]`. A record of another workshop, or none: 404. An issued or locked invoice: 409 `document_locked` with `details.reason`. A plan feature that's off: 403 `forbidden` with `details.gate`. A plan's count limit (photos on a work order, for one) is the app's own refusal: 400 with its message. A restore in progress: 409 `conflict`. Completing a job without the vehicle's required meter readings: 400 with `details.meters`; custom field values the workshop refuses: 400 with `details.fields`. Any other refusal the app would show the person ("This part does not track stock"): 400 with its message. A JSON body over 1 MiB (the most the app's own forms may send): 413 `invalid_request`, checked as uploads are. |
 | Audit and webhooks | Each write logs the audit event the app's action logs, before the API answers; the webhook deliveries it fans out to go out in the background, as they do for a click. Where the app's action logs none, neither does the API: a stock adjustment and a work order attachment are in the part's stock history and on the work order, not in the audit log. A line changed one at a time is the work order changed (`service.update`). Starting a clock (`/time-entries/start`) logs `time_entry.start`, which A5 adds to the webhook events. |
 | Times typed in | Appointments and time entries take the workshop's wall clock, as their dialogs do: `startDate` `YYYY-MM-DD` with `startTime` `HH:MM`, or `YYYY-MM-DDTHH:MM`, to the minute. Shifts (the fork's own) take ISO 8601 instants. Everything comes back as ISO 8601 UTC. |
-| Uploads | `POST /work-orders/{id}/attachments` is `multipart/form-data`: the file in `file`, with `category`, `description` and `includeInInvoice` beside it. JPEG, PNG, WebP or HEIC up to 60 MB, PDF, text or CSV up to 25 MB, MP4, MOV or WebM up to 250 MB. Photos, PDFs and videos must be what their type says by their first bytes, and text must have no NUL bytes. The stored name is made by the server. A body without a `Content-Length` is read in full before its size is checked (A6 looks at streaming the check). |
+| Uploads | `POST /work-orders/{id}/attachments` is `multipart/form-data`: the file in `file`, with `category`, `description` and `includeInInvoice` beside it. JPEG, PNG, WebP or HEIC up to 60 MB, PDF, text or CSV up to 25 MB, MP4, MOV or WebM up to 250 MB. Photos, PDFs and videos must be what their type says by their first bytes, and text must have no NUL bytes. The stored name is made by the server. An upload over its limit is a 413: before it is read when it says its length, and as soon as it passes the limit otherwise (it is read as it arrives, never held whole first). |
 | Idempotency | As §3, for every `POST`. An upload's `Idempotency-Key` compares its fields and files, not the multipart boundary, so a retry is a replay. A replay answers with the stored body but no `ETag` (read the record for it). A webhook's signing secret isn't kept for a replay: a replayed create answers with `secret: null`. |
 
 ## 4. Resources

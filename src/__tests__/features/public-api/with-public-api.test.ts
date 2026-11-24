@@ -161,6 +161,100 @@ describe('withPublicApi', () => {
     expect(mocks.verifyApiKey).toHaveBeenCalledTimes(FAILED_AUTH_LIMIT)
   })
 
+  it('lets a key that authenticated from a blocked address keep working, but no new one (A6)', async () => {
+    const other = `tvk_zzzzzzzz_${'x'.repeat(43)}`
+    const fresh = `tvk_yyyyyyyy_${'y'.repeat(43)}`
+    const withKey = (key: string) =>
+      new Request('http://localhost/api/v1/settings', {
+        headers: { authorization: `Bearer ${key}`, 'x-real-ip': '203.0.113.9' },
+      })
+    // The integration's key works from its address.
+    expect((await withPublicApi(withKey(KEY), async () => new Response('ok'))).status).toBe(200)
+    // Someone with that address (spoofed) presents bad keys until the address is blocked.
+    mocks.verifyApiKey.mockResolvedValue({ ok: false, reason: 'unknown' })
+    const { FAILED_AUTH_LIMIT } = await import('@/features/public-api/Lib/rateLimit')
+    for (let i = 0; i < FAILED_AUTH_LIMIT; i++) {
+      await withPublicApi(withKey(other), async () => new Response())
+    }
+    expect((await withPublicApi(withKey(other), async () => new Response())).status).toBe(429)
+    expect((await withPublicApi(withKey(fresh), async () => new Response())).status).toBe(429)
+    // The key that already worked is still looked up, and still works.
+    mocks.verifyApiKey.mockResolvedValue({
+      ok: true,
+      apiKeyId: 'key-1',
+      organizationId: 'org-1',
+      serviceUserId: 'svc-1',
+    })
+    expect((await withPublicApi(withKey(KEY), async () => new Response('ok'))).status).toBe(200)
+    // Written another way, the address is the same one: its block holds.
+    const mapped = new Request('http://localhost/api/v1/settings', {
+      headers: { authorization: `Bearer ${fresh}`, 'x-real-ip': '::ffff:203.0.113.9' },
+    })
+    expect((await withPublicApi(mapped, async () => new Response())).status).toBe(429)
+  })
+
+  it('knows a trusted key at its address however the address is written, and caps the address (A6)', async () => {
+    const from = (ip: string, key = KEY) =>
+      new Request('http://localhost/api/v1/settings', {
+        headers: { authorization: `Bearer ${key}`, 'x-real-ip': ip },
+      })
+    expect((await withPublicApi(from('203.0.113.11'), async () => new Response('ok'))).status).toBe(
+      200
+    )
+    mocks.verifyApiKey.mockResolvedValue({ ok: false, reason: 'unknown' })
+    const { FAILED_AUTH_LIMIT } = await import('@/features/public-api/Lib/rateLimit')
+    const other = `tvk_zzzzzzzz_${'x'.repeat(43)}`
+    for (let i = 0; i < FAILED_AUTH_LIMIT; i++) {
+      await withPublicApi(from('203.0.113.11', other), async () => new Response())
+    }
+    mocks.verifyApiKey.mockResolvedValue({
+      ok: true,
+      apiKeyId: 'key-1',
+      organizationId: 'org-1',
+      serviceUserId: 'svc-1',
+    })
+    // The same address over IPv6: the key is still the one that worked there.
+    expect(
+      (await withPublicApi(from('::ffff:203.0.113.11'), async () => new Response('ok'))).status
+    ).toBe(200)
+    // A header past any address's length counts as its first 64 characters, so it can't grow the maps.
+    const long = 'a'.repeat(64)
+    mocks.verifyApiKey.mockResolvedValue({ ok: false, reason: 'unknown' })
+    for (let i = 0; i < FAILED_AUTH_LIMIT; i++) {
+      await withPublicApi(from(`${long}${i}`, other), async () => new Response())
+    }
+    expect(
+      (await withPublicApi(from(`${long}-new`, other), async () => new Response())).status
+    ).toBe(429)
+  })
+
+  it('stops a known key’s prefix too once it fails as often itself', async () => {
+    const at = (key: string) =>
+      new Request('http://localhost/api/v1/settings', {
+        headers: { authorization: `Bearer ${key}`, 'x-real-ip': '203.0.113.10' },
+      })
+    expect((await withPublicApi(at(KEY), async () => new Response('ok'))).status).toBe(200)
+    mocks.verifyApiKey.mockResolvedValue({ ok: false, reason: 'unknown' })
+    const { FAILED_AUTH_LIMIT } = await import('@/features/public-api/Lib/rateLimit')
+    const guessed = `tvk_abcdefgh_${'g'.repeat(43)}`
+    for (let i = 0; i < FAILED_AUTH_LIMIT; i++) {
+      expect((await withPublicApi(at(guessed), async () => new Response())).status).toBe(401)
+    }
+    expect((await withPublicApi(at(guessed), async () => new Response())).status).toBe(429)
+  })
+
+  it('logs where a 500 came from without its message (A6)', async () => {
+    mocks.verifyApiKey.mockRejectedValue(new Error('customer jane@example.com broke it'))
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    await withPublicApi(req(), async () => new Response())
+    const logged = JSON.stringify(spy.mock.calls)
+    expect(logged).not.toContain('jane@example.com')
+    const [, fields] = spy.mock.calls[0] as [string, { at: string[] }]
+    expect(fields.at.length).toBeGreaterThan(0)
+    expect(fields.at.every((frame) => frame.startsWith('at '))).toBe(true)
+    spy.mockRestore()
+  })
+
   it('answers a database error before the handler in the same shape, saying nothing of it', async () => {
     mocks.verifyApiKey.mockRejectedValue(new Error('connect ECONNREFUSED db:5432'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined)

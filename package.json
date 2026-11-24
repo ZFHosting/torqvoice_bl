@@ -129,6 +129,7 @@
     "@types/ws": "^8.18.1",
     "@types/yauzl": "^3.4.0",
     "@vitest/coverage-v8": "^4.1.12",
+    "fast-check": "^3.23.2",
     "jsdom": "^30.0.1",
     "jszip": "^3.10.1",
     "mailparser": "^3.9.33",

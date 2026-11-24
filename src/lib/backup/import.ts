@@ -1024,7 +1024,12 @@ export async function restoreBackup(
           ]
           const members = linkedUserIds.length
             ? await tx.organizationMember.findMany({
-                where: { organizationId: ctx.organizationId, userId: { in: linkedUserIds } },
+                // fork (A6): never linked to an API key's service user, whatever the backup says
+                where: {
+                  organizationId: ctx.organizationId,
+                  userId: { in: linkedUserIds },
+                  user: { apiKey: null },
+                },
                 select: { userId: true },
               })
             : []
