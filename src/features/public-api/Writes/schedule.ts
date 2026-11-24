@@ -224,7 +224,8 @@ export const startTimeEntryPOST = writeRoute('POST', {
       technicianId,
       serviceRecordId: workOrderId,
       closedEntryId: started.closed?.id ?? null,
-      // A5: from what startEntry did (two starts at once can't both look fresh).
+      // A5: from what startEntry did, not from a read of its own: one start event for each entry it created, none
+      // for a tap on the clock already running.
       running: started.fresh === false,
     }
   },

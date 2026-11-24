@@ -1,7 +1,8 @@
 /**
  * fork (A5) on a real PostgreSQL (`npm run test:db`): what A5 added to the app's own paths, through those paths (the
  * real `withAuth` and audit log, signed in as the workshop's owner). The app's clock sends `time_entry.start` and
- * `time_entry.stop` (and the stop of a clock a start closed; nothing for a tap on the clock already running); an
+ * `time_entry.stop` (and the stop of a clock a start closed; nothing for a tap on the clock already running), and the
+ * technician app finishing a job sends a stop for every clock on it; an
  * invoice issued sends `work_order.issue`, a backfill doesn't; deleting an inspection, pulling a payment back from
  * the accounting system and turning an appointment into a work order leave tombstones (the last its delete event
  * too); the content wipe, removing the sample data and undoing a spreadsheet import leave a `reset` marker, the wipe
@@ -166,10 +167,29 @@ describe('the app’s own clock', () => {
 })
 
 describe('the technician app finishing a job', () => {
-  it('sends a time_entry.stop for each clock it stops', async () => {
-    const before = (await eventsOf(shop.org, 'timeEntry.update')).audits.length
+  it('sends one time_entry.stop for each clock it stops, whoever started it', async () => {
+    const stopsBefore = await deliveries('time_entry.stop', 0)
+    const auditsBefore = (await eventsOf(shop.org, 'timeEntry.update')).audits.length
     const { startMyClock } = await import('@/features/time-tracking/Actions/timeClockActions')
     expect((await startMyClock({ serviceRecordId: ids.jobA })).success).toBe(true)
+    // A colleague's clock on the same job.
+    const colleague = await db.technician.create({
+      data: { organizationId: shop.org, name: 'Colleague' },
+      select: { id: true },
+    })
+    await db.timeEntry.create({
+      data: {
+        organizationId: shop.org,
+        technicianId: colleague.id,
+        serviceRecordId: ids.jobA,
+        startedAt: new Date(Date.now() - 30 * 60_000),
+      },
+    })
+    const running = await db.timeEntry.findMany({
+      where: { serviceRecordId: ids.jobA, endedAt: null },
+      select: { id: true },
+    })
+    expect(running).toHaveLength(2)
     const { PATCH } = await import('@/app/api/v1/tech/jobs/[id]/status/route')
     const res = await PATCH(
       new Request('http://localhost/api/v1/tech/jobs/x/status', {
@@ -183,7 +203,13 @@ describe('the technician app finishing a job', () => {
     expect(await db.timeEntry.count({ where: { serviceRecordId: ids.jobA, endedAt: null } })).toBe(
       0
     )
-    expect((await audits('timeEntry.update', before + 1)).audits).toHaveLength(before + 1)
+    // One stop for each of the two clocks, as time_entry.stop (not time_entry.update), about those entries.
+    const stops = await audits('timeEntry.update', auditsBefore + 2)
+    expect(stops.audits).toHaveLength(auditsBefore + 2)
+    expect(stops.audits.map((a) => a.entityId)).toEqual(
+      expect.arrayContaining(running.map((e) => e.id))
+    )
+    expect(await deliveries('time_entry.stop', stopsBefore + 2)).toBe(stopsBefore + 2)
   })
 })
 
