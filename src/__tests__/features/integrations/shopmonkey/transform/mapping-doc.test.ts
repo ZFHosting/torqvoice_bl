@@ -16,7 +16,10 @@ function documented(): Record<string, string[]> {
   const doc = fs
     .readFileSync(path.join(process.cwd(), 'docs/fork/MAPPING.md'), 'utf-8')
     .replace(/\r\n/g, '\n')
-  const section = doc.slice(doc.indexOf('## 11. Fields kept in the archive only'))
+  const start = doc.indexOf('## 11. Fields kept in the archive only')
+  // §11 only: up to the next section (§12, the reconciliation, has tables of its own).
+  const next = doc.indexOf('\n## ', start + 1)
+  const section = doc.slice(start, next === -1 ? undefined : next)
   const out: Record<string, string[]> = {}
   for (const m of section.matchAll(/^\| `([^`]+)` \| (.*) \|$/gm)) {
     out[m[1]] = [...m[2].matchAll(/`([^`]+)`/g)].map((f) => f[1])
