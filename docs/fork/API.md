@@ -138,18 +138,20 @@ these (listed in that file under a `// fork:` comment, and sent from the matchin
 `logAudit`):
 
 `appointment.create`, `appointment.update`, `appointment.delete`, `time_entry.start`, `time_entry.stop`,
-`time_entry.update`, `shift.create`, `shift.update`, `technician.create`, `technician.update`,
-`work_order.issue`, `job.create`, `job.update`, `job.delete`, `contact.create`, `contact.update`,
-`contact.delete`.
+`time_entry.create`, `time_entry.update`, `time_entry.delete`, `shift.create`, `shift.update`, `shift.delete`,
+`technician.create`, `technician.update`, `technician.delete`, `work_order.issue`, `job.create`, `job.update`,
+`job.delete`, `contact.create`, `contact.update`, `contact.delete` (A5 added the three deletes and
+`time_entry.create`/`delete` beside the list first planned: a subscriber syncing those lists needs them).
 
 Payloads keep the existing shape (`event`, `entity`, `entityId`, `data`). `data` is the same serialized
-resource the API returns for that entity, so a subscriber never has to call back for basics.
+resource the API returns for that entity, read when the event is sent and scoped by the workshop, so a subscriber
+never has to call back for basics (`features/public-api/Lib/eventData.server.ts`); a delete's `data` is `{ id }`.
 
-Already in the audit log since A4, and sent once A5 lists them: `appointment.*` and `technician.*` (the app's
-own audit actions), `contact.*`, `job.*` and `shift.*` (the fork's records), and `time_entry.start` (the API's
-clock start). The app logs time entries as `timeEntry.create`, `timeEntry.update` (a stop too) and
-`timeEntry.delete`; A5 decides whether `time_entry.stop` and `time_entry.update` are those under new names or
-events beside them.
+Time entries (A5's decision): the app logs `timeEntry.create`, `timeEntry.update` (a stop too) and `timeEntry.delete`;
+they go out as `time_entry.create`, `time_entry.stop` (an update that stopped the clock), `time_entry.update` and
+`time_entry.delete`. `time_entry.start` is the API's own clock start; the technician app's start logs nothing, so it
+sends nothing. `work_order.issue` is sent when an invoice is issued (sent, paid, frozen), never for the Shopmonkey
+import's backfill. Each fork event is in the webhook settings under its own group, with a sample payload.
 
 ## 6. Code layout
 
